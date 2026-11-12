@@ -174,3 +174,26 @@ def test_production_logging_writes_rotating_file(prod_env):
             if hd not in before:
                 root.removeHandler(hd)
                 hd.close()
+
+
+def test_logs_never_contain_telegram_token(prod_env):
+    """Regresión v1.2: httpx registra la URL completa en INFO y la URL de Telegram lleva el token."""
+    import httpx
+    from monitoreo.__main__ import configure_logging
+    root = logging.getLogger()
+    before = list(root.handlers)
+    secret = "987654321:AAFakeTokenSoloParaPruebas_xyz"
+    try:
+        configure_logging("produccion")
+        cli = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"ok": True})))
+        cli.post(f"https://api.telegram.org/bot{secret}/sendMessage", json={})
+        logging.getLogger("monitoreo").error("fallo en https://api.telegram.org/bot%s/getMe", secret)
+        for hd in root.handlers:
+            hd.flush()
+        text = (settings.data_dir / "logs" / "monitoreo.log").read_text(encoding="utf-8")
+        assert "getMe" in text and secret not in text and "AAFake" not in text
+    finally:
+        for hd in root.handlers[:]:
+            if hd not in before:
+                root.removeHandler(hd)
+                hd.close()

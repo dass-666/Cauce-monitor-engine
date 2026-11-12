@@ -2,6 +2,7 @@
 import logging
 import logging.handlers
 import os
+import re
 import sys
 import threading
 import time
@@ -15,6 +16,20 @@ from .app import create_app
 from .config import settings
 
 
+_TOKEN_RE = re.compile(r"/bot\d+:[A-Za-z0-9_-]+")
+
+
+class RedactSecrets(logging.Filter):
+    """Oculta tokens de bot de Telegram (httpx registra la URL completa de cada petición en INFO)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        clean = _TOKEN_RE.sub("/bot<oculto>", msg)
+        if clean != msg:
+            record.msg, record.args = clean, None
+        return True
+
+
 def configure_logging(env: str) -> None:
     """Producción: registro en data/logs/monitoreo.log con rotación (10 MB x 5) además de la consola.
     Los registros nunca incluyen contraseñas ni tokens (la auditoría los redacta)."""
@@ -26,12 +41,16 @@ def configure_logging(env: str) -> None:
         sh = logging.StreamHandler()
         sh.setFormatter(fmt)
         root.addHandler(sh)
+    for h in root.handlers:
+        if not any(isinstance(f, RedactSecrets) for f in h.filters):
+            h.addFilter(RedactSecrets())
     if env == entorno.PRODUCCION:
         logs = settings.data_dir / "logs"
         logs.mkdir(parents=True, exist_ok=True)
         fh = logging.handlers.RotatingFileHandler(logs / "monitoreo.log", maxBytes=10 * 1024 * 1024,
                                                   backupCount=5, encoding="utf-8")
         fh.setFormatter(fmt)
+        fh.addFilter(RedactSecrets())
         root.addHandler(fh)
 
 
