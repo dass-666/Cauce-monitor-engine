@@ -32,6 +32,22 @@ from .resilience import backoff_delay
 
 log = logging.getLogger("monitoreo.alertas")
 
+_http_lock = threading.Lock()
+_http: httpx.Client | None = None
+
+
+def http_client() -> httpx.Client:
+    """Cliente HTTP compartido por los canales (webhook, Telegram). Crear uno por envío cargaba
+    los certificados TLS cada vez (~20 ms de CPU) y no reutilizaba conexiones: con un destinatario
+    caído y reintentos, eso dominaba el consumo de CPU (medido en la prueba de resistencia v1.1).
+    Sin seguir redirecciones: una redirección podría llevar a un host no permitido."""
+    global _http
+    with _http_lock:
+        if _http is None:
+            _http = httpx.Client(follow_redirects=False,
+                                 limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+        return _http
+
 
 class DeliveryError(Exception):
     def __init__(self, msg: str, permanent: bool = False, retry_after: float | None = None):
@@ -104,7 +120,7 @@ class WebhookSender(ChannelSender):
         headers = {"Content-Type": "application/json", "X-Id-Alerta": str(alert_payload["dedup_key"]),
                    "X-Firma-SHA256": _sign(body, secret)}
         try:
-            r = httpx.post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
+            r = http_client().post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
         except httpx.HTTPError as e:
             raise DeliveryError(f"error de red: {e.__class__.__name__}") from e
         if 200 <= r.status_code < 300:

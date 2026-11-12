@@ -12,20 +12,30 @@ plataforma externa.
 - Arquitectura y decisiones: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)
 - Integrar nuevas fuentes: [docs/CONECTORES.md](docs/CONECTORES.md)
 - Informe de la primera versión (pruebas y cifras medidas): [docs/INFORME.md](docs/INFORME.md)
+- **Novedades v1.1** (migraciones, historial, recuperación, Telegram, Salud, resistencia):
+  [docs/INFORME_v1.1.md](docs/INFORME_v1.1.md) · Telegram: [docs/TELEGRAM.md](docs/TELEGRAM.md)
 
 ## Instalación en Windows
 
-Requisitos: **Python 3.11 o superior** (https://www.python.org/downloads/, marca *Add python.exe to PATH*).
+Requisitos: **Python 3.11, 3.12, 3.13 o 3.14** (recomendado 3.13; https://www.python.org/downloads/,
+marca *Add python.exe to PATH*). Con Python 3.15 una dependencia todavía no tiene paquete para Windows;
+si tienes varias versiones, el instalador elige sola una compatible.
 
-1. Descomprime la carpeta `motor-monitoreo` donde quieras (por ejemplo `C:\monitoreo`).
+1. Descomprime la carpeta `motor-monitoreo` en una ruta local, por ejemplo `C:\monitoreo`.
+   **Evita carpetas sincronizadas por OneDrive** (Escritorio y Documentos suelen estarlo):
+   la sincronización puede bloquear o dañar la base SQLite mientras el motor la usa.
 2. Abre PowerShell **en esa carpeta** (Shift + clic derecho → *Abrir ventana de PowerShell aquí*) y ejecuta:
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\instalar.ps1
    ```
-   Crea un entorno virtual `.venv`, instala dependencias y te pide la contraseña del
-   usuario `admin` (mínimo 10 caracteres con letras y números). Se guarda en `.env`.
+   Busca un Python compatible, crea un entorno virtual `.venv`, instala dependencias (se detiene
+   con un mensaje claro si algo falla) y te pide dos veces la contraseña del usuario `admin`
+   (no se ve al escribir; mínimo 10 caracteres con letras y números). Se guarda en `.env`.
+   Si usarás PostgreSQL añade `-ConPostgres`.
 3. Inicia el sistema con doble clic en **`iniciar.bat`** (o `.\.venv\Scripts\python -m monitoreo`).
-   Se abre http://127.0.0.1:8000. Entra con `admin` y tu contraseña.
+   El navegador se abre solo en http://127.0.0.1:8000 cuando el servidor está listo.
+   Entra con `admin` y tu contraseña. Al arrancar, el esquema de la base se actualiza solo
+   (con respaldo previo en `data\respaldos`) si vienes de la versión 1.0.
 4. Para detenerlo: `Ctrl + C` en la ventana negra. Los datos quedan en `data\monitoreo.db`
    y se conservan al reiniciar.
 5. Pruebas automatizadas: doble clic en **`pruebas.bat`** (o `.\.venv\Scripts\python -m pytest -q`).
@@ -38,7 +48,7 @@ Requisitos: **Python 3.11 o superior** (https://www.python.org/downloads/, marca
 ```bash
 python -m venv .venv
 .venv\Scripts\activate            # Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt   # con PostgreSQL: pip install -r requirements-postgres.txt
 copy .env.ejemplo .env            # y edita MONITOREO_ADMIN_PASSWORD
 python -m monitoreo
 ```
@@ -48,7 +58,12 @@ python -m monitoreo
 ```
 MONITOREO_DB_URL=postgresql+psycopg://usuario:clave@localhost:5432/monitoreo
 ```
-Las tablas se crean solas al arrancar. Para ejecutar también las pruebas sobre PostgreSQL:
+Instala el controlador: `pip install -r requirements-postgres.txt` (o `instalar.ps1 -ConPostgres`).
+Las tablas se crean o actualizan solas al arrancar (migraciones Alembic). Antes de actualizar un
+esquema con datos se ejecuta `pg_dump`; si no está instalado, la actualización se detiene
+(ver `MONITOREO_RESPALDO_PG` en `.env.ejemplo`). Estado y respaldo manual:
+`python -m monitoreo.migrate estado` · `python -m monitoreo.migrate respaldar`.
+Para ejecutar también las pruebas sobre PostgreSQL:
 `set MONITOREO_TEST_PG=postgresql+psycopg://usuario:clave@localhost/monitoreo_test` y `pytest`.
 
 ## Recorrido de los criterios de aceptación (5 minutos)
@@ -63,6 +78,8 @@ Las tablas se crean solas al arrancar. Para ejecutar también las pruebas sobre 
 8. **Consultar el historial** → clic en la solicitud: línea de tiempo de estados y asignaciones.
 9. **Reiniciar sin perder datos**: cierra la ventana, vuelve a abrir `iniciar.bat`; todo sigue ahí.
 10. **Pruebas automatizadas**: `pruebas.bat`.
+11. **(v1.1) Salud** → estado del planificador, de cada región y fuente; pulsa una fuente para ver
+    en lenguaje claro **por qué no se actualiza** y qué hacer.
 
 En el laboratorio también puedes agotar inventario, cancelar eventos, cambiar horarios, lanzar
 **picos de cambios simultáneos**, poner **varias solicitudes compitiendo** por un mismo recurso y
@@ -75,12 +92,15 @@ monitoreo/
   app.py, __main__.py      Aplicación FastAPI y arranque
   config.py, db.py, models.py, contracts.py, security.py
   connectors/              Interfaz + simulación, JSON, CSV, HTTP
-  engine/                  planificador, pipeline, detector, asignación, alertas, resiliencia, integridad
+  engine/                  planificador, pipeline, detector, asignación, alertas, resiliencia, integridad,
+                           arrendamiento (lease), recuperación, retención del historial
+  migrations/, migrate.py  migraciones Alembic con respaldo previo
+  notifiers/, emuladores/  canal Telegram y su emulador local
   simulator/               mundo ficticio, datos de demostración, simulación acelerada
   api/                     rutas REST, esquemas de validación, API de prueba local
   web/                     panel (HTML/CSS/JS sin compilación)
 tests/                     pruebas automatizadas (pytest)
-scripts/                   benchmark.py, medir_servidor.py, e2e_panel.js
+scripts/                   benchmark.py, medir_servidor.py, e2e_panel.js, resistencia.py
 docs/                      arquitectura, conectores, informe y resultados medidos
 ```
 

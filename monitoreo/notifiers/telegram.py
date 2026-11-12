@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 import httpx
 
 from ..config import settings
-from ..engine.alerts import ChannelSender, DeliveryError
+from ..engine.alerts import ChannelSender, DeliveryError, http_client
 
 DEFAULT_API = "https://api.telegram.org"
 MAX_LEN = 4000
@@ -86,9 +86,9 @@ class TelegramSender(ChannelSender):
             if chat in done or chat in failed:
                 continue
             try:
-                r = httpx.post(f"{env['api']}/bot{env['token']}/sendMessage",
-                               json={"chat_id": chat, "text": text, "disable_web_page_preview": True},
-                               timeout=float(self.config.get("timeout_s", 10)))
+                r = http_client().post(f"{env['api']}/bot{env['token']}/sendMessage",
+                                      json={"chat_id": chat, "text": text, "disable_web_page_preview": True},
+                                      timeout=float(self.config.get("timeout_s", 10)))
             except httpx.HTTPError as e:
                 # El mensaje de httpx incluye la URL (con el token): no se propaga.
                 transient.append(f"chat …{chat[-3:]}: red ({e.__class__.__name__})")

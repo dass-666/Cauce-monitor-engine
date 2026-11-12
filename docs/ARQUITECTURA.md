@@ -84,6 +84,52 @@ minutos **con el mismo código** que corre en producción.
 **7. Simulación acelerada aislada.** Se ejecuta sobre una BD temporal para no mezclar miles
 de eventos con fechas virtuales con los datos de operación.
 
+## Decisiones de la versión 1.1
+
+**8. Migraciones con Alembic y respaldo previo obligatorio.** `0001_v1_0` reproduce exactamente
+el esquema de la v1.0 (comprobado contra una base creada por el código real de la v1.0);
+`0002_v1_1` solo **añade** tablas, columnas que admiten nulos e índices, así que no reescribe
+datos. Una base v1.0 sin versionar se reconoce por sus tablas y se marca como `0001` sin
+tocarla. Si la base tiene tablas que no reconoce, no se modifica nada. Antes de cambiar un
+esquema con datos: copia consistente (API de respaldo de SQLite, verificada con
+`integrity_check`) o `pg_dump`. Dos arranques simultáneos no migran a la vez
+(`BEGIN IMMEDIATE` / `pg_advisory_xact_lock`).
+
+**9. Un solo planificador activo, coordinado por la base de datos (arrendamiento).** La tabla
+`scheduler_leases` tiene una fila con titular y vencimiento. Cada ciclo el líder la renueva con
+un `UPDATE` condicional; otra instancia solo la toma si venció. Cada instancia se considera líder
+solo durante 2/3 del plazo desde su última renovación confirmada, para que dos relojes con
+pequeñas diferencias no se solapen. Con `fencing_token` creciente en cada relevo. Las consultas
+en curso comprueban el liderazgo (`guard`) antes de guardar resultados. Se eligió la BD y no
+Redis porque ya es la pieza compartida y la exactitud no depende del reloj de otra máquina.
+Limitación: si el líder se congela más que el plazo y luego vuelve, una entrega que estaba
+enviando puede repetirse (entrega "al menos una vez"; ver punto 4).
+
+**10. Recuperación al asumir el liderazgo, no al arrancar.** Quien se convierte en líder
+reencola entregas que quedaron en `ENVIANDO` (en un relevo, solo las reclamadas hace más que el
+plazo del arrendamiento, para no pisar a una instancia que sigue viva), marca simulaciones
+interrumpidas y deja un informe en `settings['recuperacion.ultima']`. Lo demás ya era durable:
+eventos sin procesar (outbox), asignaciones y su caducidad, estado del circuito y próxima
+consulta (incluido el `Retry-After` del proveedor) están en la BD. La cubeta de límite por
+minuto se reconstruye desde `last_polled_at`, así que un reinicio no provoca una ráfaga.
+
+**11. Historial: resumir antes de borrar.** Cada hora cerrada se resume en `poll_stats_hourly`
+y cada día en `poll_stats_daily`; una marca de agua (`retencion.agregado_hasta`) registra hasta
+dónde se resumió y **nunca se borra una consulta no resumida**. El borrado va por lotes
+pequeños con pausas, en una tarea aparte del ciclo del motor. Nunca se borran: auditoría,
+solicitudes y su historial, asignaciones, alertas, entregas, eventos que generaron alerta o
+asignación, ni los agregados diarios.
+
+**12. Observabilidad sin dependencias nuevas.** `/api/observabilidad` y
+`/api/diagnostico/fuentes/{id}` calculan el estado a partir de la BD y del planificador.
+El diagnóstico ordena causas por gravedad (CRÍTICO, AVISO, INFO) con la acción sugerida.
+Prometheus/Grafana quedan como opción futura si hay varios servidores.
+
+**13. Regla para el código: nunca abrir una sesión dentro de otra.** En SQLite cada transacción
+toma el candado de escritura al empezar; una sesión anidada en el mismo hilo espera a la
+exterior hasta agotar el tiempo (30 s). Las pruebas activan `MONITOREO_DETECTAR_ANIDADAS=1`,
+que convierte ese error en un fallo inmediato. Se encontraron y corrigieron dos casos en v1.1.
+
 ## Máquina de estados de solicitudes
 
 ```
@@ -107,7 +153,7 @@ cubra la región, con capacidad libre, menor carga y el que hace más tiempo no 
 |---|---|
 | Intervalo configurable | `sources.interval_s` |
 | Variación temporal controlada | `sources.jitter_pct` (± %) |
-| Límite de solicitudes | cubeta de fichas `rate_limit_per_min` (en memoria) |
+| Límite de solicitudes | cubeta de fichas `rate_limit_per_min` (en memoria; desde v1.1 se reconstruye tras un reinicio) |
 | Reintentos con retroceso exponencial | dentro de una consulta (`max_retries`) y entre consultas fallidas (`backoff_max_s`) |
 | Pausa automática | circuit breaker: tras `umbral_circuito` fallos se abre `enfriamiento_circuito_s`; tras `aperturas_hasta_error` aperturas la fuente pasa a `ERROR` (revisión manual) |
 | Control de concurrencia | semáforo global `concurrencia_maxima`; una fuente nunca en paralelo consigo misma |
