@@ -93,8 +93,10 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
 
     from .api.routes import router
     from .api.test_api import router as test_router
+    from .emuladores.telegram import router as telegram_emulator
     app.include_router(router)
     app.include_router(test_router)
+    app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/", include_in_schema=False)

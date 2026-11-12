@@ -34,9 +34,10 @@ log = logging.getLogger("monitoreo.alertas")
 
 
 class DeliveryError(Exception):
-    def __init__(self, msg: str, permanent: bool = False):
+    def __init__(self, msg: str, permanent: bool = False, retry_after: float | None = None):
         super().__init__(msg)
         self.permanent = permanent
+        self.retry_after = retry_after  # p. ej. Telegram 429: segundos que pide esperar
 
 
 class ChannelSender(ABC):
@@ -47,21 +48,24 @@ class ChannelSender(ABC):
         self.config = channel.config or {}
 
     @abstractmethod
-    def send(self, alert_payload: dict) -> str:
-        """Envía y devuelve un detalle corto. Lanza DeliveryError si falla."""
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
+        """Envía y devuelve un detalle corto. Lanza DeliveryError si falla.
+
+        `progress` es un diccionario persistente entre reintentos (Delivery.meta): un canal con
+        varios destinatarios anota ahí a quién ya entregó para no repetirle el mensaje."""
 
 
 class PanelSender(ChannelSender):
     """La alerta queda visible en el panel (ya está en la BD): entrega inmediata."""
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         return "visible en panel"
 
 
 class LogSender(ChannelSender):
     _lock = threading.Lock()
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         path = settings.data_dir / "notificaciones.log"
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock, path.open("a", encoding="utf-8") as f:
@@ -75,7 +79,7 @@ class SimulatedSender(ChannelSender):
     _lock = threading.Lock()
     rng = random.Random()
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         if self.rng.random() < float(self.config.get("fail_rate", 0)):
             raise DeliveryError("fallo simulado del canal")
         with self._lock:
@@ -88,7 +92,7 @@ def _sign(body: bytes, secret: str) -> str:
 
 
 class WebhookSender(ChannelSender):
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         url = self.config.get("url", "")
         host = urlparse(url).hostname
         if urlparse(url).scheme not in ("http", "https") or not host:
@@ -111,14 +115,22 @@ class WebhookSender(ChannelSender):
 class NotConfiguredSender(ChannelSender):
     """Telegram / correo: interfaz preparada, sin implementación en esta versión."""
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         raise DeliveryError(f"canal '{self.channel.type}' preparado pero no implementado", permanent=True)
 
 
 SENDERS: dict[str, type[ChannelSender]] = {
     "panel": PanelSender, "registro": LogSender, "simulado": SimulatedSender, "webhook": WebhookSender,
-    "telegram": NotConfiguredSender, "correo": NotConfiguredSender,
+    "correo": NotConfiguredSender,
 }
+
+
+def _register_telegram() -> None:
+    from ..notifiers.telegram import TelegramSender
+    SENDERS["telegram"] = TelegramSender
+
+
+_register_telegram()
 
 
 # ---------------------------------------------------------------- creación
@@ -197,17 +209,19 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             payload = alert_payload(alert)
             sender = SENDERS.get(ch.type, NotConfiguredSender)(ch)
             ch_name = ch.name
-        ok, detail, permanent = True, "", False
+            progress = dict(d.meta or {})
+        ok, detail, permanent, retry_after = True, "", False, None
         try:
-            detail = sender.send(payload)
+            detail = sender.send(payload, progress)
         except DeliveryError as e:
-            ok, detail, permanent = False, str(e), e.permanent
+            ok, detail, permanent, retry_after = False, str(e), e.permanent, e.retry_after
         except Exception as e:  # un canal defectuoso nunca debe tumbar el motor
             ok, detail = False, f"error inesperado: {e.__class__.__name__}"
             log.exception("fallo en canal %s", ch_name)
         with db.session() as s:
             d = s.get(Delivery, did)
             d.attempts += 1
+            d.meta = progress or None
             if ok:
                 d.status, d.delivered_at, d.last_error = "ENVIADA", now, None
                 a = s.get(Alert, d.alert_id)
@@ -221,8 +235,8 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
                     stats["definitivas"] += 1
                 else:
                     d.status = "PENDIENTE"
-                    d.next_attempt_at = now + timedelta(
-                        seconds=backoff_delay(d.attempts, float(params["backoff_notificacion_s"]), 300, rng))
+                    wait = backoff_delay(d.attempts, float(params["backoff_notificacion_s"]), 300, rng)
+                    d.next_attempt_at = now + timedelta(seconds=max(wait, retry_after or 0))
             s.add(NotificationLog(ts=now, alert_id=d.alert_id, channel=ch_name, outcome="OK" if ok else "FALLO",
                                   detail=detail[:500]))
             s.flush()
