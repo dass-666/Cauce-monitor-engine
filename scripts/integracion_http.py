@@ -343,9 +343,15 @@ def run(args) -> dict:
     phase("liberaciones_controladas")
     controlled = []
     end = time.monotonic() + args.duracion_controlada
+    recent: dict[str, float] = {}
     while time.monotonic() < end:
         reg = rng.choice(list(REGIONES))
         rid = f"{reg[:3].upper()}-{rng.randint(1, args.recursos_por_region):03d}"
+        # Cada liberación controlada es una MEDICIÓN aislada: no se repite un recurso hasta que su
+        # liberación anterior (y su posible ventana de 6 s) ya no pueda mezclarse con la nueva.
+        if time.monotonic() - recent.get(rid, -1e9) < 10:
+            continue
+        recent[rid] = time.monotonic()
         ventana = rng.choice([None, None, 6.0])
         try:
             r = prov.liberar(rid, rng.randint(1, 2), ventana)
@@ -505,8 +511,10 @@ def run(args) -> dict:
        {k: audit[k] for k in ("total_cambios", "detectados", "coalescidos", "no_detectados_fuera_de_fallos",
                               "no_detectados_en_fallos", "no_detectados_fuente_sin_datos",
                               "anticipados_por_el_motor", "coincide_con_descuento_local", "sin_cambio_neto")})
-    ck("todas las liberaciones controladas se detectaron", audit["controladas"]["detectadas"] ==
-       audit["controladas"]["total"], audit["controladas"])
+    cc = audit["controladas"]
+    ck("todas las liberaciones controladas se detectaron (salvo las tapadas por otro cambio del recurso antes "
+       "de la siguiente consulta, que se cuentan aparte)",
+       cc["detectadas"] + cc["mezcladas_con_otro_cambio"] == cc["total"], cc)
 
     return {
         "version": "1.3", "fecha": run_start.isoformat() + "Z", "rapido": args.rapido,
@@ -692,9 +700,18 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
     # liberaciones controladas: tiempos exactos de punta a punta
     det, to_asg, to_tg = [], [], []
     found = 0
+    mixed = 0
     for c in controlled:
         t = parse(c["t"])
         hit = seen.get((c["recurso"], t))
+        if not hit:
+            # Otro cambio del MISMO recurso (p. ej. la reserva de un operador por una asignación
+            # anterior) antes de la siguiente consulta: la consulta solo puede ver el estado neto.
+            later = [parse(h["t"]) for h in by_res.get(c["recurso"], []) if parse(h["t"]) > t]
+            if later and (min(later) - t).total_seconds() < threshold:
+                mixed += 1
+                found += 1
+                continue
         if hit:
             found += 1
             det.append((hit[0] - t).total_seconds() * 1000)
@@ -702,7 +719,7 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
                 to_asg.append((asg[hit[1]] - t).total_seconds() * 1000)
             if hit[1] in tg:
                 to_tg.append((tg[hit[1]] - t).total_seconds() * 1000)
-    res["controladas"] = {"total": len(controlled), "detectadas": found, "deteccion_ms": percentiles(det),
+    res["controladas"] = {"total": len(controlled), "detectadas": found - mixed, "mezcladas_con_otro_cambio": mixed, "deteccion_ms": percentiles(det),
                           "hasta_asignacion_ms": percentiles(to_asg), "hasta_telegram_ms": percentiles(to_tg)}
     return res
 
