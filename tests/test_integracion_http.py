@@ -301,6 +301,7 @@ def test_window_expired_in_transit_is_not_counted():
     o = c._map({"id": "X", "nombre": "X", "tipo": "entrada", "capacidad": 4, "disponibles": 2, "estado": "ABIERTO",
                 "ventanas": [{"unidades": 1, "hasta": hace}], "actualizado_en": hace}, datetime.now(timezone.utc))
     assert o.available == 1 and o.attributes["vencidas_en_transito"] == 1
+    assert o.changed_at == datetime.fromisoformat(hace).replace(tzinfo=None)   # el cambio ocurrió al vencer
 
 
 # ---------------------------------------------------------------- concurrencia
@@ -387,6 +388,9 @@ def test_engine_restart_keeps_connector_state_and_catches_up(motor, prov, db):
     # "reinicio" del motor: estado en memoria nuevo, misma base de datos
     m2 = Motor.__new__(Motor)
     m2.db, m2.prov, m2.clock, m2.runtime, m2.sid = db, prov, RealClock(), pl.RuntimeState(), motor.sid
+    # Tras reiniciar, la cubeta local NO arranca llena (v1.1, evita ráfagas): a 6.000/min hace falta
+    # dejar pasar unos milisegundos para la primera ficha (en Windows se notaba: LIMITE_LOCAL).
+    time.sleep(0.1)
     assert m2.poll().outcome == "OK" and m2.source()["last_result"].get("sin_modificar") is True
     prov.liberar("NOR-010", 2)                                       # cambio mientras el motor "estaba caído"
     assert m2.poll().events == 1 and m2.slot("NOR-010")["available"] == 2
@@ -404,7 +408,9 @@ def test_provider_restart_graceful_and_abrupt(tmp_path, db, monkeypatch):
         assert m.poll().events == 1
         p.detener()                                                  # parada ordenada: guarda el estado
         out = m.poll()
-        assert out.outcome == "ERROR_TEMPORAL" and "conexión" in out.error
+        # Linux rechaza la conexión al instante; Windows reintenta el SYN a un puerto cerrado unos
+        # 2 s, así que con timeout de 2 s se ve como "tiempo de espera". Ambos son error temporal.
+        assert out.outcome == "ERROR_TEMPORAL" and ("conexión" in out.error or "tiempo de espera" in out.error)
         p.iniciar()
         assert p.estado()["arranques"] == 2
         assert m.poll().events == 0                                  # mismo estado: ningún cambio falso

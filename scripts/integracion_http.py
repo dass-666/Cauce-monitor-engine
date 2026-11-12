@@ -614,6 +614,9 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
     for reg, ts in ok_times.items():
         ts = [start] + ts + [end]
         blind[reg] = [(a_, b_) for a_, b_ in zip(ts, ts[1:]) if (b_ - a_).total_seconds() > 3 * interval]
+    detected_at_by_res: dict[str, list] = {}
+    for rk, obs, det, eid in evs:
+        detected_at_by_res.setdefault(rk, []).append(det)
     seen = {}
     for rk, obs, det, eid in evs:
         if obs is not None:
@@ -625,7 +628,7 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
         by_res.setdefault(h["recurso"], []).append(h)
     res = {"total_cambios": len(hist), "detectados": 0, "coalescidos": 0, "no_detectados_fuera_de_fallos": 0,
            "no_detectados_en_fallos": 0, "no_detectados_fuente_sin_datos": 0, "anticipados_por_el_motor": 0,
-           "coincide_con_descuento_local": 0, "sin_cambio_neto": 0, "ejemplos_no_detectados": [],
+           "coincide_con_descuento_local": 0, "sin_cambio_neto": 0, "vencimientos_detectados_por_el_conector": 0, "ejemplos_no_detectados": [],
            "tiempo_a_ciegas_s": {reg: round(sum((b_ - a_).total_seconds() for a_, b_ in g), 1)
                                  for reg, g in blind.items()}}
     region_by_res = {h["recurso"]: h["region"] for h in hist}
@@ -639,6 +642,13 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
             near_local = any(abs((c - t).total_seconds()) <= 2 * interval + 1 for c in local.get(rk, []))
             if (rk, t) in seen:
                 res["detectados"] += 1
+                known = h["despues"]
+            elif h["motivo"] == "ventana vencida" and any(
+                    abs((d - t).total_seconds()) <= interval + 1 for d in detected_at_by_res.get(rk, [])):
+                # el conector descuenta la ventana en cuanto vence (aunque la respuesta aún la contara):
+                # el motor registra el cambio por su cuenta, a veces antes de que el proveedor lo anote
+                res["detectados"] += 1
+                res["vencimientos_detectados_por_el_conector"] += 1
                 known = h["despues"]
             elif (nxt - t).total_seconds() < threshold:
                 res["coalescidos"] += 1

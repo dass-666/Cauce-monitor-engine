@@ -160,14 +160,19 @@ class ProveedorPruebaConnector(Connector):
         disponibles = int(it["disponibles"])
         # Ventanas que vencieron entre que el servidor generó la respuesta y que la recibimos:
         # esas unidades ya no existen aunque la respuesta las cuente.
-        vencidas = sum(int(v["unidades"]) for v in it.get("ventanas") or [] if _dt(v["hasta"]) <= received)
+        expired = [v for v in it.get("ventanas") or [] if _dt(v["hasta"]) <= received]
+        vencidas = sum(int(v["unidades"]) for v in expired)
         disponibles = max(0, disponibles - vencidas)
+        changed_at = it.get("actualizado_en")
+        if expired:
+            # el cambio real ocurrió al vencer la ventana, no cuando se publicó la liberación
+            changed_at = max(expired, key=lambda v: v["hasta"])["hasta"]
         if estado == "CERRADO":
             disponibles = 0
         return Observation(
             resource_key=str(it["id"]), name=str(it["nombre"]), resource_type=str(it["tipo"]),
             region=self.config.get("region_motor") or None, starts_at=it.get("inicio"),
             capacity=it.get("capacidad"), available=disponibles,
-            status="CANCELADO" if estado == "CANCELADO" else "ACTIVO", changed_at=it.get("actualizado_en"),
+            status="CANCELADO" if estado == "CANCELADO" else "ACTIVO", changed_at=changed_at,
             attributes={"estado_proveedor": estado, "disponible_hasta": it.get("disponible_hasta"),
                         **({"vencidas_en_transito": vencidas} if vencidas else {})})
