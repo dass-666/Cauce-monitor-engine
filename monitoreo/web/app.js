@@ -24,6 +24,7 @@ function h(tag, attrs, ...children) {
 }
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => S.user && S.user.role === "admin";
+const labOn = () => !S.info || S.info.laboratorio;
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -151,16 +152,16 @@ const VIEWS = {
   salud: { t: "Salud", f: viewHealth },
   solicitudes: { t: "Solicitudes", f: viewRequests },
   alertas: { t: "Alertas", f: viewAlerts },
-  laboratorio: { t: "Laboratorio", f: viewLab, admin: true },
+  laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
   config: { t: "Configuración", f: viewConfig, admin: true },
 };
 function renderNav() {
-  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => !v.admin || isAdmin()).map(([k, v]) =>
+  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => (!v.admin || isAdmin()) && (!v.lab || labOn())).map(([k, v]) =>
     h("a", { href: "#" + k, class: S.view === k ? "active" : null }, v.t)));
 }
 window.addEventListener("hashchange", () => { go(location.hash.slice(1)); });
 function go(v) {
-  if (!VIEWS[v] || (VIEWS[v].admin && !isAdmin())) v = "inicio";
+  if (!VIEWS[v] || (VIEWS[v].admin && !isAdmin()) || (VIEWS[v].lab && !labOn())) v = "inicio";
   S.view = v; S.dirty = false; renderNav(); refresh(true, true);
 }
 
@@ -192,7 +193,8 @@ async function refresh(force, scrollTop) {
 async function start() {
   S.user = await api("/api/auth/me");
   S.regions = await api("/api/regions");
-  $("user-label").textContent = `${S.user.username} · ${S.user.role}`;
+  S.info = await api("/api/info");
+  $("user-label").textContent = `${S.user.username} · ${S.user.role}` + (S.info.entorno === "desarrollo" ? "" : ` · ${S.info.entorno.toUpperCase()}`);
   $("login-view").classList.add("hidden"); $("app").classList.remove("hidden");
   go(location.hash.slice(1) || "inicio");
   clearInterval(S.timer);

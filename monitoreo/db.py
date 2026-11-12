@@ -65,7 +65,8 @@ class Database:
     def __init__(self, url: str):
         # Detector de sesiones anidadas (activo en las pruebas con MONITOREO_DETECTAR_ANIDADAS=1).
         self._depth = threading.local()
-        self._detect_nested = os.environ.get("MONITOREO_DETECTAR_ANIDADAS") == "1"
+        self._detect_nested = (os.environ.get("MONITOREO_DETECTAR_ANIDADAS") == "1"
+                               or os.environ.get("MONITOREO_ENTORNO", "").lower() == "pruebas")
         self.url = url
         self.engine = make_engine(url)
         self.SessionLocal = sessionmaker(self.engine, expire_on_commit=False)

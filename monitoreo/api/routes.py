@@ -28,6 +28,8 @@ from . import serializers as ser
 from .deps import CurrentUser, client_ip, current_user, get_db, require_admin
 
 router = APIRouter(prefix="/api")
+# Laboratorio de simulación: NO se monta en producción (ver monitoreo/entorno.py).
+lab_router = APIRouter(prefix="/api")
 throttle = security.LoginThrottle()
 clock = RealClock()
 
@@ -85,6 +87,15 @@ def logout(user: CurrentUser = Depends(current_user), db: Database = Depends(get
         security.revoke_token(s, user.token)
         security.audit(s, user.username, "logout")
     return {"ok": True}
+
+
+@router.get("/info")
+def info(request: HttpRequest, user: CurrentUser = Depends(current_user)):
+    """Entorno y funciones disponibles (el panel oculta lo que no existe en producción)."""
+    from ..app import VERSION
+    ent = request.app.state.entorno
+    return {"version": VERSION, "entorno": ent.entorno, "laboratorio": ent.entorno != "produccion",
+            "avisos_configuracion": ent.avisos if user.role == "admin" else []}
 
 
 @router.get("/auth/me")
@@ -625,7 +636,7 @@ def metrics(user: CurrentUser = Depends(current_user), db: Database = Depends(ge
 lab_jobs: dict[str, dict] = {}
 
 
-@router.get("/lab/items")
+@lab_router.get("/lab/items")
 def lab_items(feed: str | None = None, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(SimItem).order_by(SimItem.region, SimItem.name)
@@ -634,7 +645,7 @@ def lab_items(feed: str | None = None, user: CurrentUser = Depends(current_user)
         return [ser.sim_item(i) for i in s.scalars(q)]
 
 
-@router.post("/lab/items", status_code=201)
+@lab_router.post("/lab/items", status_code=201)
 def lab_create_item(body: sc.SimItemIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     with db.session() as s:
         if s.get(Region, body.region) is None:
@@ -648,7 +659,7 @@ def lab_create_item(body: sc.SimItemIn, user: CurrentUser = Depends(require_admi
     return ser.sim_item(item)
 
 
-@router.post("/lab/items/{iid}/{action}")
+@lab_router.post("/lab/items/{iid}/{action}")
 def lab_item_action(iid: int, action: str, body: dict | None = None, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     w = World(db)
@@ -677,7 +688,7 @@ def lab_item_action(iid: int, action: str, body: dict | None = None, user: Curre
     return {"cambio": ch.kind, "feed": ch.feed, "recurso": ch.resource_key, "detalle": ch.detail}
 
 
-@router.post("/lab/random")
+@lab_router.post("/lab/random")
 def lab_random(body: sc.RandomStepIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     w = World(db)
     changes = []
@@ -688,7 +699,7 @@ def lab_random(body: sc.RandomStepIn, user: CurrentUser = Depends(require_admin)
     return {"cambios": len(changes), "detalle": [c.__dict__ for c in changes[:50]]}
 
 
-@router.post("/lab/competencia")
+@lab_router.post("/lab/competencia")
 def lab_competition(body: sc.CompetitionIn, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     """Crea N solicitudes compitiendo por el mismo recurso y libera `units` unidades."""
@@ -711,7 +722,7 @@ def lab_competition(body: sc.CompetitionIn, user: CurrentUser = Depends(require_
     return {"solicitudes_creadas": body.requests, "unidades_liberadas": body.units, "grupo": f"COMP-{tag}"}
 
 
-@router.post("/lab/acelerada", status_code=202)
+@lab_router.post("/lab/acelerada", status_code=202)
 def lab_accelerated(body: sc.AcceleratedIn, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     if any(j["estado"] == "EN_CURSO" for j in lab_jobs.values()):
@@ -742,7 +753,7 @@ def lab_accelerated(body: sc.AcceleratedIn, user: CurrentUser = Depends(require_
     return {"run_id": run_id, "estado": "EN_CURSO"}
 
 
-@router.get("/lab/runs")
+@lab_router.get("/lab/runs")
 def lab_runs(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         return [{"id": r.id, "started_at": ser.iso(r.started_at), "finished_at": ser.iso(r.finished_at),

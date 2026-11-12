@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
+from . import entorno
 from .config import settings
 from .db import Database
 from .engine.scheduler import Scheduler
@@ -19,16 +20,17 @@ from .security import hash_password
 
 log = logging.getLogger("monitoreo")
 WEB_DIR = Path(__file__).parent / "web"
+VERSION = "1.2.0"
 
 
-def bootstrap(db: Database, seed_demo: bool) -> str | None:
+def bootstrap(db: Database, seed_demo: bool, production: bool = False) -> str | None:
     """Crea tablas, datos base y el administrador inicial. Devuelve la contraseña generada si la hubo."""
     from .simulator.seed import seed_base, seed_demo as do_seed_demo
     report = db.migrate(make_backup=True)  # respaldo automático si cambia el esquema de una base con datos
     if report.steps:
         log.warning("Migración de esquema: %s", "; ".join(report.steps))
-    seed_base(db)
-    if seed_demo:
+    seed_base(db, production=production)
+    if seed_demo and not production:  # en producción nunca se crean datos de demostración
         import os
         do_seed_demo(db, port=int(os.environ.get("MONITOREO_PUERTO", "8000")))
     generated = None
@@ -36,6 +38,10 @@ def bootstrap(db: Database, seed_demo: bool) -> str | None:
         if not s.scalar(select(User.id).where(User.role == "admin").limit(1)):
             pwd = settings.admin_password
             if not pwd:
+                if production:
+                    raise entorno.ConfigError([
+                        "No existe ningún administrador y falta MONITOREO_ADMIN_PASSWORD. En producción no se "
+                        "genera una contraseña automática: defínela en .env (mín. 12 caracteres)."])
                 pwd = generated = secrets.token_urlsafe(12)
             s.add(User(username=settings.admin_user, password_hash=hash_password(pwd), role="admin"))
     # v1.1: la recuperación (entregas a medias, simulaciones interrumpidas...) la ejecuta el
@@ -44,13 +50,23 @@ def bootstrap(db: Database, seed_demo: bool) -> str | None:
 
 
 def create_app(db_url: str | None = None, start_engine: bool | None = None, seed_demo: bool | None = None) -> FastAPI:
+    review = entorno.enforce()  # en producción, una configuración insegura impide arrancar (ConfigError)
+    production = review.entorno == entorno.PRODUCCION
+    for w in review.avisos:
+        log.warning("Configuración: %s", w)
     db = Database(db_url or settings.db_url)
     start = settings.start_engine if start_engine is None else start_engine
     seed = settings.seed_demo if seed_demo is None else seed_demo
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        generated = bootstrap(db, seed)
+        try:
+            generated = bootstrap(db, seed, production=production)
+        except entorno.ConfigError as e:
+            import sys
+            print("\nEL SERVIDOR NO ARRANCA:\n" + "\n".join("  - " + p for p in e.problems) + "\n",
+                  file=sys.stderr, flush=True)
+            raise
         if generated:
             msg = (f"\n{'=' * 64}\n  Usuario administrador creado: '{settings.admin_user}'\n"
                    f"  Contraseña generada (cámbiala en el panel): {generated}\n"
@@ -66,10 +82,15 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             await app.state.scheduler.stop()
         db.engine.dispose()
 
-    app = FastAPI(title="Motor de Monitoreo de Disponibilidad", version="1.1.0", lifespan=lifespan,
-                  docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
+    app = FastAPI(title="Motor de Monitoreo de Disponibilidad", version=VERSION, lifespan=lifespan,
+                  docs_url=None if production else "/api/docs", redoc_url=None,
+                  openapi_url=None if production else "/api/openapi.json")
     app.state.db = db
     app.state.scheduler = None
+    app.state.entorno = review
+    from .api.ratelimit import ApiRateLimiter, middleware as rate_middleware
+    app.state.api_limiter = ApiRateLimiter()
+    app.middleware("http")(rate_middleware(app.state.api_limiter))
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -91,14 +112,17 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         log.exception("error no controlado en %s", request.url.path)
         return JSONResponse({"detail": "Error interno"}, status_code=500)
 
-    from .api.routes import router
-    from .api.test_api import router as test_router
+    from .api.routes import lab_router, router
     from .api.observability import router as obs_router
-    from .emuladores.telegram import router as telegram_emulator
     app.include_router(router)
     app.include_router(obs_router)
-    app.include_router(test_router)
-    app.include_router(telegram_emulator)
+    if not production:
+        # Laboratorio, rutas de prueba y emulador de Telegram: solo fuera de producción.
+        from .api.test_api import router as test_router
+        from .emuladores.telegram import router as telegram_emulator
+        app.include_router(lab_router)
+        app.include_router(test_router)
+        app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/", include_in_schema=False)

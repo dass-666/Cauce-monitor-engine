@@ -15,8 +15,9 @@ HOLDERS = ["Expediente Lince", "Expediente Ceiba", "Expediente Quetzal", "Expedi
            "Expediente Nopal", "Expediente Ámbar", "Expediente Jade", "Expediente Ópalo", "Expediente Cobre"]
 
 
-def seed_base(db: Database) -> None:
-    """Regiones y canales mínimos (siempre necesarios)."""
+def seed_base(db: Database, production: bool = False) -> None:
+    """Regiones y canales mínimos (siempre necesarios). En producción no se crean los canales
+    de prueba (simulado y webhook hacia /api-prueba)."""
     with db.session() as s:
         for code, name in REGIONS:
             if s.get(Region, code) is None:
@@ -24,9 +25,12 @@ def seed_base(db: Database) -> None:
         if not s.scalar(select(Channel.id).limit(1)):
             s.add(Channel(name="Panel", type="panel", enabled=True))
             s.add(Channel(name="Registro", type="registro", enabled=True))
-            s.add(Channel(name="Simulado", type="simulado", config={"fail_rate": 0.0}, enabled=True))
-            s.add(Channel(name="Webhook local", type="webhook",
-                          config={"url": "http://127.0.0.1:8000/api-prueba/webhook"}, enabled=False))
+            if production:
+                s.add(Channel(name="Webhook", type="webhook", config={}, enabled=False))
+            else:
+                s.add(Channel(name="Simulado", type="simulado", config={"fail_rate": 0.0}, enabled=True))
+                s.add(Channel(name="Webhook local", type="webhook",
+                              config={"url": "http://127.0.0.1:8000/api-prueba/webhook"}, enabled=False))
             s.add(Channel(name="Telegram", type="telegram", config={}, enabled=False))
             s.add(Channel(name="Correo", type="correo", config={}, enabled=False))
 
