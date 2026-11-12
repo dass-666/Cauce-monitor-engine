@@ -9,13 +9,12 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from .config import settings
 from .db import Database
-from .engine import alerts as al
 from .engine.scheduler import Scheduler
-from .models import SimRun, User
+from .models import User
 from .security import hash_password
 
 log = logging.getLogger("monitoreo")
@@ -39,9 +38,8 @@ def bootstrap(db: Database, seed_demo: bool) -> str | None:
             if not pwd:
                 pwd = generated = secrets.token_urlsafe(12)
             s.add(User(username=settings.admin_user, password_hash=hash_password(pwd), role="admin"))
-        # Simulaciones que quedaron a medias por un reinicio
-        s.execute(update(SimRun).where(SimRun.status == "EN_CURSO").values(status="INTERRUMPIDA"))
-    al.recover_inflight(db)
+    # v1.1: la recuperación (entregas a medias, simulaciones interrumpidas...) la ejecuta el
+    # planificador cuando obtiene el liderazgo, para no interferir con otra instancia activa.
     return generated
 
 

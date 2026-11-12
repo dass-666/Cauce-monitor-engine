@@ -47,8 +47,18 @@ def _404(what: str):
 # ======================================================================= auth
 @router.get("/health")
 def health(request: HttpRequest):
+    """Público y mínimo (sin datos internos): apto para un monitor externo."""
     sch = getattr(request.app.state, "scheduler", None)
-    return {"ok": True, "motor_activo": bool(sch and sch.running), "ciclos": sch.cycles if sch else 0}
+    db: Database = request.app.state.db
+    db_ok = True
+    try:
+        with db.session() as s:
+            s.execute(select(1))
+    except Exception:  # noqa: BLE001
+        db_ok = False
+    return {"ok": db_ok, "base_de_datos": "OK" if db_ok else "SIN_CONEXION",
+            "motor_activo": bool(sch and sch.running), "rol": sch.role if sch else "SIN_MOTOR",
+            "ciclos": sch.cycles if sch else 0}
 
 
 @router.post("/auth/login")

@@ -72,4 +72,15 @@ ENGINE_DEFAULTS: dict = {
     "alerta_minimo_aumento": 1,        # unidades mínimas de aumento para alertar
     "reintentos_notificacion": 5,
     "backoff_notificacion_s": 2,
+    # --- v1.1: retención del historial (valores conservadores; 0 = no borrar nunca)
+    "retencion_consultas_dias": 14,             # poll_log detallado (ya resumido en agregados)
+    "retencion_eventos_sin_alerta_dias": 30,    # solo eventos NO relevantes y sin referencias
+    "retencion_estadisticas_horarias_dias": 90, # los agregados diarios no se borran
+    "retencion_registro_notificaciones_dias": 0,
+    "retencion_lote": 1000,                     # filas por lote de borrado
+    "retencion_lotes_por_pasada": 50,           # tope por pasada: limpieza gradual
+    "retencion_pausa_lote_s": 0.05,             # respiro entre lotes para no bloquear al motor
+    "mantenimiento_historial_cada_s": 300,
+    # --- v1.1: coordinación entre instancias
+    "lease_duracion_s": 15,
 }

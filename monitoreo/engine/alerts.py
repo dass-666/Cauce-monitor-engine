@@ -140,6 +140,9 @@ def create_alert(s: Session, *, dedup_key: str, kind: str, title: str, source_co
     except IntegrityError:
         return None
     for ch in s.scalars(select(Channel).where(Channel.enabled.is_(True))):
+        kinds = (ch.config or {}).get("tipos")  # v1.1: un canal puede limitarse a ciertos tipos de alerta
+        if kinds and kind not in kinds:
+            continue
         s.add(Delivery(alert_id=alert.id, channel_id=ch.id, status="PENDIENTE", next_attempt_at=now))
     return alert
 
@@ -152,10 +155,14 @@ def alert_payload(a: Alert) -> dict:
 
 
 # ---------------------------------------------------------------- despacho
-def recover_inflight(db: Database) -> int:
-    """Al arrancar: entregas que quedaron 'ENVIANDO' por un corte vuelven a la cola."""
+def recover_inflight(db: Database, now: datetime | None = None, stale_s: float = 0) -> int:
+    """Entregas que quedaron 'ENVIANDO' por un corte vuelven a la cola.
+    Con `stale_s` solo las reclamadas hace más de ese tiempo (al tomar el relevo de otro líder)."""
+    cond = [Delivery.status == "ENVIANDO"]
+    if now is not None and stale_s > 0:
+        cond.append((Delivery.claimed_at.is_(None)) | (Delivery.claimed_at < now - timedelta(seconds=stale_s)))
     with db.session() as s:
-        return s.execute(update(Delivery).where(Delivery.status == "ENVIANDO").values(status="PENDIENTE")).rowcount
+        return s.execute(update(Delivery).where(*cond).values(status="PENDIENTE")).rowcount
 
 
 def _refresh_alert_status(s: Session, alert_id: int) -> None:
@@ -182,7 +189,7 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
     for did in ids:
         with db.session() as s:  # reclamar la entrega (evita doble envío si hubiera dos despachadores)
             if s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "PENDIENTE")
-                         .values(status="ENVIANDO")).rowcount != 1:
+                         .values(status="ENVIANDO", claimed_at=now)).rowcount != 1:
                 continue
             d = s.get(Delivery, did)
             ch = s.get(Channel, d.channel_id)

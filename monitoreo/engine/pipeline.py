@@ -33,11 +33,17 @@ class RuntimeState:
     buckets: dict[int, TokenBucket] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def bucket(self, source: Source) -> TokenBucket:
+    def bucket(self, source: Source, now=None) -> TokenBucket:
         with self.lock:
             b = self.buckets.get(source.id)
             if b is None or abs(b.rate * 60 - source.rate_limit_per_min) > 1e-9:
                 b = TokenBucket(source.rate_limit_per_min)
+                # v1.1: tras un reinicio la cubeta NO arranca llena si la fuente se consultó hace
+                # poco; así un reinicio rápido (o varios) no provoca una ráfaga sobre el proveedor.
+                if now is not None and source.last_polled_at is not None:
+                    elapsed = max(0.0, (now - source.last_polled_at).total_seconds())
+                    b.tokens = min(b.capacity, elapsed * b.rate)
+                    b.updated = now
                 self.buckets[source.id] = b
             return b
 
@@ -51,8 +57,26 @@ class PollOutcome:
     error: str | None = None
 
 
+def _set_status(src: Source, status: str, reason: str, now) -> None:
+    if src.status != status:
+        src.status, src.status_changed_at = status, now
+    src.status_reason = reason
+
+
+def _system_alert(s, src: Source, what: str, detail: str, now) -> None:
+    """Aviso de fallo crítico (canal Telegram/webhook/panel). Deduplicado por episodio."""
+    stamp = (src.circuit_opened_at or now).isoformat()
+    alerts_mod.create_alert(
+        s, dedup_key=f"sys:{src.id}:{what}:{stamp}", kind="SISTEMA", title=f"{src.code}: {detail}",
+        source_code=src.code, region=src.region, resource=src.name, now=now,
+        payload={"evento_sistema": what, "ultimo_error": (src.last_error or "")[:200],
+                 "fallos_consecutivos": src.consecutive_failures})
+
+
 def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng: random.Random | None = None,
-                context_extra: dict | None = None) -> PollOutcome:
+                context_extra: dict | None = None, guard=None) -> PollOutcome:
+    """`guard`: función opcional que devuelve False si esta instancia perdió el liderazgo;
+    en ese caso el resultado de la consulta no se guarda (lo hará el nuevo líder)."""
     rng = rng or random.Random()
     now = clock.now()
     with db.session() as s:
@@ -63,10 +87,12 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
         decision = circuit_check(src.circuit_state, src.circuit_opened_at, params["enfriamiento_circuito_s"], now)
         if not decision.allowed:
             src.next_poll_at = now + timedelta(seconds=decision.wait_s)
+            src.last_outcome = "CIRCUITO_ABIERTO"
             return PollOutcome("CIRCUITO_ABIERTO")
-        allowed, wait = runtime.bucket(src).try_acquire(now)
+        allowed, wait = runtime.bucket(src, now).try_acquire(now)
         if not allowed:
             src.next_poll_at = now + timedelta(seconds=wait)
+            src.last_outcome = "LIMITE_LOCAL"
             return PollOutcome("LIMITE_LOCAL")
         if decision.state == "SEMIABIERTO":
             src.circuit_state = "SEMIABIERTO"
@@ -101,8 +127,11 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
     now = clock.now()
 
     # ---- persistencia atómica: estado + eventos + métricas en UNA transacción
+    if guard is not None and not guard():
+        return PollOutcome("SIN_LIDERAZGO", duration_ms=duration_ms)
     with db.session() as s:
         src = s.get(Source, source_id)
+        src.last_outcome = outcome
         params = get_params(s)
         src.last_polled_at = now
         src.total_polls += 1
@@ -117,6 +146,7 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
             src.total_changes += len(det.events)
             src.last_success_at, src.last_error, src.consecutive_failures = now, None, 0
             src.circuit_state, src.circuit_opened_at, src.circuit_open_count = "CERRADO", None, 0
+            src.status_reason = None
             src.last_result = {"items": det.items, "cambios": len(det.events), "duplicados": det.duplicates,
                                "sin_cambio": det.unchanged, "ms": round(duration_ms, 2)}
             src.next_poll_at = now + timedelta(seconds=jittered_interval(src.interval_s, src.jitter_pct, rng))
@@ -131,6 +161,7 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                 # Respeto de la política del proveedor: esperar lo que pida (o el doble del intervalo).
                 wait = max(retry_after or 0, src.interval_s * 2)
                 src.next_poll_at = now + timedelta(seconds=wait)
+                src.status_reason = f"la fuente pidió esperar; próxima consulta en {wait:.0f} s"
             else:
                 src.consecutive_failures += 1
                 wait = backoff_delay(src.consecutive_failures, src.interval_s, params["backoff_max_s"], rng)
@@ -139,16 +170,24 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                     src.circuit_state, src.circuit_opened_at = "ABIERTO", now
                     src.circuit_open_count += 1
                     src.next_poll_at = now + timedelta(seconds=params["enfriamiento_circuito_s"])
+                    src.status_reason = (f"circuito abierto tras {src.consecutive_failures} fallos seguidos; "
+                                         f"se reintenta en {params['enfriamiento_circuito_s']} s")
                     if src.circuit_open_count >= params["aperturas_hasta_error"]:
-                        src.status = "ERROR"  # pausa automática definitiva: requiere revisión manual
+                        # pausa automática definitiva: requiere revisión manual
+                        _set_status(src, "ERROR", f"circuito abierto {src.circuit_open_count} veces seguidas; "
+                                    "requiere revisión manual (Reanudar)", now)
+                        _system_alert(s, src, "error", "fuente detenida por errores repetidos", now)
+                    elif src.circuit_open_count == 1:
+                        _system_alert(s, src, "circuito", "circuito abierto por fallos consecutivos", now)
                 if outcome == "ERROR" and "acceso denegado" in (err or ""):
-                    src.status = "ERROR"  # 401/403: no insistir
+                    _set_status(src, "ERROR", "la fuente respondió acceso denegado (401/403); no se insiste", now)
+                    _system_alert(s, src, "acceso", "acceso denegado por la fuente", now)
         s.add(log_row)
     return result
 
 
 # ---------------------------------------------------------------- procesamiento de eventos
-def process_pending_events(db: Database, clock, limit: int = 500) -> dict:
+def process_pending_events(db: Database, clock, limit: int = 500, guard=None) -> dict:
     """Procesa la bandeja de eventos: asignación automática + alertas. Idempotente."""
     stats = {"eventos": 0, "asignaciones": 0, "alertas": 0}
     with db.session() as s:
@@ -156,6 +195,8 @@ def process_pending_events(db: Database, clock, limit: int = 500) -> dict:
                              .order_by(ChangeEvent.id).limit(limit)))
         params = get_params(s)
     for eid in ids:
+        if guard is not None and not guard():
+            break
         now = clock.now()
         with db.session() as s:
             ev = s.get(ChangeEvent, eid)
