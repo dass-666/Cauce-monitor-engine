@@ -14,6 +14,10 @@ plataforma externa.
 - Informe de la primera versión (pruebas y cifras medidas): [docs/INFORME.md](docs/INFORME.md)
 - **Novedades v1.1** (migraciones, historial, recuperación, Telegram, Salud, resistencia):
   [docs/INFORME_v1.1.md](docs/INFORME_v1.1.md) · Telegram: [docs/TELEGRAM.md](docs/TELEGRAM.md)
+- **Novedades v1.2** (modo producción, instalación y actualización seguras, autodiagnóstico,
+  integridad de notificaciones, capacidad, CI en Windows): [docs/INFORME_v1.2.md](docs/INFORME_v1.2.md)
+  · Producción y HTTPS: [docs/PRODUCCION.md](docs/PRODUCCION.md)
+  · Garantías de las notificaciones: [docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)
 
 ## Instalación en Windows
 
@@ -28,10 +32,16 @@ si tienes varias versiones, el instalador elige sola una compatible.
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\instalar.ps1
    ```
-   Busca un Python compatible, crea un entorno virtual `.venv`, instala dependencias (se detiene
-   con un mensaje claro si algo falla) y te pide dos veces la contraseña del usuario `admin`
-   (no se ve al escribir; mínimo 10 caracteres con letras y números). Se guarda en `.env`.
-   Si usarás PostgreSQL añade `-ConPostgres`.
+   El instalador, paso a paso y con un mensaje claro si algo falla:
+   comprueba el equipo (Python, espacio en disco, permisos, OneDrive, puerto libre, motor parado);
+   **respalda** `data\` y `.env` si ya existían (en `respaldos-instalacion\<fecha>\`); crea un
+   entorno virtual `.venv`; instala dependencias; te pide dos veces la contraseña del usuario `admin`
+   (no se ve al escribir; mínimo 10 caracteres con letras y números) y la guarda en `.env`;
+   prepara la base de datos y termina con un **autodiagnóstico**. Todo queda registrado en
+   `data\logs\instalacion-<fecha>.log`.
+   Opciones: `-ConPostgres` (usarás PostgreSQL) · `-Produccion` (uso real, ver
+   [docs/PRODUCCION.md](docs/PRODUCCION.md)) · `-NoInteractivo` (sin preguntas; contraseña en
+   la variable `MONITOREO_ADMIN_PASSWORD`). Se puede repetir sin perder nada.
 3. Inicia el sistema con doble clic en **`iniciar.bat`** (o `.\.venv\Scripts\python -m monitoreo`).
    El navegador se abre solo en http://127.0.0.1:8000 cuando el servidor está listo.
    Entra con `admin` y tu contraseña. Al arrancar, el esquema de la base se actualiza solo
@@ -39,6 +49,39 @@ si tienes varias versiones, el instalador elige sola una compatible.
 4. Para detenerlo: `Ctrl + C` en la ventana negra. Los datos quedan en `data\monitoreo.db`
    y se conservan al reiniciar.
 5. Pruebas automatizadas: doble clic en **`pruebas.bat`** (o `.\.venv\Scripts\python -m pytest -q`).
+6. ¿Algo no va bien? Doble clic en **`diagnostico.bat`**: revisa base de datos, esquema,
+   planificador, conectores, notificaciones, recursos e integridad, y dice qué hacer con cada
+   problema. No modifica nada. Lo mismo se ve en el panel → **Salud → Autodiagnóstico**.
+
+### Actualizar a una versión nueva
+
+Recomendado ("lado a lado", la instalación anterior no se toca):
+
+1. Cierra el motor (`Ctrl + C` en su ventana).
+2. Descomprime la versión nueva en una carpeta **nueva**, por ejemplo `C:\monitoreo-1.2`.
+3. En esa carpeta nueva:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\monitoreo
+   ```
+   Copia (no mueve) `data\` y `.env` verificando cada base, instala, migra con respaldo previo y
+   hace el autodiagnóstico. Para volver atrás basta con usar el `iniciar.bat` de la carpeta anterior.
+
+Si preferiste descomprimir encima de la carpeta anterior, ejecuta `instalar.ps1`: respalda
+`data\` y `.env` antes de cambiar nada.
+
+### Respaldos y restauración
+
+| Qué | Dónde | Cuándo |
+|---|---|---|
+| Base antes de cada cambio de esquema | `data\respaldos\monitoreo-<fecha>-antes-de-<versión>.db` (o `.dump` en PostgreSQL) | automático al migrar |
+| `data\` y `.env` antes de reinstalar | `respaldos-instalacion\<fecha>\` | automático en `instalar.ps1` |
+| Instalación completa anterior | la carpeta anterior | al actualizar lado a lado |
+| Respaldo manual | `.\.venv\Scripts\python -m monitoreo.migrate respaldar` | cuando quieras |
+
+Restaurar SQLite: cierra el motor y copia el respaldo como `data\monitoreo.db` (guarda antes
+la base actual con otro nombre). Restaurar PostgreSQL:
+`pg_restore --clean -d monitoreo data\respaldos\<archivo>.dump`. Estos respaldos son locales:
+cópialos también fuera del equipo.
 
 > Si no pusiste contraseña, se genera una al primer arranque, se muestra en la ventana y
 > se guarda en `data\CREDENCIAL_INICIAL.txt` (bórralo después de entrar).
@@ -100,8 +143,12 @@ monitoreo/
   api/                     rutas REST, esquemas de validación, API de prueba local
   web/                     panel (HTML/CSS/JS sin compilación)
 tests/                     pruebas automatizadas (pytest)
-scripts/                   benchmark.py, medir_servidor.py, e2e_panel.js, resistencia.py
+scripts/                   preparar.py (instalación), verificar_arranque.py, capacidad.py, benchmark.py,
+                           resistencia.py, e2e_panel.js, e2e_produccion.js
+.github/workflows/ci.yml   integración continua en Windows y Linux (ver docs/INFORME_v1.2.md)
+instalar.ps1, actualizar.ps1, iniciar.bat, diagnostico.bat, pruebas.bat
 docs/                      arquitectura, conectores, informe y resultados medidos
 ```
 
-La documentación interactiva de la API está en http://127.0.0.1:8000/api/docs.
+La documentación interactiva de la API está en http://127.0.0.1:8000/api/docs (solo fuera del
+modo producción).

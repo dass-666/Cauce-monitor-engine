@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import logging
 import secrets
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from . import entorno
 from .config import settings
@@ -23,12 +23,39 @@ WEB_DIR = Path(__file__).parent / "web"
 VERSION = "1.2.0"
 
 
+BOOTSTRAP_LOCK_ID = 727275  # candado consultivo de PostgreSQL para la siembra inicial
+
+
+@contextmanager
+def _bootstrap_lock(db: Database):
+    """v1.2: dos instancias que arrancan a la vez sobre una base vacía sembraban en paralelo.
+    En PostgreSQL la segunda se caía (admin o región duplicados) o podía duplicar canales
+    (avisos dobles). Se serializa con un candado consultivo. SQLite ya serializa cada
+    transacción con BEGIN IMMEDIATE y cada paso de siembra comprueba e inserta en la misma."""
+    if db.is_sqlite:
+        yield
+        return
+    with db.engine.connect() as c:
+        c.execute(text("SELECT pg_advisory_lock(:k)"), {"k": BOOTSTRAP_LOCK_ID})
+        c.commit()
+        try:
+            yield
+        finally:
+            c.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": BOOTSTRAP_LOCK_ID})
+            c.commit()
+
+
 def bootstrap(db: Database, seed_demo: bool, production: bool = False) -> str | None:
     """Crea tablas, datos base y el administrador inicial. Devuelve la contraseña generada si la hubo."""
-    from .simulator.seed import seed_base, seed_demo as do_seed_demo
     report = db.migrate(make_backup=True)  # respaldo automático si cambia el esquema de una base con datos
     if report.steps:
         log.warning("Migración de esquema: %s", "; ".join(report.steps))
+    with _bootstrap_lock(db):
+        return _seed_and_admin(db, seed_demo, production)
+
+
+def _seed_and_admin(db: Database, seed_demo: bool, production: bool) -> str | None:
+    from .simulator.seed import seed_base, seed_demo as do_seed_demo
     seed_base(db, production=production)
     if seed_demo and not production:  # en producción nunca se crean datos de demostración
         import os

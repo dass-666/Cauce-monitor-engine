@@ -130,6 +130,39 @@ toma el candado de escritura al empezar; una sesión anidada en el mismo hilo es
 exterior hasta agotar el tiempo (30 s). Las pruebas activan `MONITOREO_DETECTAR_ANIDADAS=1`,
 que convierte ese error en un fallo inmediato. Se encontraron y corrigieron dos casos en v1.1.
 
+## Decisiones de la versión 1.2
+
+**14. Tres entornos y "fallar al arrancar".** `MONITOREO_ENTORNO` (desarrollo, pruebas,
+produccion). En producción las rutas de laboratorio, de prueba y del emulador **no se
+registran** (no basta con protegerlas: si no existen no pueden abrirse por error), no se crean
+datos de demostración y una configuración insegura impide arrancar con una lista de qué
+cambiar. Es preferible un servidor que no arranca a uno expuesto con la clave de ejemplo.
+Detalle en `PRODUCCION.md`.
+
+**15. Límite de peticiones a la API en memoria.** Cubeta de fichas por IP, independiente del
+límite por fuente. No se añadió Redis: con 1–2 instancias la cuenta por proceso basta, y un
+límite compartido solo haría falta con muchas instancias detrás de un balanceador.
+
+**16. Testigo de reclamo en las entregas.** Cada reclamo de una entrega genera un
+`claim_token` aleatorio; el resultado solo se guarda si el testigo sigue siendo el mismo. Así un
+despachador que se quedó colgado y vuelve tarde no pisa la entrega que ya hizo otro. Además, el
+avance por destinatario de Telegram se guarda tras cada chat, y los reclamos de más de
+`entrega_reclamo_vence_s` se reencolan aunque no cambie el líder. Las garantías, y lo que
+depende del receptor, están en `NOTIFICACIONES.md`.
+
+**17. Autodiagnóstico como lista de comprobaciones independientes.** Cada comprobación abre su
+propia sesión y un fallo en una no oculta las demás; si la base no responde, no se intentan las
+que dependen de ella. El mismo módulo sirve para la consola (`diagnostico.bat`, códigos 0/1/2),
+el panel (solo administradores) y el planificador (cada 10 min, un aviso SISTEMA por problema
+crítico y día). Con `--motor-detenido` se usa antes y después de instalar o actualizar.
+
+**18. Instalación: la lógica en Python, PowerShell solo como envoltorio.** Lo delicado (respaldo
+verificado, copia de datos sin sobrescribir, detectar el motor en marcha) está en
+`scripts/preparar.py`, que solo usa la biblioteca estándar (funciona antes de instalar nada) y
+tiene pruebas automáticas en cualquier sistema. Los `.ps1` buscan Python, encadenan pasos y
+muestran mensajes. La actualización es "lado a lado": se copia a una carpeta nueva y la anterior
+queda intacta como vuelta atrás inmediata.
+
 ## Máquina de estados de solicitudes
 
 ```

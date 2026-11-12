@@ -1,0 +1,428 @@
+{
+  "motor": "postgresql",
+  "sistema": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "cpus": 4,
+  "memoria_total_gb": 15.7,
+  "segundos_por_escenario": 60,
+  "escenarios": {
+    "e1": {
+      "escenario": {
+        "titulo": "5 regiones · 25 fuentes · 500 solicitudes · 5 operadores",
+        "regiones": 5,
+        "fuentes": 25,
+        "pendientes": 500,
+        "historicas": 0,
+        "clientes": 5,
+        "instancias": 1
+      },
+      "preparacion": {
+        "preparacion_s": 0.06,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO"
+        ]
+      },
+      "arranque_s": [
+        1.22
+      ],
+      "duracion_s": 60.3,
+      "medido": {
+        "procesos": {
+          "e1-inst1": {
+            "memoria_mb_media": 120.1,
+            "memoria_mb_max": 121.0,
+            "cpu_pct_media": 43.4,
+            "cpu_pct_p95": 67.9
+          }
+        },
+        "latencia_api_ms": {
+          "GET /api/alerts": {
+            "n": 134,
+            "p50": 14.4,
+            "p95": 34.0,
+            "max": 97.9
+          },
+          "GET /api/dashboard": {
+            "n": 313,
+            "p50": 39.5,
+            "p95": 86.3,
+            "max": 332.3
+          },
+          "GET /api/requests": {
+            "n": 168,
+            "p50": 23.4,
+            "p95": 69.5,
+            "max": 160.6
+          },
+          "POST /api/requests": {
+            "n": 65,
+            "p50": 16.8,
+            "p95": 32.7,
+            "max": 94.1
+          }
+        },
+        "peticiones_api_por_s": 11.3,
+        "errores_api": 0,
+        "ejemplos_error": [],
+        "consultas_fuentes_por_min": 144.3,
+        "consultas_esperadas_por_min": 150.0,
+        "eventos_detectados": 433,
+        "asignaciones": 96,
+        "alertas": 268,
+        "ciclos_planificador": [
+          76
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 94,
+            "p50": 1853.6,
+            "p95": 7521.6
+          },
+          "Región Este (ficticia)": {
+            "n": 86,
+            "p50": 2002.4,
+            "p95": 8451.5
+          },
+          "Región Norte (ficticia)": {
+            "n": 91,
+            "p50": 1959.5,
+            "p95": 9810.5
+          },
+          "Región Oeste (ficticia)": {
+            "n": 100,
+            "p50": 2024.5,
+            "p95": 10256.3
+          },
+          "Región Sur (ficticia)": {
+            "n": 102,
+            "p50": 1977.5,
+            "p95": 9105.1
+          }
+        },
+        "integridad": "correcta",
+        "base_bytes_inicio": 10591255,
+        "base_bytes_fin": 13106199,
+        "crecimiento_bytes_por_hora": 150145910
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 571,
+        "error_simulador": null,
+        "clientes_operador": 5
+      },
+      "estimado": {
+        "consultas_por_dia": 207792,
+        "bytes_por_consulta_aprox": 17344,
+        "crecimiento_dia_mb": 3437.1,
+        "techo_con_retencion_14d_mb": 48119.1,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
+      }
+    },
+    "e2": {
+      "escenario": {
+        "titulo": "10 regiones · 100 fuentes · 2.000 solicitudes · 10 operadores",
+        "regiones": 10,
+        "fuentes": 100,
+        "pendientes": 2000,
+        "historicas": 0,
+        "clientes": 10,
+        "instancias": 1
+      },
+      "preparacion": {
+        "preparacion_s": 0.26,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO",
+          "REG06",
+          "REG07",
+          "REG08",
+          "REG09",
+          "REG10"
+        ]
+      },
+      "arranque_s": [
+        1.18
+      ],
+      "duracion_s": 60.6,
+      "medido": {
+        "procesos": {
+          "e2-inst1": {
+            "memoria_mb_media": 129.5,
+            "memoria_mb_max": 134.1,
+            "cpu_pct_media": 94.4,
+            "cpu_pct_p95": 111.0
+          }
+        },
+        "latencia_api_ms": {
+          "GET /api/alerts": {
+            "n": 233,
+            "p50": 37.4,
+            "p95": 110.0,
+            "max": 217.5
+          },
+          "GET /api/dashboard": {
+            "n": 522,
+            "p50": 175.0,
+            "p95": 514.6,
+            "max": 667.3
+          },
+          "GET /api/requests": {
+            "n": 245,
+            "p50": 49.5,
+            "p95": 148.5,
+            "max": 237.5
+          },
+          "POST /api/requests": {
+            "n": 107,
+            "p50": 42.4,
+            "p95": 126.6,
+            "max": 186.0
+          }
+        },
+        "peticiones_api_por_s": 18.3,
+        "errores_api": 0,
+        "ejemplos_error": [],
+        "consultas_fuentes_por_min": 496.1,
+        "consultas_esperadas_por_min": 600.0,
+        "eventos_detectados": 1347,
+        "asignaciones": 138,
+        "alertas": 518,
+        "ciclos_planificador": [
+          14
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 140,
+            "p50": 3529.9,
+            "p95": 9072.9
+          },
+          "Región Este (ficticia)": {
+            "n": 149,
+            "p50": 4061.7,
+            "p95": 9680.4
+          },
+          "Región Norte (ficticia)": {
+            "n": 141,
+            "p50": 3832.9,
+            "p95": 9516.9
+          },
+          "Región Oeste (ficticia)": {
+            "n": 135,
+            "p50": 3699.2,
+            "p95": 9567.1
+          },
+          "Región 06 (ficticia)": {
+            "n": 148,
+            "p50": 4085.5,
+            "p95": 10035.1
+          },
+          "Región 07 (ficticia)": {
+            "n": 152,
+            "p50": 3360.1,
+            "p95": 9955.7
+          },
+          "Región 08 (ficticia)": {
+            "n": 130,
+            "p50": 4316.6,
+            "p95": 11205.4
+          },
+          "Región 09 (ficticia)": {
+            "n": 135,
+            "p50": 3759.6,
+            "p95": 9674.2
+          },
+          "Región 10 (ficticia)": {
+            "n": 120,
+            "p50": 3825.9,
+            "p95": 9831.4
+          },
+          "Región Sur (ficticia)": {
+            "n": 145,
+            "p50": 3403.5,
+            "p95": 9563.7
+          }
+        },
+        "integridad": [
+          "asignación 36 ACTIVA pero solicitud 946 en REINTENTO"
+        ],
+        "base_bytes_inicio": 11435031,
+        "base_bytes_fin": 16145431,
+        "crecimiento_bytes_por_hora": 279825743
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 1118,
+        "error_simulador": null,
+        "clientes_operador": 10
+      },
+      "estimado": {
+        "consultas_por_dia": 714384,
+        "bytes_por_consulta_aprox": 9402,
+        "crecimiento_dia_mb": 6405.5,
+        "techo_con_retencion_14d_mb": 89676.8,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
+      }
+    },
+    "e3": {
+      "escenario": {
+        "titulo": "10 regiones · 100 fuentes · 10.000 solicitudes almacenadas · 10 operadores",
+        "regiones": 10,
+        "fuentes": 100,
+        "pendientes": 1000,
+        "historicas": 9000,
+        "clientes": 10,
+        "instancias": 1
+      },
+      "preparacion": {
+        "preparacion_s": 0.45,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO",
+          "REG06",
+          "REG07",
+          "REG08",
+          "REG09",
+          "REG10"
+        ]
+      },
+      "arranque_s": [
+        1.21
+      ],
+      "duracion_s": 60.7,
+      "medido": {
+        "procesos": {
+          "e3-inst1": {
+            "memoria_mb_media": 124.2,
+            "memoria_mb_max": 127.9,
+            "cpu_pct_media": 93.8,
+            "cpu_pct_p95": 109.0
+          }
+        },
+        "latencia_api_ms": {
+          "GET /api/alerts": {
+            "n": 228,
+            "p50": 40.6,
+            "p95": 120.5,
+            "max": 226.2
+          },
+          "GET /api/dashboard": {
+            "n": 520,
+            "p50": 173.3,
+            "p95": 525.1,
+            "max": 661.8
+          },
+          "GET /api/requests": {
+            "n": 241,
+            "p50": 52.7,
+            "p95": 158.3,
+            "max": 242.7
+          },
+          "POST /api/requests": {
+            "n": 104,
+            "p50": 54.1,
+            "p95": 141.4,
+            "max": 167.9
+          }
+        },
+        "peticiones_api_por_s": 18.0,
+        "errores_api": 0,
+        "ejemplos_error": [],
+        "consultas_fuentes_por_min": 500.9,
+        "consultas_esperadas_por_min": 600.0,
+        "eventos_detectados": 1362,
+        "asignaciones": 142,
+        "alertas": 555,
+        "ciclos_planificador": [
+          14
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 137,
+            "p50": 5103.0,
+            "p95": 13952.4
+          },
+          "Región Este (ficticia)": {
+            "n": 151,
+            "p50": 4845.1,
+            "p95": 10417.2
+          },
+          "Región Norte (ficticia)": {
+            "n": 137,
+            "p50": 4100.7,
+            "p95": 10781.9
+          },
+          "Región Oeste (ficticia)": {
+            "n": 151,
+            "p50": 4996.3,
+            "p95": 10928.1
+          },
+          "Región 06 (ficticia)": {
+            "n": 148,
+            "p50": 5164.6,
+            "p95": 13432.0
+          },
+          "Región 07 (ficticia)": {
+            "n": 137,
+            "p50": 4399.8,
+            "p95": 13543.4
+          },
+          "Región 08 (ficticia)": {
+            "n": 140,
+            "p50": 5025.3,
+            "p95": 10413.5
+          },
+          "Región 09 (ficticia)": {
+            "n": 136,
+            "p50": 5252.7,
+            "p95": 12879.7
+          },
+          "Región 10 (ficticia)": {
+            "n": 132,
+            "p50": 4954.8,
+            "p95": 10801.5
+          },
+          "Región Sur (ficticia)": {
+            "n": 133,
+            "p50": 4116.2,
+            "p95": 10234.6
+          }
+        },
+        "integridad": [
+          "operador 4: carga=4 pero tiene 5"
+        ],
+        "base_bytes_inicio": 13909015,
+        "base_bytes_fin": 18111511,
+        "crecimiento_bytes_por_hora": 249241937
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 1118,
+        "error_simulador": null,
+        "clientes_operador": 10
+      },
+      "estimado": {
+        "consultas_por_dia": 721296,
+        "bytes_por_consulta_aprox": 8289,
+        "crecimiento_dia_mb": 5701.8,
+        "techo_con_retencion_14d_mb": 79825.4,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
+      }
+    },
+    "e4": {
+      "error": "RuntimeError: el servidor terminó al arrancar (código 3)",
+      "registro_servidor_con_errores": {
+        "servidor-e4-inst2.log": "y/engine/base.py\", line 2351, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File \"/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py\", line 1977, in _exec_single_context\n    self.dialect.do_execute(\n    ~~~~~~~~~~~~~~~~~~~~~~~^\n        cursor, str_statement, effective_parameters, context\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py\", line 1192, in do_execute\n    cursor.execute(statement, parameters)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.13/site-packages/psycopg/cursor.py\", line 117, in execute\n    raise ex.with_traceback(None)\nsqlalchemy.exc.IntegrityError: (psycopg.errors.UniqueViolation) duplicate key value violates unique constraint \"users_username_key\"\nDETAIL:  Key (username)=(admin) already exists.\n[SQL: INSERT INTO users (username, password_hash, role, active, created_at) VALUES (%(username)s::VARCHAR, %(password_hash)s::VARCHAR, %(role)s::VARCHAR, %(active)s, %(created_at)s::TIMESTAMP WITHOUT TIME ZONE) RETURNING users.id]\n[parameters: {'username': 'admin', 'password_hash': 'scrypt$16384$8$1$IsXoAu7bAnDipCBpOSMMNg==$5lZdfHocuxnJXKtLgBNZ+As1059jD+85ra1JCPwp5Hs=', 'role': 'admin', 'active': True, 'created_at': datetime.datetime(2026, 11, 12, 17, 48, 39, 861893)}]\n(Background on this error at: https://sqlalche.me/e/21/gkpj)\n\nERROR:    Application startup failed. Exiting.\n"
+      }
+    }
+  }
+}
