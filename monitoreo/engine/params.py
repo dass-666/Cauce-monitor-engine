@@ -7,6 +7,9 @@ from ..config import ENGINE_DEFAULTS
 from ..models import Setting
 
 
+CHOICES = {"enfriamiento_modo": ["adaptable", "fijo"]}
+
+
 def get_params(session: Session) -> dict:
     row = session.get(Setting, "engine")
     params = dict(ENGINE_DEFAULTS)
@@ -25,6 +28,9 @@ def set_params(session: Session, changes: dict) -> dict:
         if isinstance(default, list):
             if not isinstance(v, list):
                 raise ValueError(f"{k} debe ser una lista")
+        elif k in CHOICES:
+            if v not in CHOICES[k]:
+                raise ValueError(f"{k} debe ser uno de {CHOICES[k]}")
         elif isinstance(default, (int, float)):
             if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
                 raise ValueError(f"{k} debe ser un número >= 0")

@@ -152,3 +152,10 @@ class AcceleratedIn(Strict):
     error_rate: float = Field(default=0.03, ge=0, le=1)
     notify_fail_rate: float = Field(default=0.1, ge=0, le=1)
     intensity: float = Field(default=1.0, gt=0, le=20)
+
+
+class RecoverIn(BaseModel):
+    """v1.4: recuperación manual de una asignación EN_PROCESO."""
+    resultado: Literal["completada", "devolver_a_cola"]
+    motivo: str = Field(min_length=3, max_length=300)
+    confirmar: bool = False

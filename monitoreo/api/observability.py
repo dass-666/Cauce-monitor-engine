@@ -13,6 +13,7 @@ from ..db import Database, utcnow
 from ..engine import alerts as al
 from ..engine.metricas import service_metrics, trace_event
 from ..engine.params import get_params
+from ..engine.resilience import circuit_cooldown
 from ..engine.retention import get_watermark, poll_stats
 from ..models import (Alert, AuditLog, ChangeEvent, Channel, Delivery, MaintenanceLog, PollLog, Region, Request,
                       SchedulerLease, Setting, SlotState, Source)
@@ -175,11 +176,18 @@ def diagnose_source(sid: int, request: HttpRequest, user: CurrentUser = Depends(
         elif src.status == "ERROR":
             add("CRITICO", "Detenida por errores", src.status_reason or src.last_error or "sin detalle",
                 "Corrige la causa (configuración, credencial, disponibilidad de la fuente) y pulsa Reanudar.")
-        if src.circuit_state == "ABIERTO" and src.circuit_opened_at:
-            until = src.circuit_opened_at + timedelta(seconds=params["enfriamiento_circuito_s"])
-            add("AVISO", "Circuito abierto (pausa automática)",
-                f"{src.consecutive_failures} fallos seguidos. Próximo intento de prueba: {ser.iso(until)}.",
-                "Es automático. Si persiste, revisa el último error.")
+        if src.circuit_state in ("ABIERTO", "SEMIABIERTO") and src.circuit_opened_at:
+            cd = circuit_cooldown(max(1, src.circuit_open_count or 0), src.interval_s, params)
+            until = src.circuit_opened_at + timedelta(seconds=cd)
+            if src.circuit_state == "ABIERTO":
+                add("AVISO", "Circuito abierto (pausa automática)",
+                    f"En recuperación. {src.consecutive_failures} fallos seguidos; apertura {src.circuit_open_count}, "
+                    f"enfriamiento {cd:g} s. Consulta de prueba: {ser.iso(until)}.",
+                    "Es automático. Si el enfriamiento sigue creciendo, revisa el último error.")
+            else:
+                add("AVISO", "En recuperación: consulta de prueba en curso",
+                    f"Se está haciendo una única consulta de prueba (apertura {src.circuit_open_count}).",
+                    "Es automático.")
         if src.status == "ACTIVA" and src.next_poll_at and src.next_poll_at > now:
             wait = (src.next_poll_at - now).total_seconds()
             if src.last_outcome == "LIMITADO":

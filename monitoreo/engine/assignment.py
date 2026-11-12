@@ -226,27 +226,60 @@ def _back_to_queue(s: Session, req: Request, params: dict, actor: str, note: str
     req.operator_id = None
 
 
-def take_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str) -> bool:
-    """El operador toma la asignación (ASIGNADO -> EN_PROCESO). Solo uno puede lograrlo."""
+def record_operation(s: Session, op: dict | None, assignment_id: int, code: int, result: dict) -> None:
+    """v1.4: guarda el resultado de una operación con clave (misma transacción que su efecto)."""
+    if op and op.get("key"):
+        from ..models import Operation
+        s.add(Operation(username=op["user"], op_key=op["key"], action=op["action"], target=str(assignment_id),
+                        status_code=code, result=result))
+
+
+def take_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str,
+                    op: dict | None = None, idempotent: bool = False) -> bool | str:
+    """El operador toma la asignación (ASIGNADO -> EN_PROCESO). Solo uno puede lograrlo.
+
+    v1.4: con `idempotent=True` y un operador concreto, si la asignación YA está EN_PROCESO para
+    ese mismo operador se devuelve "ya_tomada" (verdadero): así repetir "tomar" tras perder la
+    respuesta no deja la asignación huérfana. Nunca da por buena la toma de OTRO operador."""
     with db.session() as s:
         cond = [Assignment.id == assignment_id, Assignment.status == "ACTIVA", Assignment.expires_at > now]
         if operator_id is not None:
             cond.append(Assignment.operator_id == operator_id)
-        if s.execute(update(Assignment).where(and_(*cond)).values(status="EN_PROCESO")).rowcount != 1:
+        if s.execute(update(Assignment).where(and_(*cond)).values(
+                status="EN_PROCESO", taken_at=now, taken_by=actor[:64], last_activity_at=now)).rowcount != 1:
+            if idempotent and operator_id is not None:
+                a = s.get(Assignment, assignment_id)
+                if a is not None and a.status == "EN_PROCESO" and a.operator_id == operator_id:
+                    a.last_activity_at = now
+                    record_operation(s, op, assignment_id, 200, {"ok": True, "ya_tomada": True})
+                    return "ya_tomada"
             return False
         a = s.get(Assignment, assignment_id)
         req = s.get(Request, a.request_id)
         transition(s, req, EN_PROCESO, actor, f"asignación {assignment_id} tomada", now)
+        record_operation(s, op, assignment_id, 200, {"ok": True})
         return True
 
 
-def complete_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str) -> bool:
+def touch_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str) -> bool:
+    """v1.4: el operador indica que sigue trabajando en una asignación EN_PROCESO."""
+    with db.session() as s:
+        cond = [Assignment.id == assignment_id, Assignment.status == "EN_PROCESO"]
+        if operator_id is not None:
+            cond.append(Assignment.operator_id == operator_id)
+        return s.execute(update(Assignment).where(and_(*cond)).values(
+            last_activity_at=now, inactive_alerted_at=None)).rowcount == 1
+
+
+def complete_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str,
+                        op: dict | None = None) -> bool:
     with db.session() as s:
         cond = [Assignment.id == assignment_id, Assignment.status == "EN_PROCESO"]
         if operator_id is not None:
             cond.append(Assignment.operator_id == operator_id)
         if s.execute(update(Assignment).where(and_(*cond)).values(status="COMPLETADA")).rowcount != 1:
             return False
+        record_operation(s, op, assignment_id, 200, {"ok": True})
         a = s.get(Assignment, assignment_id)
         _release(s, a, "COMPLETADA", now, "completada")
         # Consumo local optimista: la unidad ya no está libre hasta que la fuente confirme.
@@ -275,13 +308,15 @@ def _consume_in_simulator(s: Session, a: Assignment) -> None:
 
 
 def reject_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str,
-                      params: dict, reason: str = "rechazada por el operador") -> bool:
+                      params: dict, reason: str = "rechazada por el operador", op: dict | None = None,
+                      only_status: tuple = ("ACTIVA", "EN_PROCESO")) -> bool:
     with db.session() as s:
-        cond = [Assignment.id == assignment_id, Assignment.status.in_(["ACTIVA", "EN_PROCESO"])]
+        cond = [Assignment.id == assignment_id, Assignment.status.in_(list(only_status))]
         if operator_id is not None:
             cond.append(Assignment.operator_id == operator_id)
         if s.execute(update(Assignment).where(and_(*cond)).values(status="RECHAZADA")).rowcount != 1:
             return False
+        record_operation(s, op, assignment_id, 200, {"ok": True})
         a = s.get(Assignment, assignment_id)
         _release(s, a, "RECHAZADA", now, reason)
         _back_to_queue(s, s.get(Request, a.request_id), params, actor, reason, now)

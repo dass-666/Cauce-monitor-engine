@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -154,12 +155,20 @@ class Operadores(threading.Thread):
         self.res_ids: set[str] = set()
         self.lock = threading.Lock()
 
-    def _act(self, aid: int, action: str) -> int:
-        try:
-            return self.api.post(f"/api/assignments/{aid}/{action}").status_code
-        except httpx.HTTPError:
-            self.stats["errores_api"] += 1
-            return 0
+    def _act(self, aid: int, action: str, key: str | None = None) -> int:
+        """v1.4: cada operación lleva su clave (Idempotency-Key). Si la respuesta se pierde (motor
+        reiniciándose), se repite con LA MISMA clave: el motor devuelve lo que ya hizo, sin repetirlo."""
+        headers = {"Idempotency-Key": key} if key else {}
+        for i in range(30 if key else 1):
+            try:
+                return self.api.post(f"/api/assignments/{aid}/{action}", headers=headers).status_code
+            except httpx.HTTPError:
+                self.stats["errores_api"] += 1
+                if not key:
+                    return 0
+                self.stats["reintentos_con_clave"] = self.stats.get("reintentos_con_clave", 0) + 1
+                time.sleep(min(2.0, 0.25 * (i + 1)))
+        return 0
 
     def handle(self, a: dict, compete: bool) -> None:
         aid = a["id"]
@@ -167,11 +176,12 @@ class Operadores(threading.Thread):
             barrier = threading.Barrier(2, timeout=10)
 
             def take():
+                key = f"t{aid}-{uuid.uuid4().hex[:12]}"     # cada contendiente, su propia clave
                 try:
                     barrier.wait()
                 except threading.BrokenBarrierError:
                     pass                            # sin pareja a tiempo: toma igualmente
-                return self._act(aid, "tomar")
+                return self._act(aid, "tomar", key)
             f1, f2 = self.take_pool.submit(take), self.take_pool.submit(take)
             codes = sorted([f1.result(), f2.result()])
             self.stats["competencias"] += 1
@@ -182,7 +192,7 @@ class Operadores(threading.Thread):
             if ok == 0:
                 return
         else:
-            if self._act(aid, "tomar") != 200:
+            if self._act(aid, "tomar", f"t{aid}-{uuid.uuid4().hex[:12]}") != 200:
                 self.stats["tomas_fallidas"] += 1
                 return
         with self.lock:
@@ -208,8 +218,9 @@ class Operadores(threading.Thread):
 
     def _persist(self, aid: int, action: str) -> bool:
         """Como una persona: si el motor no responde (p. ej. se está reiniciando), vuelve a intentarlo."""
+        key = f"{action[0]}{aid}-{uuid.uuid4().hex[:12]}"
         for i in range(40):
-            code = self._act(aid, action)
+            code = self._act(aid, action, key)
             if code == 200:
                 return True
             if code == 409:
@@ -291,8 +302,10 @@ def run(args) -> dict:
 
     # ---- configuración por la API del motor (lo mismo que haría un administrador)
     eng_params = {"ttl_asignacion_s": 20, "concurrencia_maxima": 5}
-    if args.enfriamiento_circuito is not None:
-        eng_params["enfriamiento_circuito_s"] = args.enfriamiento_circuito
+    if args.enfriamiento_circuito is not None:      # v1.3: enfriamiento fijo de N segundos
+        eng_params.update({"enfriamiento_modo": "fijo", "enfriamiento_circuito_s": args.enfriamiento_circuito})
+    else:
+        eng_params["enfriamiento_modo"] = "adaptable"
     api.put("/api/settings/engine", json=eng_params).raise_for_status()
     for ch in api.get("/api/channels").json():
         if ch["type"] == "telegram":
@@ -428,7 +441,8 @@ def run(args) -> dict:
     # tarda `enfriamiento_circuito_s` en volver a probar). Se mide cuánto tarda.
     t_drain = time.monotonic()
     params = api.get("/api/settings/engine").json()
-    limit_s = float(params.get("enfriamiento_circuito_s", 60)) + 30
+    limit_s = (float(params.get("enfriamiento_circuito_s", 60)) if params.get("enfriamiento_modo") == "fijo"
+               else float(params.get("enfriamiento_max_s", 300))) + 30
     recovered = None
     while time.monotonic() - t_drain < limit_s:
         srcs = api.get("/api/sources").json()
@@ -438,6 +452,7 @@ def run(args) -> dict:
         time.sleep(0.5)
     ck("todas las fuentes vuelven a estar al día tras los fallos", recovered is not None,
        {"segundos": recovered, "limite_s": limit_s,
+        "circuito_modo": params.get("enfriamiento_modo"),
         "circuito_enfriamiento_s": params.get("enfriamiento_circuito_s")})
     time.sleep(max(5, args.intervalo * 5))
     operadores.stop()
@@ -760,7 +775,8 @@ def main() -> int:
     ap.add_argument("--semilla", type=int, default=13)
     ap.add_argument("--bd", help="URL de la base del motor (por defecto SQLite temporal)")
     ap.add_argument("--sin-reinicios", action="store_true")
-    ap.add_argument("--enfriamiento-circuito", type=float, help="segundos (por defecto, el valor del motor: 60)")
+    ap.add_argument("--enfriamiento-circuito", type=float,
+                    help="enfriamiento FIJO en segundos (modo v1.3); sin indicarlo se usa el modo adaptable")
     ap.add_argument("--rapido", action="store_true", help="versión corta (CI)")
     args = ap.parse_args()
     if args.rapido:
@@ -769,7 +785,7 @@ def main() -> int:
     res = run(args)
     out = Path(args.salida)
     name = (f"integracion_http_{res['base_de_datos'].lower()}{'_rapido' if args.rapido else ''}"
-            f"{'_enfriamiento' + str(int(args.enfriamiento_circuito)) if args.enfriamiento_circuito is not None else ''}.json")
+            f"{'_fijo' + str(int(args.enfriamiento_circuito)) if args.enfriamiento_circuito is not None else ''}.json")
     (out / name).write_text(json.dumps(res, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     failed = [c for c in res["comprobaciones"] if c["critica"] and not c["ok"]]
     warned = [c for c in res["comprobaciones"] if not c["critica"] and not c["ok"]]

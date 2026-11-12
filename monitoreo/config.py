@@ -63,7 +63,14 @@ ENGINE_DEFAULTS: dict = {
     "tick_segundos": 0.5,              # cada cuánto el planificador revisa qué fuentes tocan
     "concurrencia_maxima": 5,          # consultas simultáneas como máximo
     "umbral_circuito": 3,              # fallos consecutivos para abrir el circuito
-    "enfriamiento_circuito_s": 60,     # tiempo con el circuito abierto antes de probar
+    "enfriamiento_circuito_s": 60,     # modo "fijo": tiempo con el circuito abierto antes de probar
+    # --- v1.4: enfriamiento adaptable (por defecto). Base = intervalo de la fuente × N (con mínimo);
+    # se duplica en cada apertura seguida hasta el máximo; baja de forma gradual al recuperarse.
+    "enfriamiento_modo": "adaptable",  # "adaptable" o "fijo" (comportamiento de v1.0–v1.3)
+    "enfriamiento_intervalos": 5,
+    "enfriamiento_min_s": 5,
+    "enfriamiento_max_s": 300,
+    "minutos_sin_exito_hasta_error": 15,  # modo adaptable: tiempo mínimo sin éxito antes de ERROR
     "aperturas_hasta_error": 5,        # aperturas seguidas del circuito -> fuente en ERROR (manual)
     "backoff_max_s": 600,              # tope del retroceso exponencial entre consultas
     "ausencias_para_cancelar": 2,      # consultas completas sin ver un recurso -> CANCELACION
@@ -87,4 +94,7 @@ ENGINE_DEFAULTS: dict = {
     # --- v1.2
     "autodiagnostico_cada_s": 600,              # 0 = desactivado
     "entrega_reclamo_vence_s": 300,             # una entrega en ENVIANDO más tiempo vuelve a la cola
+    # --- v1.4
+    "inactividad_en_proceso_min": 30,           # aviso si una asignación EN_PROCESO no tiene actividad (0 = no)
+    "retencion_operaciones_dias": 7,            # resultados guardados de operaciones con clave
 }

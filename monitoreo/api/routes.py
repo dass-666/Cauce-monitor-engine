@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as HttpRequest
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from .. import security
 from ..config import settings
@@ -404,26 +405,130 @@ def _op_scope(user: CurrentUser) -> int | None:
     return user.operator_id
 
 
+_OP_KEY_OK = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
+
+
+def _op_key(http: HttpRequest) -> str | None:
+    """v1.4: clave de operación opcional (`Idempotency-Key`), elegida por el cliente."""
+    key = http.headers.get("Idempotency-Key")
+    if key is None:
+        return None
+    if not (8 <= len(key) <= 80) or not set(key) <= _OP_KEY_OK:
+        raise HTTPException(422, "Idempotency-Key debe tener 8-80 caracteres (letras, números, - _ . :)")
+    return key
+
+
+def _stored_operation(db: Database, username: str, key: str):
+    from ..models import Operation
+    with db.session() as s:
+        o = s.scalar(select(Operation).where(Operation.username == username, Operation.op_key == key))
+        return None if o is None else {"accion": o.action, "asignacion": o.target, "codigo": o.status_code,
+                                       "resultado": o.result, "hora": ser.iso(o.created_at)}
+
+
+def _replay(stored: dict, action: str, aid: int):
+    if stored["accion"] != action or stored["asignacion"] != str(aid):
+        raise HTTPException(422, "Esa Idempotency-Key ya se usó para otra operación")
+    if stored["codigo"] != 200:
+        raise HTTPException(stored["codigo"], stored["resultado"].get("detail", "operación rechazada"))
+    return {**stored["resultado"], "repetida": True}
+
+
+@router.get("/operaciones/{key}")
+def operation_result(key: str, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v1.4: ¿qué pasó con mi operación? 404 = el servidor nunca la registró (es seguro repetirla
+    con la misma clave). Cada usuario solo ve las suyas."""
+    stored = _stored_operation(db, user.username, key)
+    if stored is None:
+        raise HTTPException(404, "Operación desconocida: no llegó a registrarse; puedes repetirla con la misma clave")
+    return stored
+
+
+@router.post("/assignments/{aid}/actividad")
+def assignment_activity(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v1.4: "sigo con esto". Renueva la actividad de una asignación EN_PROCESO."""
+    if not asg.touch_assignment(db, aid, _op_scope(user), utcnow(), user.username):
+        raise HTTPException(409, "La asignación no está EN_PROCESO o no es tuya")
+    return {"ok": True}
+
+
+@router.post("/assignments/{aid}/recuperar")
+def assignment_recover(aid: int, body: sc.RecoverIn, user: CurrentUser = Depends(require_admin),
+                       db: Database = Depends(get_db)):
+    """v1.4: recuperación MANUAL de una asignación EN_PROCESO (p. ej. abandonada). Solo el
+    administrador, con confirmación explícita y motivo; queda en el registro de auditoría.
+    - `completada`: el administrador comprobó que la reserva sí se hizo.
+    - `devolver_a_cola`: comprobó que NO se hizo; la solicitud vuelve a la cola."""
+    if not body.confirmar:
+        raise HTTPException(422, "Falta confirmar: revisa con el operador o en la fuente antes de recuperar")
+    now = utcnow()
+    with db.session() as s:
+        a = s.get(Assignment, aid)
+        if a is None or a.status != "EN_PROCESO":
+            raise HTTPException(409, "Solo se recuperan asignaciones EN_PROCESO")
+        params = get_params(s)
+        before = {"tomada_por": a.taken_by, "tomada": ser.iso(a.taken_at), "actividad": ser.iso(a.last_activity_at)}
+    actor = f"{user.username} (recuperación manual)"
+    if body.resultado == "completada":
+        ok = asg.complete_assignment(db, aid, None, now, actor)
+    else:
+        ok = asg.reject_assignment(db, aid, None, now, actor, params, reason=f"recuperación manual: {body.motivo}",
+                                   only_status=("EN_PROCESO",))
+    if not ok:
+        raise HTTPException(409, "La asignación cambió de estado mientras tanto; vuelve a cargarla")
+    with db.session() as s:
+        security.audit(s, user.username, "asignacion_recuperar", str(aid),
+                       {"resultado": body.resultado, "motivo": body.motivo, **before})
+        for al_ in s.scalars(select(Alert).where(Alert.assignment_id == aid, Alert.kind == "SISTEMA",
+                                                 Alert.acknowledged_at.is_(None))):
+            al_.acknowledged_at, al_.acknowledged_by = now, user.username
+    return {"ok": True, "resultado": body.resultado}
+
+
 @router.post("/assignments/{aid}/{action}")
-def assignment_action(aid: int, action: str, user: CurrentUser = Depends(current_user),
+def assignment_action(aid: int, action: str, http: HttpRequest, user: CurrentUser = Depends(current_user),
                       db: Database = Depends(get_db)):
+    """Tomar, completar o rechazar. v1.4: con `Idempotency-Key`, repetir la misma petición (p. ej.
+    tras perder la respuesta) devuelve el resultado guardado sin repetir el efecto; y un operador
+    que repite "tomar" sobre una asignación que ya es suya recibe éxito ("ya_tomada")."""
+    if action not in ("tomar", "completar", "rechazar"):
+        raise HTTPException(404, "Acción desconocida")
     now = utcnow()
     scope = _op_scope(user)
+    key = _op_key(http)
+    if key:
+        stored = _stored_operation(db, user.username, key)
+        if stored:
+            return _replay(stored, action, aid)
     with db.session() as s:
         params = get_params(s)
-    if action == "tomar":
-        ok = asg.take_assignment(db, aid, scope, now, user.username)
-    elif action == "completar":
-        ok = asg.complete_assignment(db, aid, scope, now, user.username)
-    elif action == "rechazar":
-        ok = asg.reject_assignment(db, aid, scope, now, user.username, params)
-    else:
-        raise HTTPException(404, "Acción desconocida")
+    op = {"user": user.username, "key": key, "action": action} if key else None
+    try:
+        if action == "tomar":
+            ok = asg.take_assignment(db, aid, scope, now, user.username, op=op, idempotent=True)
+        elif action == "completar":
+            ok = asg.complete_assignment(db, aid, scope, now, user.username, op=op)
+        else:
+            ok = asg.reject_assignment(db, aid, scope, now, user.username, params, op=op)
+    except IntegrityError:
+        # misma clave enviada dos veces a la vez: la otra petición ganó; se devuelve su resultado
+        stored = _stored_operation(db, user.username, key) if key else None
+        if stored:
+            return _replay(stored, action, aid)
+        raise
+    detail = "No se pudo: la asignación no existe, no es tuya, expiró o cambió de estado"
     if not ok:
-        raise HTTPException(409, "No se pudo: la asignación no existe, no es tuya, expiró o cambió de estado")
+        if key:
+            try:
+                with db.session() as s:
+                    asg.record_operation(s, op, aid, 409, {"detail": detail})
+            except IntegrityError:
+                pass
+        raise HTTPException(409, detail)
     with db.session() as s:
-        security.audit(s, user.username, f"asignacion_{action}", str(aid))
-    return {"ok": True}
+        security.audit(s, user.username, f"asignacion_{action}", str(aid),
+                       {"ya_tomada": True} if ok == "ya_tomada" else None)
+    return {"ok": True, **({"ya_tomada": True} if ok == "ya_tomada" else {})}
 
 
 # ======================================================================= alertas

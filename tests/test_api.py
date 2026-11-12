@@ -201,8 +201,11 @@ def test_operator_take_complete_via_api(app_db):
         assert len(mine) == 1
         aid = mine[0]["id"]
         assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 200
-        assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 409
+        # v1.4: el MISMO operador que repite "tomar" (p. ej. tras perder la respuesta) recibe éxito
+        again = c.post(f"/api/assignments/{aid}/tomar", headers=ho)
+        assert again.status_code == 200 and again.json()["ya_tomada"] is True
         assert c.post(f"/api/assignments/{aid}/completar", headers=ho).status_code == 200
+        assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 409   # ya completada
         r = c.get(f"/api/requests/{mine[0]['request_id']}", headers=h).json()
         assert r["status"] == "COMPLETADO"
 

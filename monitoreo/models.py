@@ -229,6 +229,29 @@ class Assignment(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     reason: Mapped[str] = mapped_column(Text, default="")
+    # v1.4: quién tomó la asignación y cuándo hubo actividad por última vez (para detectar
+    # asignaciones EN_PROCESO abandonadas sin liberarlas automáticamente).
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    taken_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    inactive_alerted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Operation(Base):
+    """v1.4: resultado guardado de una operación de un usuario identificada por su clave
+    (cabecera `Idempotency-Key`). Se escribe en la MISMA transacción que la operación: si existe,
+    la operación se hizo. Repetir la petición devuelve el mismo resultado sin repetir el efecto, y
+    `GET /api/operaciones/{clave}` permite saber qué pasó tras perder la conexión."""
+    __tablename__ = "operations"
+    __table_args__ = (UniqueConstraint("username", "op_key", name="uq_operations_user_key"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64))
+    op_key: Mapped[str] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(32))
+    target: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 
 # ---------------------------------------------------------------- alertas

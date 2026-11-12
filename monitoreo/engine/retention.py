@@ -159,6 +159,13 @@ def purge(db: Database, now: datetime, sleep_fn=time.sleep) -> dict:
         out["registro_notificaciones"] = _purge_batches(
             db, lambda: select(NotificationLog.id).where(NotificationLog.ts < cutoff).order_by(NotificationLog.id),
             NotificationLog, params, sleep_fn, budget)
+    days = float(params.get("retencion_operaciones_dias", 7))
+    if days > 0:
+        from ..models import Operation
+        cutoff = now - timedelta(days=days)
+        out["operaciones"] = _purge_batches(
+            db, lambda: select(Operation.id).where(Operation.created_at < cutoff).order_by(Operation.id),
+            Operation, params, sleep_fn, budget)
     out["pendiente_otra_pasada"] = budget[0] <= 0
     return out
 

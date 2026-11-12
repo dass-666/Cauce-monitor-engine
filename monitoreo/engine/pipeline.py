@@ -12,17 +12,17 @@ import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..connectors.base import ConnectorError, RateLimited, StaleResponse, TemporaryError
 from ..connectors.registry import build_connector
 from ..db import Database
-from ..models import Alert, Assignment, ChangeEvent, Operator, PollLog, Request, SlotState, Source
+from ..models import Alert, Assignment, AuditLog, ChangeEvent, Operator, PollLog, Request, SlotState, Source
 from . import alerts as alerts_mod
 from . import assignment as asg
 from .detector import AGOTADO, CANCELACION, REDUCCION, SUPPLY_TYPES, detect
 from .params import get_params
-from .resilience import TokenBucket, backoff_delay, circuit_check, jittered_interval
+from .resilience import TokenBucket, backoff_delay, circuit_check, circuit_cooldown, jittered_interval
 
 log = logging.getLogger("monitoreo.motor")
 
@@ -73,6 +73,28 @@ def _system_alert(s, src: Source, what: str, detail: str, now) -> None:
                  "fallos_consecutivos": src.consecutive_failures})
 
 
+def _close_circuit(src: Source, params: dict) -> None:
+    """Cierra el circuito tras una respuesta correcta. v1.4 (modo adaptable): el contador de
+    aperturas baja de uno en uno, así una fuente que acaba de recuperarse y vuelve a fallar no
+    empieza desde el enfriamiento más corto (restablecimiento gradual)."""
+    src.circuit_state, src.circuit_opened_at = "CERRADO", None
+    if params.get("enfriamiento_modo", "adaptable") == "fijo":
+        src.circuit_open_count = 0
+    else:
+        src.circuit_open_count = max(0, (src.circuit_open_count or 0) - 1)
+
+
+def _should_stop(src: Source, params: dict, now) -> bool:
+    """¿Pasar la fuente a ERROR (revisión manual)? Modo fijo: tras N aperturas (como v1.0–v1.3).
+    Modo adaptable: además debe llevar `minutos_sin_exito_hasta_error` sin una consulta correcta;
+    los enfriamientos cortos no deben convertir un corte de 2 minutos en una parada manual."""
+    if src.circuit_open_count < params["aperturas_hasta_error"]:
+        return False
+    if params.get("enfriamiento_modo", "adaptable") == "fijo" or src.last_success_at is None:
+        return True
+    return (now - src.last_success_at).total_seconds() >= 60 * float(params.get("minutos_sin_exito_hasta_error", 15))
+
+
 def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng: random.Random | None = None,
                 context_extra: dict | None = None, guard=None) -> PollOutcome:
     """`guard`: función opcional que devuelve False si esta instancia perdió el liderazgo;
@@ -84,7 +106,8 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
         params = get_params(s)
         if src is None or src.status != "ACTIVA":
             return PollOutcome("OMITIDA")
-        decision = circuit_check(src.circuit_state, src.circuit_opened_at, params["enfriamiento_circuito_s"], now)
+        cooldown = circuit_cooldown(max(1, src.circuit_open_count or 0), src.interval_s, params)
+        decision = circuit_check(src.circuit_state, src.circuit_opened_at, cooldown, now)
         if not decision.allowed:
             src.next_poll_at = now + timedelta(seconds=decision.wait_s)
             src.last_outcome = "CIRCUITO_ABIERTO"
@@ -95,7 +118,10 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
             src.last_outcome = "LIMITE_LOCAL"
             return PollOutcome("LIMITE_LOCAL")
         if decision.state == "SEMIABIERTO":
-            src.circuit_state = "SEMIABIERTO"
+            # v1.4: UNA sola consulta de prueba. Se anota cuándo empezó y se aparta la siguiente
+            # consulta: si otro hilo o un reinicio llegan antes de que termine, no lanzan otra.
+            src.circuit_state, src.circuit_opened_at = "SEMIABIERTO", now
+            src.next_poll_at = now + timedelta(seconds=cooldown)
         ctype, cfg, max_retries, code = src.connector_type, dict(src.config or {}), src.max_retries, src.code
         cstate = dict(src.connector_state or {})
         # v1.3: si el motor modificó localmente algún recurso de esta fuente (consumo optimista al
@@ -168,7 +194,7 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                 src.connector_state = snapshot.state
             src.total_changes += len(events)
             src.last_success_at, src.last_error, src.consecutive_failures = now, None, 0
-            src.circuit_state, src.circuit_opened_at, src.circuit_open_count = "CERRADO", None, 0
+            _close_circuit(src, params)
             src.status_reason = None
             src.next_poll_at = now + timedelta(seconds=jittered_interval(src.interval_s, src.jitter_pct, rng))
             s.flush()
@@ -179,6 +205,9 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
             # sin compararla (no genera cambios falsos) y no cuenta como fallo de la fuente.
             src.last_error = err
             src.last_result = {"resultado": outcome, "error": err, "ms": round(duration_ms, 2)}
+            src.consecutive_failures = 0
+            if src.circuit_state != "CERRADO":
+                _close_circuit(src, params)      # la fuente responde: la conexión está sana
             src.next_poll_at = now + timedelta(seconds=jittered_interval(src.interval_s, src.jitter_pct, rng))
         else:
             src.total_errors += 1
@@ -196,10 +225,11 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                 if src.circuit_state == "SEMIABIERTO" or src.consecutive_failures >= params["umbral_circuito"]:
                     src.circuit_state, src.circuit_opened_at = "ABIERTO", now
                     src.circuit_open_count += 1
-                    src.next_poll_at = now + timedelta(seconds=params["enfriamiento_circuito_s"])
-                    src.status_reason = (f"circuito abierto tras {src.consecutive_failures} fallos seguidos; "
-                                         f"se reintenta en {params['enfriamiento_circuito_s']} s")
-                    if src.circuit_open_count >= params["aperturas_hasta_error"]:
+                    cooldown = circuit_cooldown(src.circuit_open_count, src.interval_s, params)
+                    src.next_poll_at = now + timedelta(seconds=cooldown)
+                    src.status_reason = (f"circuito abierto tras {src.consecutive_failures} fallos seguidos "
+                                         f"(apertura {src.circuit_open_count}); prueba en {cooldown:g} s")
+                    if _should_stop(src, params, now):
                         # pausa automática definitiva: requiere revisión manual
                         _set_status(src, "ERROR", f"circuito abierto {src.circuit_open_count} veces seguidas; "
                                     "requiere revisión manual (Reanudar)", now)
@@ -325,8 +355,42 @@ def maintenance(db: Database, clock) -> dict:
             Assignment.status == "ACTIVA", ~select(Alert.id).where(Alert.assignment_id == Assignment.id).exists()))
         for aid in sorted(set(created) | set(orphans)):
             n_alerts += _assignment_alert(s, aid, now) is not None
+    inactive = flag_inactive_assignments(db, now, params)
     return {"validadas": len(pending), "expiradas": expired, "vencidas": vencidas,
-            "reasignadas": len(created), "alertas": n_alerts}
+            "reasignadas": len(created), "alertas": n_alerts, "inactivas_avisadas": inactive}
+
+
+def flag_inactive_assignments(db: Database, now, params: dict) -> int:
+    """v1.4: avisa (al operador y al administrador) de asignaciones EN_PROCESO sin actividad
+    durante `inactividad_en_proceso_min`. NO las libera: puede que el operador sí esté
+    reservando y solo se perdió la comunicación. La recuperación es manual y queda auditada."""
+    minutes = float(params.get("inactividad_en_proceso_min", 30))
+    if minutes <= 0:
+        return 0
+    limit = now - timedelta(minutes=minutes)
+    n = 0
+    with db.session() as s:
+        last = func.coalesce(Assignment.last_activity_at, Assignment.taken_at, Assignment.created_at)
+        for a in s.scalars(select(Assignment).where(Assignment.status == "EN_PROCESO", last <= limit,
+                                                    Assignment.inactive_alerted_at.is_(None))):
+            req, slot, op = s.get(Request, a.request_id), s.get(SlotState, a.slot_id), s.get(Operator, a.operator_id)
+            src = s.get(Source, slot.source_id)
+            since = a.last_activity_at or a.taken_at or a.created_at
+            idle = int((now - since).total_seconds() // 60)
+            a.inactive_alerted_at = now
+            alerts_mod.create_alert(
+                s, dedup_key=f"inactiva:{a.id}:{since.isoformat()}", kind="SISTEMA",
+                title=f"{req.code}: asignación EN_PROCESO sin actividad desde hace {idle} min ({op.name})",
+                source_code=src.code, region=slot.region, resource=slot.name, now=now, assignment_id=a.id,
+                request_id=req.id, priority=req.priority, operator_name=op.name,
+                payload={"evento_sistema": "asignacion_inactiva", "asignacion": a.id, "solicitud": req.code,
+                         "operador": op.name, "tomada_por": a.taken_by, "minutos_sin_actividad": idle,
+                         "que_hacer": "Confirmar con el operador. Si ya reservó: Recuperar > completada. "
+                                      "Si no: Recuperar > devolver a la cola."})
+            s.add(AuditLog(ts=now, username="motor", action="asignacion_inactiva", target=str(a.id),
+                           detail={"minutos": idle, "operador": op.name}))
+            n += 1
+    return n
 
 
 def due_sources(db: Database, now) -> list[int]:

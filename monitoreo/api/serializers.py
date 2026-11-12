@@ -60,7 +60,10 @@ def assignment(a, slot=None, req=None, op=None) -> dict:
             "slot_id": a.slot_id, "resource": slot.name if slot else None, "region": slot.region if slot else None,
             "operator_id": a.operator_id, "operator_name": op.name if op else None, "quantity": a.quantity,
             "status": a.status, "created_at": iso(a.created_at), "expires_at": iso(a.expires_at),
-            "closed_at": iso(a.closed_at), "reason": a.reason}
+            "closed_at": iso(a.closed_at), "reason": a.reason,
+            # v1.4
+            "taken_at": iso(a.taken_at), "taken_by": a.taken_by, "last_activity_at": iso(a.last_activity_at),
+            "inactiva": a.status == "EN_PROCESO" and a.inactive_alerted_at is not None}
 
 
 def alert(a) -> dict:
