@@ -76,6 +76,19 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await page.waitForSelector("#view form");
   await page.screenshot({ path: `${outDir}/06_configuracion.png`, fullPage: true });
 
+  // v1.1: Salud y diagnóstico de una fuente
+  await page.goto(base + "/#salud");
+  await page.waitForSelector("text=Estado por fuente");
+  await page.screenshot({ path: `${outDir}/09_salud.png`, fullPage: true });
+  // Preferir una fuente con problemas (la demo incluye una API que falla a propósito).
+  const bad = page.locator("#view tr.clickable", { hasText: "DESACTUALIZADA" });
+  await ((await bad.count()) ? bad.first() : page.locator("#view tr.clickable").first()).click();
+  await page.waitForSelector("#drawer:not(.hidden) >> text=Diagnóstico");
+  const verdict = await page.textContent("#drawer-body");
+  log("diagnóstico abierto:", verdict.slice(0, 120).replace(/\s+/g, " "));
+  await page.screenshot({ path: `${outDir}/10_diagnostico.png` });
+  await page.keyboard.press("Escape");
+
   // Teléfono
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const p2 = await phone.newPage();
@@ -91,7 +104,12 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await p2.goto(base + "/#solicitudes");
   await p2.waitForSelector("tr.clickable");
   await p2.screenshot({ path: `${outDir}/08_telefono_solicitudes.png` });
+  await p2.goto(base + "/#salud");
+  await p2.waitForSelector("text=Estado por fuente");
+  const overflowSalud = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  log("desbordamiento horizontal en Salud (teléfono, px):", overflowSalud);
+  await p2.screenshot({ path: `${outDir}/11_telefono_salud.png`, fullPage: true });
   log("errores de consola:", errors.length ? errors : "ninguno");
   await browser.close();
-  process.exit(found && overflow <= 0 && !errors.length ? 0 : 1);
+  process.exit(found && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

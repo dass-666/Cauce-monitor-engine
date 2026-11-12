@@ -11,6 +11,8 @@ igual en ambos.
 """
 from __future__ import annotations
 
+import os
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator
@@ -54,8 +56,16 @@ def make_engine(url: str) -> Engine:
     return create_engine(url, pool_size=10, max_overflow=20, pool_pre_ping=True)
 
 
+class NestedSessionError(RuntimeError):
+    """Se abrió una sesión dentro de otra en el mismo hilo. En SQLite (BEGIN IMMEDIATE) la
+    interior espera el candado de la exterior hasta agotar el tiempo: es un bloqueo seguro."""
+
+
 class Database:
     def __init__(self, url: str):
+        # Detector de sesiones anidadas (activo en las pruebas con MONITOREO_DETECTAR_ANIDADAS=1).
+        self._depth = threading.local()
+        self._detect_nested = os.environ.get("MONITOREO_DETECTAR_ANIDADAS") == "1"
         self.url = url
         self.engine = make_engine(url)
         self.SessionLocal = sessionmaker(self.engine, expire_on_commit=False)
@@ -89,6 +99,10 @@ class Database:
 
     @contextmanager
     def session(self) -> Iterator[Session]:
+        depth = getattr(self._depth, "n", 0)
+        if self._detect_nested and depth and self.is_sqlite:
+            raise NestedSessionError("Sesión anidada en el mismo hilo (bloquearía SQLite)")
+        self._depth.n = depth + 1
         s = self.SessionLocal()
         try:
             yield s
@@ -98,3 +112,4 @@ class Database:
             raise
         finally:
             s.close()
+            self._depth.n = depth

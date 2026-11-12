@@ -52,7 +52,8 @@ h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 0 0 10px;
   box-shadow: var(--shadow); min-width: 0; }
 .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .kpi .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.kpi .sub { color: var(--muted); font-size: 12px; }
+.kpi .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.card > p, .card > div > p { overflow-wrap: anywhere; }  /* textos largos sin espacios (JSON, identificadores) */
 .region .name { font-weight: 600; } .region .row { display: flex; justify-content: space-between; padding: 3px 0; }
 .region .row b { font-variant-numeric: tabular-nums; }
 .section { margin-top: 18px; }

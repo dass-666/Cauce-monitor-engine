@@ -28,6 +28,7 @@ def source(s) -> dict:
             "circuit_state": s.circuit_state, "consecutive_failures": s.consecutive_failures,
             "next_poll_at": iso(s.next_poll_at), "last_polled_at": iso(s.last_polled_at),
             "last_success_at": iso(s.last_success_at), "last_result": s.last_result, "last_error": s.last_error,
+            "status_reason": s.status_reason, "last_outcome": s.last_outcome,
             "metrics": {"consultas": s.total_polls, "errores": s.total_errors, "cambios": s.total_changes,
                         "latencia_media_ms": round(s.avg_latency_ms, 2),
                         "tasa_error": round(s.total_errors / s.total_polls, 4) if s.total_polls else 0}}

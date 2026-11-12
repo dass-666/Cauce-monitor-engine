@@ -77,6 +77,8 @@ const BADGE = {
   CANCELADO: "b-bad", CANCELADA: "b-bad", RECHAZADA: "b-bad", DESAPARECIDO: "b-bad", INTERRUMPIDA: "b-bad",
   NUEVA_DISPONIBILIDAD: "b-ok", REAPARICION: "b-ok", AUMENTO: "b-ok", AGOTADO: "b-bad", REDUCCION: "b-warn",
   CANCELACION: "b-bad", CAMBIO_HORARIO: "b-info", NUEVO_RECURSO: "", ASIGNACION: "b-acc", DISPONIBILIDAD: "b-info",
+  CRITICO: "b-bad", AVISO: "b-warn", INFO: "b-info", LIDER: "b-ok", EN_ESPERA: "b-info", DETENIDO: "b-bad",
+  SIN_MOTOR: "b-bad", DESACTUALIZADA: "b-warn", AL_DIA: "b-ok", SISTEMA: "b-bad", ENVIANDO: "b-warn",
 };
 const badge = (s) => h("span", { class: "badge " + (BADGE[s] || "") }, String(s || "—").replace(/_/g, " "));
 
@@ -146,6 +148,7 @@ function logout(expired) {
 const VIEWS = {
   inicio: { t: "Inicio", f: viewHome },
   monitor: { t: "Monitor", f: viewMonitor },
+  salud: { t: "Salud", f: viewHealth },
   solicitudes: { t: "Solicitudes", f: viewRequests },
   alertas: { t: "Alertas", f: viewAlerts },
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true },
@@ -288,7 +291,8 @@ async function viewMonitor() {
     h("div", { class: "page-head" }, h("h1", {}, "Monitor de fuentes")),
     card("Estado de cada fuente", table([
       { t: "Fuente", f: (s) => h("div", {}, h("b", {}, s.name), h("div", { class: "muted mono" }, `${s.code} · ${s.connector_type}`)) },
-      { t: "Región", f: (s) => s.region }, { t: "Estado", f: (s) => badge(s.status) },
+      { t: "Región", f: (s) => s.region },
+      { t: "Estado", f: (s) => h("div", {}, badge(s.status), s.status_reason ? h("div", { class: "muted" }, s.status_reason) : null) },
       { t: "Circuito", f: (s) => badge(s.circuit_state) },
       { t: "Última consulta", f: (s) => ago(s.last_polled_at) }, { t: "Próxima", f: (s) => s.status === "ACTIVA" ? ago(s.next_poll_at) : "—" },
       { t: "Consultas", num: true, f: (s) => num(s.metrics.consultas) },
@@ -296,7 +300,7 @@ async function viewMonitor() {
       { t: "Cambios", num: true, f: (s) => num(s.metrics.cambios) },
       { t: "Latencia", num: true, f: (s) => num(s.metrics.latencia_media_ms, 1) + " ms" },
       { t: "Último error", f: (s) => s.last_error || "" },
-      { t: "", f: sourceActions }], sources)),
+      { t: "", f: sourceActions }], sources, (s) => showDiagnosis(s.id))),
     h("div", { class: "grid cols-2 section" },
       card("Eventos detectados",
         h("div", { class: "filters" },
@@ -316,6 +320,67 @@ async function viewMonitor() {
           { t: "Recursos", num: true, f: (p) => p.items }, { t: "Cambios", num: true, f: (p) => p.changes },
           { t: "Duplicados", num: true, f: (p) => p.duplicates }, { t: "ms", num: true, f: (p) => num(p.duration_ms, 1) },
           { t: "Error", f: (p) => p.error || "" }], polls))));
+}
+
+// ------------------------------------------------------------------ SALUD (v1.1)
+const secs = (s) => s === null || s === undefined ? "—" : fmtDur(Math.round(s));
+const lat = (o) => o && o.n ? `${num(o.p50 / 1000, 2)} s / ${num(o.p95 / 1000, 2)} s` : "—";
+async function viewHealth() {
+  const [d, st] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7")]);
+  const m = d.motor, lg = m.lider_global;
+  const problems = d.fuentes.filter((f) => f.status !== "ACTIVA" || f.desactualizada || f.circuito !== "CERRADO");
+  return h("div", {},
+    h("div", { class: "page-head" }, h("h1", {}, "Salud del motor"), h("span", { class: "muted" }, "Pulsa una fuente para ver por qué no se actualiza")),
+    h("div", { class: "grid kpis" },
+      kpi("Planificador", badge(lg && lg.vigente ? "LIDER" : "SIN_MOTOR"),
+        lg ? `Líder: ${lg.titular} · renovado hace ${num(lg.renovado_hace_s, 1)} s` : "Ninguna instancia lo está ejecutando"),
+      kpi("Esta instancia", badge(m.rol), m.activo ? `${num(m.ciclos)} ciclos · último hace ${num(m.segundos_desde_ultimo_ciclo, 1)} s` : "Motor no iniciado en este proceso"),
+      kpi("Errores de ciclo", num(m.errores_ciclo_seguidos || 0), m.ultimo_error || "Sin errores recientes"),
+      kpi("Fuentes con problemas", `${problems.length} / ${d.fuentes.length}`),
+      kpi("Solicitudes en espera", num(d.colas.solicitudes_en_espera), `${num(d.colas.solicitudes_en_proceso)} en proceso`),
+      kpi("Alertas sin confirmar", num(d.colas.alertas_sin_confirmar), `${num(d.colas.entregas_pendientes)} entregas pendientes · ${num(d.colas.entregas_fallidas_24h)} fallidas 24 h`),
+      kpi("Base de datos", `${d.base_de_datos.tipo}`, `latencia ${num(d.base_de_datos.latencia_ms, 2)} ms`),
+      kpi("Proceso", `${num(d.proceso.memoria_mb, 1)} MB`, `CPU ${num(d.proceso.cpu_pct, 1)} % · ${d.proceso.hilos} hilos`)),
+    card("Estado por región", table([
+      { t: "Región", f: (r) => h("b", {}, r.name) },
+      { t: "Fuentes OK", num: true, f: (r) => `${r.fuentes_ok}/${r.fuentes}` },
+      { t: "Con problemas", num: true, f: (r) => r.fuentes_con_problemas ? badge("AVISO") : "0" },
+      { t: "Última consulta correcta", f: (r) => ago(r.ultima_consulta_ok) },
+      { t: "Detección p50/p95 (24 h)", num: true, f: (r) => lat(r.latencia_deteccion_ms) },
+      { t: "En espera", num: true, f: (r) => num(r.solicitudes_en_espera) },
+      { t: "Unidades libres", num: true, f: (r) => num(r.unidades_libres) },
+      { t: "Alertas sin confirmar", num: true, f: (r) => num(r.alertas_sin_confirmar) }], d.regiones)),
+    h("div", { class: "section" }, card("Estado por fuente", table([
+      { t: "Fuente", f: (f) => h("div", {}, h("b", {}, f.code), h("div", { class: "muted" }, f.region)) },
+      { t: "Estado", f: (f) => h("div", {}, badge(f.status), f.motivo ? h("div", { class: "muted" }, f.motivo) : null) },
+      { t: "Datos", f: (f) => badge(f.desactualizada ? "DESACTUALIZADA" : "AL_DIA") },
+      { t: "Circuito", f: (f) => badge(f.circuito) },
+      { t: "Último resultado", f: (f) => f.ultimo_resultado ? badge(f.ultimo_resultado) : "—" },
+      { t: "Último OK", f: (f) => f.segundos_desde_ok === null ? "nunca" : `hace ${secs(f.segundos_desde_ok)}` },
+      { t: "Errores seguidos", num: true, f: (f) => num(f.errores_seguidos) },
+      { t: "Consultas 24 h", num: true, f: (f) => `${num(f.consultas_24h)} (${num(f.tasa_error_24h * 100, 1)}% error)` },
+      { t: "Detección p50/p95", num: true, f: (f) => lat(f.latencia_deteccion_ms) }], d.fuentes, (f) => showDiagnosis(f.id)))),
+    h("div", { class: "grid cols-2 section" },
+      card("Estadísticas de 7 días por región", table([
+        { t: "Región", f: (x) => x.region }, { t: "Consultas", num: true, f: (x) => num(x.consultas) },
+        { t: "Error", num: true, f: (x) => num(x.tasa_error * 100, 2) + " %" }, { t: "Limitadas", num: true, f: (x) => num(x.limitadas) },
+        { t: "Cambios", num: true, f: (x) => num(x.cambios) }, { t: "Latencia media", num: true, f: (x) => num(x.latencia_media_ms, 1) + " ms" }], st)),
+      card("Historial y recuperación",
+        h("p", {}, `Consultas guardadas en detalle: ${num(d.historial.filas_poll_log)} (se conservan ${d.historial.retencion_consultas_dias} días; los resúmenes por hora y día se conservan más).`),
+        h("p", {}, `Resumido hasta: ${d.historial.agregado_hasta ? fmtTime(d.historial.agregado_hasta) : "todavía nada"}.`),
+        h("p", {}, d.historial.ultimo_mantenimiento ? `Último mantenimiento: ${ago(d.historial.ultimo_mantenimiento.ts)} (${num(d.historial.ultimo_mantenimiento.ms, 0)} ms)` : "Mantenimiento aún no ejecutado."),
+        h("p", { class: "muted mono" }, d.ultima_recuperacion ? "Última recuperación tras arranque: " + JSON.stringify(d.ultima_recuperacion) : "Sin recuperación registrada."))));
+}
+async function showDiagnosis(id) {
+  const d = await api(`/api/diagnostico/fuentes/${id}`);
+  openDrawer(h("h2", {}, `Diagnóstico: ${d.fuente.code}`),
+    h("p", {}, "Veredicto: ", badge(d.veredicto), d.motivo_estado ? ` · ${d.motivo_estado}` : ""),
+    ...d.causas.map((c) => h("div", { class: "card" }, h("div", {}, badge(c.gravedad), " ", h("b", {}, c.causa)),
+      c.detalle ? h("p", {}, c.detalle) : null, c.accion ? h("p", { class: "muted" }, "Qué hacer: " + c.accion) : null)),
+    h("h3", {}, "Resultados de las últimas 50 consultas"),
+    h("p", {}, Object.entries(d.ultimas_50_consultas).map(([k, v]) => h("span", {}, badge(k), ` ${v}  `))),
+    h("h3", {}, "Últimos errores"),
+    table([{ t: "Inicio", f: (p) => fmtTime(p.started_at) }, { t: "Resultado", f: (p) => badge(p.outcome) }, { t: "Error", f: (p) => p.error || "" }], d.ultimos_errores));
 }
 
 // ------------------------------------------------------------------ SOLICITUDES
@@ -542,8 +607,13 @@ async function viewConfig() {
         { t: "Estado", f: (o) => badge(o.active ? "ACTIVO" : "SUSPENDIDA") },
         { t: "", f: (o) => h("button", { class: "btn small", onclick: () => act(() => api(`/api/operators/${o.id}`, { method: "PATCH", body: { active: !o.active } }), "Operador actualizado") }, o.active ? "Desactivar" : "Activar") }], ops)));
   } else if (tab === "canales") {
-    const chs = await api("/api/channels");
-    body = card("Canales de notificación", h("p", { class: "muted" }, "Telegram y correo tienen la interfaz preparada pero no están implementados en esta versión. Los webhooks solo pueden apuntar a hosts permitidos en MONITOREO_WEBHOOK_HOSTS."),
+    const [chs, obs] = await Promise.all([api("/api/channels"), api("/api/observabilidad")]);
+    const tg = obs.telegram;
+    body = card("Canales de notificación",
+      h("p", { class: "muted" }, "Los webhooks solo pueden apuntar a hosts permitidos en MONITOREO_WEBHOOK_HOSTS. El correo tiene la interfaz preparada pero no está implementado."),
+      h("p", {}, h("b", {}, "Telegram: "), tg.token_configurado
+        ? `token configurado · ${tg.chats_autorizados} destinatario(s) autorizado(s) · ${tg.es_emulador ? "EMULADOR LOCAL (no sale a Internet)" : "API real de Telegram"}`
+        : "sin configurar (define MONITOREO_TELEGRAM_TOKEN y MONITOREO_TELEGRAM_CHATS en .env; ver docs/TELEGRAM.md)"),
       table([
         { t: "Canal", f: (c) => h("div", {}, h("b", {}, c.name), h("div", { class: "muted" }, c.type)) },
         { t: "Estado", f: (c) => badge(c.enabled ? "ACTIVO" : "SUSPENDIDA") },
@@ -556,7 +626,9 @@ async function viewConfig() {
             e.preventDefault(); act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { config: formData(e.target) } }), "Canal actualizado");
           } }, field("Tasa de fallo (0–1)", h("input", { name: "fail_rate", type: "number", min: 0, max: 1, step: "0.05", value: c.config.fail_rate ?? 0 })),
             h("button", { class: "btn small primary" }, "Guardar")) : h("span", { class: "mono muted" }, JSON.stringify(c.config)) },
-        { t: "", f: (c) => h("button", { class: "btn small", onclick: () => act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { enabled: !c.enabled } }), "Canal actualizado") }, c.enabled ? "Desactivar" : "Activar") }], chs));
+        { t: "", f: (c) => h("div", { class: "actions" },
+          h("button", { class: "btn small", onclick: () => act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { enabled: !c.enabled } }), "Canal actualizado") }, c.enabled ? "Desactivar" : "Activar"),
+          h("button", { class: "btn small ghost", onclick: () => act(() => api(`/api/channels/${c.id}/probar`, { method: "POST" }), (r) => (r.ok ? "Prueba enviada: " : "Prueba fallida: ") + r.detalle) }, "Probar")) }], chs));
   } else if (tab === "usuarios") {
     const users = await api("/api/users");
     body = h("div", { class: "grid" },

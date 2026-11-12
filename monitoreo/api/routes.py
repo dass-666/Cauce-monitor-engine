@@ -219,7 +219,9 @@ def source_action(sid: int, action: str, request: HttpRequest, user: CurrentUser
         src = s.get(Source, sid) or _404("Fuente")
         if action == "suspender":
             src.status = "SUSPENDIDA"
+            src.status_reason, src.status_changed_at = f"Suspendida manualmente por {user.username}", utcnow()
         elif action == "reanudar":
+            src.status_reason, src.status_changed_at = f"Reanudada por {user.username}", utcnow()
             src.status, src.circuit_state, src.circuit_opened_at = "ACTIVA", "CERRADO", None
             src.consecutive_failures, src.circuit_open_count, src.next_poll_at = 0, 0, None
         security.audit(s, user.username, f"fuente_{action}", src.code)

@@ -66,7 +66,7 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             await app.state.scheduler.stop()
         db.engine.dispose()
 
-    app = FastAPI(title="Motor de Monitoreo de Disponibilidad", version="1.0.0", lifespan=lifespan,
+    app = FastAPI(title="Motor de Monitoreo de Disponibilidad", version="1.1.0", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
     app.state.db = db
     app.state.scheduler = None
@@ -93,8 +93,10 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
 
     from .api.routes import router
     from .api.test_api import router as test_router
+    from .api.observability import router as obs_router
     from .emuladores.telegram import router as telegram_emulator
     app.include_router(router)
+    app.include_router(obs_router)
     app.include_router(test_router)
     app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
