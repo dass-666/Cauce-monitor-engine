@@ -772,8 +772,10 @@ def main() -> int:
             f"{'_enfriamiento' + str(int(args.enfriamiento_circuito)) if args.enfriamiento_circuito is not None else ''}.json")
     (out / name).write_text(json.dumps(res, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     failed = [c for c in res["comprobaciones"] if c["critica"] and not c["ok"]]
-    log(f"resultado en {out / name}: {len(res['comprobaciones']) - len(failed)}/{len(res['comprobaciones'])} "
-        "comprobaciones correctas")
+    warned = [c for c in res["comprobaciones"] if not c["critica"] and not c["ok"]]
+    ok_n = sum(c["ok"] for c in res["comprobaciones"])
+    log(f"resultado en {out / name}: {ok_n}/{len(res['comprobaciones'])} comprobaciones correctas"
+        f"{f' ({len(warned)} aviso(s) no crítico(s))' if warned else ''}")
     return 1 if failed else 0
 
 

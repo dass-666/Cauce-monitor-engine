@@ -1,3 +1,23 @@
+# GitHub Actions: ejecución de referencia v1.3
+
+Rama fase-1.3, ejecución 43313525646 (commit 393aca9), 12 de noviembre de 2026.
+Resultado: **12/12 trabajos correctos**.
+
+| Trabajo | Resultado |
+|---|---|
+| Linux · Python 3.11 / 3.12 / 3.13 | 258 pruebas pasan (SQLite + PostgreSQL 16) |
+| Windows · Python 3.11 / 3.12 / 3.13 | 166 pasan, 1 omitida (requiere PostgreSQL) |
+| Windows · PostgreSQL preinstalado | 258 pasan |
+| Integración HTTP · Linux | 40 pasan; escenario corto 15/15 (SQLite) y 15/15 (PostgreSQL) |
+| Integración HTTP · Windows | 21 pasan; escenario corto 15/15 (SQLite), tres servicios como procesos |
+| Scripts PowerShell 5.1 y 7; instalación y actualización | correctos |
+
+Ejecuciones anteriores de la v1.3 y lo que encontraron: 43292836522 y 43307083842 (dos pruebas
+sensibles a tiempos de Windows; bloqueo mutuo del banco de pruebas con PostgreSQL),
+43311136309 y 43312383084 (clasificación de la auditoría del banco). Todas corregidas.
+
+---
+
 # GitHub Actions: ejecución de referencia v1.2
 
 Repositorio dass-666/Cauce-monitor-engine, rama fase-1.2, ejecución 43278001279

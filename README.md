@@ -18,6 +18,9 @@ plataforma externa.
   integridad de notificaciones, capacidad, CI en Windows): [docs/INFORME_v1.2.md](docs/INFORME_v1.2.md)
   · Producción y HTTPS: [docs/PRODUCCION.md](docs/PRODUCCION.md)
   · Garantías de las notificaciones: [docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)
+- **Novedades v1.3** (servicio HTTP de prueba independiente, conector HTTP, escenario operativo
+  con métricas de punta a punta, auditoría contra el proveedor): [docs/INFORME_v1.3.md](docs/INFORME_v1.3.md)
+  · Contrato del servicio de prueba: [proveedor_prueba/CONTRATO.md](proveedor_prueba/CONTRATO.md)
 
 ## Instalación en Windows
 
