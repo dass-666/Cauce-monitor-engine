@@ -79,7 +79,8 @@ if (-not (Test-Path ".env")) {
       [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1)
       [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2)
     }
-    if ($p1 -ne $p2) { Write-Host "Las contraseñas no coinciden." -ForegroundColor Yellow; continue }
+    # -cne distingue mayúsculas y minúsculas (-ne no lo hace en PowerShell).
+    if ($p1 -cne $p2) { Write-Host "Las contraseñas no coinciden." -ForegroundColor Yellow; continue }
     # Se pasa por variable de entorno (no en la línea de comandos) y se borra al terminar.
     $env:MON_PWD = $p1
     & .\.venv\Scripts\python.exe scripts\crear_env.py
