@@ -127,6 +127,17 @@ def check_scheduler(out: list[Item], db: Database, now: datetime, ctx: dict) -> 
     with db.session() as s:
         lease = s.get(SchedulerLease, "planificador")
         lease = None if lease is None else (lease.holder, lease.expires_at, lease.renewed_at)
+    if ctx.get("motor_detenido"):
+        # Instalación / actualización: se espera que el motor esté parado.
+        if lease is not None and lease[1] > now:
+            out.append(Item("Planificador", CRITICO, "El motor está en marcha",
+                            f"La instancia {lease[0]} tiene el planificador activo.",
+                            "Detén el motor (Ctrl+C en la ventana de iniciar.bat) antes de instalar o actualizar.",
+                            "plan:en_marcha"))
+        else:
+            out.append(Item("Planificador", INFO, "Motor detenido (esperado durante la instalación o actualización)"))
+            ctx["sin_lider"] = True
+        return
     if lease is None or lease[1] <= now:
         out.append(Item("Planificador", CRITICO, "Ninguna instancia tiene el planificador activo",
                         "Las fuentes no se están consultando." if lease is None else
@@ -329,9 +340,12 @@ CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sou
           check_notifications, check_maintenance, check_resources, check_integrity]
 
 
-def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False) -> dict:
+def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,
+        motor_detenido: bool = False) -> dict:
+    """motor_detenido=True: comprobación previa o posterior a instalar/actualizar (el motor debe estar parado)."""
     now = now or utcnow()
-    ctx = {"scheduler": scheduler, "scheduler_running": bool(scheduler and scheduler.running), "profundo": deep}
+    ctx = {"scheduler": scheduler, "scheduler_running": bool(scheduler and scheduler.running), "profundo": deep,
+           "motor_detenido": motor_detenido}
     items: list[Item] = []
     t0 = time.perf_counter()
     for chk in CHECKS:
@@ -377,10 +391,12 @@ def run_and_alert(db: Database, scheduler=None, now: datetime | None = None) -> 
 
 
 def main(argv: list[str]) -> int:
+    """python -m monitoreo.diagnostico [--json] [--motor-detenido]
+    Código de salida: 0 = OK, 1 = hay avisos, 2 = hay problemas críticos."""
     as_json = "--json" in argv
     db = Database(settings.db_url)
     try:
-        res = run(db, deep=True)
+        res = run(db, deep=True, motor_detenido="--motor-detenido" in argv)
     finally:
         db.engine.dispose()
     if as_json:
@@ -399,4 +415,9 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    try:
+        # Con la salida redirigida, Windows usa cp1252 (sin "→"): un carácter no debe abortar el informe.
+        sys.stdout.reconfigure(errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     raise SystemExit(main(sys.argv[1:]))

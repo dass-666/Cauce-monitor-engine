@@ -159,3 +159,13 @@ def test_api_is_admin_only(tmp_path, monkeypatch):
         assert c.get("/api/autodiagnostico", headers=login(c, "op9", "Operador-123")).status_code == 403
         d = c.get("/api/autodiagnostico", headers=h).json()
         assert d["estado"] in ("OK", "AVISO", "CRITICO") and d["comprobaciones"]
+
+
+def test_stopped_engine_mode_for_install_and_update(db):
+    """Instalar/actualizar: sin líder es lo esperado; con el motor en marcha es crítico."""
+    make_source(db, "s1")
+    k = _by_key(dg.run(db, motor_detenido=True))
+    assert "plan:sin_lider" not in k and not [x for x in k if x.endswith(":viejo")]
+    _lead(db)
+    k = _by_key(dg.run(db, motor_detenido=True))
+    assert k["plan:en_marcha"]["estado"] == "CRITICO" and "Detén el motor" in k["plan:en_marcha"]["accion"]
