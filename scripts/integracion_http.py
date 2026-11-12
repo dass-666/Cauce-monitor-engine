@@ -510,7 +510,8 @@ def run(args) -> dict:
        audit["no_detectados_fuera_de_fallos"] == 0,
        {k: audit[k] for k in ("total_cambios", "detectados", "coalescidos", "no_detectados_fuera_de_fallos",
                               "no_detectados_en_fallos", "no_detectados_fuente_sin_datos",
-                              "anticipados_por_el_motor", "coincide_con_descuento_local", "sin_cambio_neto")})
+                              "anticipados_por_el_motor", "coincide_con_descuento_local", "sin_cambio_neto",
+                              "motor_tenia_el_valor", "ejemplos_no_detectados")})
     cc = audit["controladas"]
     ck("todas las liberaciones controladas se detectaron (salvo las tapadas por otro cambio del recurso antes "
        "de la siguiente consulta, que se cuentan aparte)",
@@ -607,10 +608,19 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
         asg = {a.change_event_id: a.created_at for a in s.scalars(select(Assignment))}
         # Descuentos locales al completar (el motor resta la unidad sin esperar a la fuente)
         local: dict[str, list] = {}
-        for rk, closed in s.execute(select(SlotState.resource_key, Assignment.closed_at)
-                                    .join(SlotState, SlotState.id == Assignment.slot_id)
-                                    .where(Assignment.status == "COMPLETADA")):
+        local_qty: dict[str, list] = {}
+        for rk, closed, qty in s.execute(select(SlotState.resource_key, Assignment.closed_at, Assignment.quantity)
+                                         .join(SlotState, SlotState.id == Assignment.slot_id)
+                                         .where(Assignment.status == "COMPLETADA")):
             local.setdefault(rk, []).append(closed)
+            local_qty.setdefault(rk, []).append((closed, qty or 1))
+        # Lo que el motor creía en cada momento: último evento detectado (valor "después") menos
+        # los descuentos locales posteriores al completar asignaciones.
+        engine_ev: dict[str, list] = {}
+        for rk, det, after in s.execute(select(ChangeEvent.resource_key, ChangeEvent.detected_at, ChangeEvent.after)
+                                        .order_by(ChangeEvent.detected_at)):
+            if isinstance(after, dict) and after.get("available") is not None:
+                engine_ev.setdefault(rk, []).append((det, int(after["available"])))
         tg = {}
         for d, al_ in s.execute(select(Delivery, Alert).join(Alert, Alert.id == Delivery.alert_id)
                                 .join(Channel, Channel.id == Delivery.channel_id)
@@ -644,10 +654,19 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
         by_res.setdefault(h["recurso"], []).append(h)
     res = {"total_cambios": len(hist), "detectados": 0, "coalescidos": 0, "no_detectados_fuera_de_fallos": 0,
            "no_detectados_en_fallos": 0, "no_detectados_fuente_sin_datos": 0, "anticipados_por_el_motor": 0,
-           "coincide_con_descuento_local": 0, "sin_cambio_neto": 0, "vencimientos_detectados_por_el_conector": 0, "ejemplos_no_detectados": [],
+           "coincide_con_descuento_local": 0, "sin_cambio_neto": 0, "motor_tenia_el_valor": 0, "vencimientos_detectados_por_el_conector": 0, "ejemplos_no_detectados": [],
            "tiempo_a_ciegas_s": {reg: round(sum((b_ - a_).total_seconds() for a_, b_ in g), 1)
                                  for reg, g in blind.items()}}
     region_by_res = {h["recurso"]: h["region"] for h in hist}
+
+    def engine_value(rk, at):
+        evl = [e for e in engine_ev.get(rk, []) if e[0] <= at]
+        if not evl:
+            return None
+        since, val = evl[-1]
+        val -= sum(q for c, q in local_qty.get(rk, []) if c is not None and since < c <= at)
+        return max(0, val)
+
     threshold = 2 * interval + 1.5
     for rk, lst in by_res.items():
         known = lst[0]["antes"]          # último valor que el motor llegó a conocer
@@ -685,6 +704,11 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
                 # el motor acababa de descontar localmente una unidad de ese recurso: su estado ya
                 # coincidía con el nuevo valor y no había diferencia que registrar
                 res["coincide_con_descuento_local"] += 1
+                known = h["despues"]
+            elif engine_value(rk, nxt) == h["despues"]:
+                # el motor tenía el valor correcto antes de que este estado terminara (lo vio con
+                # otra hora de cambio, o lo dedujo de un descuento local): nada se perdió
+                res["motor_tenia_el_valor"] += 1
                 known = h["despues"]
             elif any(a <= t <= b or a <= nxt <= b for a, b in windows):
                 res["no_detectados_en_fallos"] += 1
