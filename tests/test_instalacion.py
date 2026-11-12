@@ -11,8 +11,9 @@ SCRIPT = ROOT / "scripts" / "preparar.py"
 
 def run(folder: Path, *args: str) -> subprocess.CompletedProcess:
     # -I: modo aislado; el ayudante debe funcionar sin dependencias instaladas.
+    # preparar.py escribe en UTF-8 cuando su salida está redirigida en Windows (ver su final).
     return subprocess.run([sys.executable, "-I", str(SCRIPT), "--carpeta", str(folder), *args],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
 
 
 def fake_install(folder: Path, rows: int = 50, port: int | None = None, wal: bool = False) -> Path:
