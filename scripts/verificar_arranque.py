@@ -89,7 +89,7 @@ class Checks:
 
     def __call__(self, name: str, ok: bool, detail="") -> bool:
         self.items.append({"comprobacion": name, "ok": bool(ok), "detalle": detail})
-        print(f"[{'OK' if ok else 'FALLO'}] {name}" + (f" — {detail}" if detail else ""), flush=True)
+        print(f"[{'OK' if ok else 'FALLO'}] {name}" + (f" - {detail}" if detail else ""), flush=True)
         return ok
 
     @property

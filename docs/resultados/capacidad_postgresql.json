@@ -6,6 +6,99 @@
   "memoria_total_gb": 15.7,
   "segundos_por_escenario": 60,
   "escenarios": {
+    "e0": {
+      "escenario": {
+        "titulo": "Reposo: 25 fuentes consultándose sin cambios ni usuarios (crecimiento base)",
+        "regiones": 5,
+        "fuentes": 25,
+        "pendientes": 100,
+        "historicas": 0,
+        "clientes": 0,
+        "instancias": 1,
+        "cambios": false
+      },
+      "preparacion": {
+        "preparacion_s": 0.05,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO"
+        ]
+      },
+      "arranque_s": [
+        1.14
+      ],
+      "duracion_s": 60.0,
+      "medido": {
+        "procesos": {
+          "e0-inst1": {
+            "memoria_mb_media": 113.1,
+            "memoria_mb_max": 113.3,
+            "cpu_pct_media": 6.7,
+            "cpu_pct_p95": 13.0
+          }
+        },
+        "latencia_api_ms": {},
+        "peticiones_api_por_s": 0.0,
+        "errores_api": 0,
+        "ejemplos_error": [],
+        "consultas_fuentes_por_min": 155.0,
+        "consultas_esperadas_por_min": 150.0,
+        "eventos_detectados": 192,
+        "asignaciones": 0,
+        "alertas": 0,
+        "ciclos_planificador": [
+          113
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 40,
+            "p50": 1492.8,
+            "p95": 1765.8
+          },
+          "Región Este (ficticia)": {
+            "n": 40,
+            "p50": 1450.0,
+            "p95": 1674.7
+          },
+          "Región Norte (ficticia)": {
+            "n": 40,
+            "p50": 1448.1,
+            "p95": 1679.1
+          },
+          "Región Oeste (ficticia)": {
+            "n": 40,
+            "p50": 1457.7,
+            "p95": 1710.1
+          },
+          "Región Sur (ficticia)": {
+            "n": 40,
+            "p50": 1447.3,
+            "p95": 1677.7
+          }
+        },
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 10763287,
+        "base_bytes_fin": 11541527,
+        "crecimiento_bytes_por_hora": 46694400
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 0,
+        "error_simulador": null,
+        "clientes_operador": 0
+      },
+      "estimado": {
+        "consultas_por_dia": 223200,
+        "bytes_por_consulta_aprox": 5021,
+        "crecimiento_dia_mb": 1068.8,
+        "techo_con_retencion_14d_mb": 14962.5,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
+      }
+    },
     "e1": {
       "escenario": {
         "titulo": "5 regiones · 25 fuentes · 500 solicitudes · 5 operadores",
@@ -17,7 +110,7 @@
         "instancias": 1
       },
       "preparacion": {
-        "preparacion_s": 0.06,
+        "preparacion_s": 0.08,
         "regiones": [
           "NORTE",
           "SUR",
@@ -27,87 +120,88 @@
         ]
       },
       "arranque_s": [
-        1.22
+        1.17
       ],
-      "duracion_s": 60.3,
+      "duracion_s": 60.5,
       "medido": {
         "procesos": {
           "e1-inst1": {
-            "memoria_mb_media": 120.1,
-            "memoria_mb_max": 121.0,
-            "cpu_pct_media": 43.4,
-            "cpu_pct_p95": 67.9
+            "memoria_mb_media": 120.4,
+            "memoria_mb_max": 121.3,
+            "cpu_pct_media": 44.4,
+            "cpu_pct_p95": 73.0
           }
         },
         "latencia_api_ms": {
           "GET /api/alerts": {
-            "n": 134,
-            "p50": 14.4,
-            "p95": 34.0,
-            "max": 97.9
+            "n": 132,
+            "p50": 16.3,
+            "p95": 47.5,
+            "max": 124.3
           },
           "GET /api/dashboard": {
-            "n": 313,
-            "p50": 39.5,
-            "p95": 86.3,
-            "max": 332.3
+            "n": 312,
+            "p50": 43.7,
+            "p95": 108.8,
+            "max": 302.3
           },
           "GET /api/requests": {
             "n": 168,
             "p50": 23.4,
-            "p95": 69.5,
-            "max": 160.6
+            "p95": 51.8,
+            "max": 157.0
           },
           "POST /api/requests": {
             "n": 65,
-            "p50": 16.8,
-            "p95": 32.7,
-            "max": 94.1
+            "p50": 18.7,
+            "p95": 38.9,
+            "max": 90.8
           }
         },
-        "peticiones_api_por_s": 11.3,
+        "peticiones_api_por_s": 11.2,
         "errores_api": 0,
         "ejemplos_error": [],
-        "consultas_fuentes_por_min": 144.3,
+        "consultas_fuentes_por_min": 145.7,
         "consultas_esperadas_por_min": 150.0,
-        "eventos_detectados": 433,
-        "asignaciones": 96,
-        "alertas": 268,
+        "eventos_detectados": 415,
+        "asignaciones": 90,
+        "alertas": 256,
         "ciclos_planificador": [
           76
         ],
         "errores_ciclo_seguidos": 0,
         "latencia_deteccion_ms_por_region": {
           "Región Centro (ficticia)": {
-            "n": 94,
-            "p50": 1853.6,
-            "p95": 7521.6
+            "n": 107,
+            "p50": 1880.0,
+            "p95": 9116.1
           },
           "Región Este (ficticia)": {
-            "n": 86,
-            "p50": 2002.4,
-            "p95": 8451.5
+            "n": 90,
+            "p50": 2022.7,
+            "p95": 9086.1
           },
           "Región Norte (ficticia)": {
-            "n": 91,
-            "p50": 1959.5,
-            "p95": 9810.5
+            "n": 99,
+            "p50": 1908.7,
+            "p95": 8618.3
           },
           "Región Oeste (ficticia)": {
-            "n": 100,
-            "p50": 2024.5,
-            "p95": 10256.3
+            "n": 89,
+            "p50": 1793.0,
+            "p95": 8380.5
           },
           "Región Sur (ficticia)": {
-            "n": 102,
-            "p50": 1977.5,
-            "p95": 9105.1
+            "n": 94,
+            "p50": 1780.0,
+            "p95": 9175.8
           }
         },
-        "integridad": "correcta",
-        "base_bytes_inicio": 10591255,
-        "base_bytes_fin": 13106199,
-        "crecimiento_bytes_por_hora": 150145910
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 10959895,
+        "base_bytes_fin": 13278231,
+        "crecimiento_bytes_por_hora": 137950572
       },
       "simulado": {
         "cambios_de_disponibilidad": 571,
@@ -115,10 +209,10 @@
         "clientes_operador": 5
       },
       "estimado": {
-        "consultas_por_dia": 207792,
-        "bytes_por_consulta_aprox": 17344,
-        "crecimiento_dia_mb": 3437.1,
-        "techo_con_retencion_14d_mb": 48119.1,
+        "consultas_por_dia": 209808,
+        "bytes_por_consulta_aprox": 15771,
+        "crecimiento_dia_mb": 3155.6,
+        "techo_con_retencion_14d_mb": 44178.3,
         "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
       }
     },
@@ -133,7 +227,7 @@
         "instancias": 1
       },
       "preparacion": {
-        "preparacion_s": 0.26,
+        "preparacion_s": 0.2,
         "regiones": [
           "NORTE",
           "SUR",
@@ -150,112 +244,111 @@
       "arranque_s": [
         1.18
       ],
-      "duracion_s": 60.6,
+      "duracion_s": 60.8,
       "medido": {
         "procesos": {
           "e2-inst1": {
-            "memoria_mb_media": 129.5,
-            "memoria_mb_max": 134.1,
-            "cpu_pct_media": 94.4,
-            "cpu_pct_p95": 111.0
+            "memoria_mb_media": 126.7,
+            "memoria_mb_max": 131.7,
+            "cpu_pct_media": 94.6,
+            "cpu_pct_p95": 110.0
           }
         },
         "latencia_api_ms": {
           "GET /api/alerts": {
-            "n": 233,
-            "p50": 37.4,
-            "p95": 110.0,
-            "max": 217.5
+            "n": 226,
+            "p50": 41.3,
+            "p95": 114.4,
+            "max": 206.6
           },
           "GET /api/dashboard": {
-            "n": 522,
-            "p50": 175.0,
-            "p95": 514.6,
-            "max": 667.3
+            "n": 514,
+            "p50": 199.6,
+            "p95": 511.6,
+            "max": 624.1
           },
           "GET /api/requests": {
-            "n": 245,
-            "p50": 49.5,
-            "p95": 148.5,
-            "max": 237.5
+            "n": 241,
+            "p50": 58.8,
+            "p95": 143.0,
+            "max": 248.0
           },
           "POST /api/requests": {
-            "n": 107,
-            "p50": 42.4,
-            "p95": 126.6,
-            "max": 186.0
+            "n": 104,
+            "p50": 40.9,
+            "p95": 144.3,
+            "max": 187.2
           }
         },
-        "peticiones_api_por_s": 18.3,
+        "peticiones_api_por_s": 17.8,
         "errores_api": 0,
         "ejemplos_error": [],
-        "consultas_fuentes_por_min": 496.1,
+        "consultas_fuentes_por_min": 483.7,
         "consultas_esperadas_por_min": 600.0,
-        "eventos_detectados": 1347,
-        "asignaciones": 138,
-        "alertas": 518,
+        "eventos_detectados": 1349,
+        "asignaciones": 132,
+        "alertas": 533,
         "ciclos_planificador": [
-          14
+          13
         ],
         "errores_ciclo_seguidos": 0,
         "latencia_deteccion_ms_por_region": {
           "Región Centro (ficticia)": {
-            "n": 140,
-            "p50": 3529.9,
-            "p95": 9072.9
+            "n": 136,
+            "p50": 3371.7,
+            "p95": 8965.9
           },
           "Región Este (ficticia)": {
-            "n": 149,
-            "p50": 4061.7,
-            "p95": 9680.4
+            "n": 144,
+            "p50": 3255.8,
+            "p95": 9598.1
           },
           "Región Norte (ficticia)": {
-            "n": 141,
-            "p50": 3832.9,
-            "p95": 9516.9
+            "n": 138,
+            "p50": 3223.3,
+            "p95": 9756.0
           },
           "Región Oeste (ficticia)": {
-            "n": 135,
-            "p50": 3699.2,
-            "p95": 9567.1
+            "n": 143,
+            "p50": 3868.3,
+            "p95": 9232.2
           },
           "Región 06 (ficticia)": {
-            "n": 148,
-            "p50": 4085.5,
-            "p95": 10035.1
+            "n": 156,
+            "p50": 4789.2,
+            "p95": 10293.0
           },
           "Región 07 (ficticia)": {
-            "n": 152,
-            "p50": 3360.1,
-            "p95": 9955.7
+            "n": 140,
+            "p50": 4265.1,
+            "p95": 10013.7
           },
           "Región 08 (ficticia)": {
-            "n": 130,
-            "p50": 4316.6,
-            "p95": 11205.4
+            "n": 142,
+            "p50": 4094.4,
+            "p95": 9808.4
           },
           "Región 09 (ficticia)": {
-            "n": 135,
-            "p50": 3759.6,
-            "p95": 9674.2
+            "n": 131,
+            "p50": 4122.4,
+            "p95": 9585.1
           },
           "Región 10 (ficticia)": {
-            "n": 120,
-            "p50": 3825.9,
-            "p95": 9831.4
+            "n": 130,
+            "p50": 3668.7,
+            "p95": 9787.7
           },
           "Región Sur (ficticia)": {
-            "n": 145,
-            "p50": 3403.5,
-            "p95": 9563.7
+            "n": 137,
+            "p50": 3249.2,
+            "p95": 10155.3
           }
         },
-        "integridad": [
-          "asignación 36 ACTIVA pero solicitud 946 en REINTENTO"
-        ],
-        "base_bytes_inicio": 11435031,
-        "base_bytes_fin": 16145431,
-        "crecimiento_bytes_por_hora": 279825743
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 11541527,
+        "base_bytes_fin": 16366615,
+        "crecimiento_bytes_por_hora": 285696000
       },
       "simulado": {
         "cambios_de_disponibilidad": 1118,
@@ -263,10 +356,10 @@
         "clientes_operador": 10
       },
       "estimado": {
-        "consultas_por_dia": 714384,
-        "bytes_por_consulta_aprox": 9402,
-        "crecimiento_dia_mb": 6405.5,
-        "techo_con_retencion_14d_mb": 89676.8,
+        "consultas_por_dia": 696528,
+        "bytes_por_consulta_aprox": 9847,
+        "crecimiento_dia_mb": 6541.1,
+        "techo_con_retencion_14d_mb": 91574.8,
         "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
       }
     },
@@ -281,7 +374,7 @@
         "instancias": 1
       },
       "preparacion": {
-        "preparacion_s": 0.45,
+        "preparacion_s": 0.56,
         "regiones": [
           "NORTE",
           "SUR",
@@ -296,114 +389,113 @@
         ]
       },
       "arranque_s": [
-        1.21
+        1.2
       ],
-      "duracion_s": 60.7,
+      "duracion_s": 60.8,
       "medido": {
         "procesos": {
           "e3-inst1": {
-            "memoria_mb_media": 124.2,
-            "memoria_mb_max": 127.9,
-            "cpu_pct_media": 93.8,
+            "memoria_mb_media": 122.9,
+            "memoria_mb_max": 128.1,
+            "cpu_pct_media": 94.8,
             "cpu_pct_p95": 109.0
           }
         },
         "latencia_api_ms": {
           "GET /api/alerts": {
-            "n": 228,
-            "p50": 40.6,
-            "p95": 120.5,
-            "max": 226.2
+            "n": 222,
+            "p50": 39.2,
+            "p95": 122.6,
+            "max": 211.4
           },
           "GET /api/dashboard": {
-            "n": 520,
-            "p50": 173.3,
-            "p95": 525.1,
-            "max": 661.8
+            "n": 506,
+            "p50": 203.3,
+            "p95": 546.2,
+            "max": 662.6
           },
           "GET /api/requests": {
-            "n": 241,
-            "p50": 52.7,
-            "p95": 158.3,
-            "max": 242.7
+            "n": 239,
+            "p50": 54.3,
+            "p95": 157.3,
+            "max": 216.4
           },
           "POST /api/requests": {
-            "n": 104,
-            "p50": 54.1,
-            "p95": 141.4,
-            "max": 167.9
+            "n": 100,
+            "p50": 53.5,
+            "p95": 169.5,
+            "max": 202.5
           }
         },
-        "peticiones_api_por_s": 18.0,
+        "peticiones_api_por_s": 17.5,
         "errores_api": 0,
         "ejemplos_error": [],
-        "consultas_fuentes_por_min": 500.9,
+        "consultas_fuentes_por_min": 489.2,
         "consultas_esperadas_por_min": 600.0,
-        "eventos_detectados": 1362,
-        "asignaciones": 142,
-        "alertas": 555,
+        "eventos_detectados": 1356,
+        "asignaciones": 132,
+        "alertas": 552,
         "ciclos_planificador": [
           14
         ],
         "errores_ciclo_seguidos": 0,
         "latencia_deteccion_ms_por_region": {
           "Región Centro (ficticia)": {
-            "n": 137,
-            "p50": 5103.0,
-            "p95": 13952.4
+            "n": 136,
+            "p50": 4086.6,
+            "p95": 10865.1
           },
           "Región Este (ficticia)": {
-            "n": 151,
-            "p50": 4845.1,
-            "p95": 10417.2
+            "n": 144,
+            "p50": 4413.1,
+            "p95": 9251.9
           },
           "Región Norte (ficticia)": {
-            "n": 137,
-            "p50": 4100.7,
-            "p95": 10781.9
+            "n": 140,
+            "p50": 3873.4,
+            "p95": 10584.4
           },
           "Región Oeste (ficticia)": {
-            "n": 151,
-            "p50": 4996.3,
-            "p95": 10928.1
+            "n": 146,
+            "p50": 4632.1,
+            "p95": 9679.3
           },
           "Región 06 (ficticia)": {
-            "n": 148,
-            "p50": 5164.6,
-            "p95": 13432.0
+            "n": 154,
+            "p50": 4815.0,
+            "p95": 11451.3
           },
           "Región 07 (ficticia)": {
             "n": 137,
-            "p50": 4399.8,
-            "p95": 13543.4
+            "p50": 4265.7,
+            "p95": 10529.8
           },
           "Región 08 (ficticia)": {
-            "n": 140,
-            "p50": 5025.3,
-            "p95": 10413.5
+            "n": 139,
+            "p50": 4999.4,
+            "p95": 10659.0
           },
           "Región 09 (ficticia)": {
-            "n": 136,
-            "p50": 5252.7,
-            "p95": 12879.7
+            "n": 134,
+            "p50": 5009.7,
+            "p95": 10036.1
           },
           "Región 10 (ficticia)": {
-            "n": 132,
-            "p50": 4954.8,
-            "p95": 10801.5
+            "n": 123,
+            "p50": 4340.9,
+            "p95": 9547.7
           },
           "Región Sur (ficticia)": {
-            "n": 133,
-            "p50": 4116.2,
-            "p95": 10234.6
+            "n": 143,
+            "p50": 4388.4,
+            "p95": 10814.3
           }
         },
-        "integridad": [
-          "operador 4: carga=4 pero tiene 5"
-        ],
-        "base_bytes_inicio": 13909015,
-        "base_bytes_fin": 18111511,
-        "crecimiento_bytes_por_hora": 249241937
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 13949975,
+        "base_bytes_fin": 18357271,
+        "crecimiento_bytes_por_hora": 260958316
       },
       "simulado": {
         "cambios_de_disponibilidad": 1118,
@@ -411,17 +503,178 @@
         "clientes_operador": 10
       },
       "estimado": {
-        "consultas_por_dia": 721296,
-        "bytes_por_consulta_aprox": 8289,
-        "crecimiento_dia_mb": 5701.8,
-        "techo_con_retencion_14d_mb": 79825.4,
+        "consultas_por_dia": 704448,
+        "bytes_por_consulta_aprox": 8886,
+        "crecimiento_dia_mb": 5969.5,
+        "techo_con_retencion_14d_mb": 83573.3,
         "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
       }
     },
     "e4": {
-      "error": "RuntimeError: el servidor terminó al arrancar (código 3)",
-      "registro_servidor_con_errores": {
-        "servidor-e4-inst2.log": "y/engine/base.py\", line 2351, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File \"/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/base.py\", line 1977, in _exec_single_context\n    self.dialect.do_execute(\n    ~~~~~~~~~~~~~~~~~~~~~~~^\n        cursor, str_statement, effective_parameters, context\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/usr/local/lib/python3.13/site-packages/sqlalchemy/engine/default.py\", line 1192, in do_execute\n    cursor.execute(statement, parameters)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.13/site-packages/psycopg/cursor.py\", line 117, in execute\n    raise ex.with_traceback(None)\nsqlalchemy.exc.IntegrityError: (psycopg.errors.UniqueViolation) duplicate key value violates unique constraint \"users_username_key\"\nDETAIL:  Key (username)=(admin) already exists.\n[SQL: INSERT INTO users (username, password_hash, role, active, created_at) VALUES (%(username)s::VARCHAR, %(password_hash)s::VARCHAR, %(role)s::VARCHAR, %(active)s, %(created_at)s::TIMESTAMP WITHOUT TIME ZONE) RETURNING users.id]\n[parameters: {'username': 'admin', 'password_hash': 'scrypt$16384$8$1$IsXoAu7bAnDipCBpOSMMNg==$5lZdfHocuxnJXKtLgBNZ+As1059jD+85ra1JCPwp5Hs=', 'role': 'admin', 'active': True, 'created_at': datetime.datetime(2026, 11, 12, 17, 48, 39, 861893)}]\n(Background on this error at: https://sqlalche.me/e/21/gkpj)\n\nERROR:    Application startup failed. Exiting.\n"
+      "escenario": {
+        "titulo": "2 instancias · 10 regiones · 100 fuentes · 2.000 solicitudes · relevo por caída",
+        "regiones": 10,
+        "fuentes": 100,
+        "pendientes": 2000,
+        "historicas": 0,
+        "clientes": 6,
+        "instancias": 2
+      },
+      "preparacion": {
+        "preparacion_s": 0.21,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO",
+          "REG06",
+          "REG07",
+          "REG08",
+          "REG09",
+          "REG10"
+        ]
+      },
+      "arranque_s": [
+        1.22,
+        0.06
+      ],
+      "roles_antes_de_la_caida": {
+        "http://127.0.0.1:47839": "LIDER",
+        "http://127.0.0.1:37971": "EN_ESPERA"
+      },
+      "lideres_simultaneos": 1,
+      "errores_api_antes_de_la_caida": 0,
+      "relevo_tras_caida_s": 2.26,
+      "duracion_s": 60.9,
+      "medido": {
+        "procesos": {
+          "e4-inst1": {
+            "memoria_mb_media": 126.8,
+            "memoria_mb_max": 132.5,
+            "cpu_pct_media": 66.7,
+            "cpu_pct_p95": 104.9
+          },
+          "e4-inst2": {
+            "memoria_mb_media": 99.8,
+            "memoria_mb_max": 105.7,
+            "cpu_pct_media": 41.5,
+            "cpu_pct_p95": 88.0
+          }
+        },
+        "latencia_api_ms": {
+          "GET /api/alerts": {
+            "n": 104,
+            "p50": 19.0,
+            "p95": 72.5,
+            "max": 100.0
+          },
+          "GET /api/dashboard": {
+            "n": 235,
+            "p50": 71.5,
+            "p95": 338.8,
+            "max": 446.0
+          },
+          "GET /api/requests": {
+            "n": 128,
+            "p50": 26.1,
+            "p95": 98.2,
+            "max": 143.4
+          },
+          "POST /api/requests": {
+            "n": 48,
+            "p50": 18.9,
+            "p95": 40.6,
+            "max": 131.4
+          }
+        },
+        "peticiones_api_por_s": 8.5,
+        "errores_api": 131,
+        "ejemplos_error": [
+          "GET /api/dashboard: RemoteProtocolError",
+          "GET /api/alerts?limit=100: ConnectError",
+          "GET /api/dashboard: ConnectError",
+          "GET /api/dashboard: ConnectError",
+          "GET /api/alerts?limit=100: ConnectError"
+        ],
+        "consultas_fuentes_por_min": 519.2,
+        "consultas_esperadas_por_min": 600.0,
+        "eventos_detectados": 1291,
+        "asignaciones": 163,
+        "alertas": 597,
+        "ciclos_planificador": [
+          71
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 137,
+            "p50": 3002.1,
+            "p95": 10142.9
+          },
+          "Región Este (ficticia)": {
+            "n": 148,
+            "p50": 3275.6,
+            "p95": 9350.7
+          },
+          "Región Norte (ficticia)": {
+            "n": 130,
+            "p50": 2914.3,
+            "p95": 9192.5
+          },
+          "Región Oeste (ficticia)": {
+            "n": 150,
+            "p50": 3711.3,
+            "p95": 9717.5
+          },
+          "Región 06 (ficticia)": {
+            "n": 151,
+            "p50": 3429.1,
+            "p95": 9687.9
+          },
+          "Región 07 (ficticia)": {
+            "n": 139,
+            "p50": 3408.0,
+            "p95": 10176.8
+          },
+          "Región 08 (ficticia)": {
+            "n": 138,
+            "p50": 3482.3,
+            "p95": 9809.0
+          },
+          "Región 09 (ficticia)": {
+            "n": 143,
+            "p50": 3478.1,
+            "p95": 9848.7
+          },
+          "Región 10 (ficticia)": {
+            "n": 124,
+            "p50": 3167.9,
+            "p95": 9844.1
+          },
+          "Región Sur (ficticia)": {
+            "n": 143,
+            "p50": 3263.2,
+            "p95": 9809.3
+          }
+        },
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 11525143,
+        "base_bytes_fin": 16546839,
+        "crecimiento_bytes_por_hora": 296849025
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 1118,
+        "error_simulador": null,
+        "clientes_operador": 6
+      },
+      "estimado": {
+        "consultas_por_dia": 747648,
+        "bytes_por_consulta_aprox": 9529,
+        "crecimiento_dia_mb": 6794.2,
+        "techo_con_retencion_14d_mb": 95118.5,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
       }
     }
   }

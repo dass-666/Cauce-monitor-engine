@@ -50,6 +50,11 @@ Write-Host ""
 if ($code -eq 0) {
   Write-Host "Actualización terminada y comprobada." -ForegroundColor Green
   Write-Host "Inicia la versión nueva con  .\iniciar.bat  (en ESTA carpeta)." -ForegroundColor Green
+} elseif ($code -eq 2) {
+  # instalar.ps1 devuelve 2 cuando todo se instaló y migró, pero el autodiagnóstico ve problemas.
+  Write-Host "Actualización hecha (datos copiados y base migrada), pero el autodiagnóstico encontró" -ForegroundColor Yellow
+  Write-Host "problemas CRÍTICOS (lista de arriba). Suelen venir de la configuración o de los datos" -ForegroundColor Yellow
+  Write-Host "anteriores. Corrígelos antes de usar la versión nueva; cada uno dice qué hacer." -ForegroundColor Yellow
 } else {
   Write-Host "La actualización NO terminó bien (detalle arriba)." -ForegroundColor Red
 }

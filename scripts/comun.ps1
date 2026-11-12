@@ -1,6 +1,12 @@
 ﻿# Funciones compartidas por instalar.ps1 y actualizar.ps1 (se cargan con ". scripts\comun.ps1").
 # No cambia ninguna política de Windows: se ejecuta con -ExecutionPolicy Bypass solo para esta llamada.
 
+# Acentos: Python escribe en UTF-8 y la consola lee en UTF-8 (solo en esta ventana; no cambia
+# ninguna configuración de Windows). Sin esto, "CRÍTICO" se veía como "CR�TICO". Verificado en
+# GitHub Actions (windows-latest) con PowerShell 5.1 y 7.
+$env:PYTHONIOENCODING = "utf-8"
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 function Write-Paso([string]$msg) {
   Write-Host ""
   Write-Host "== $msg" -ForegroundColor Cyan

@@ -264,6 +264,9 @@ jobs:
             if (-not (Test-Path $p)) { Write-Host "::error::falta $p"; exit 1 }
           }
           if (-not (Get-ChildItem C:\inst\motor\data\logs\instalacion-*.log)) { Write-Host "::error::no quedó registro de instalación"; exit 1 }
+          $reg = Get-Content -Raw -Encoding utf8 (Get-ChildItem C:\inst\motor\data\logs\instalacion-*.log | Select-Object -First 1).FullName
+          if ($reg -match "\uFFFD") { Write-Host "::error::acentos dañados en la salida (problema de codificación)"; exit 1 }
+          if ($reg -notmatch "Autodiagnóstico") { Write-Host "::error::no aparece el autodiagnóstico con acentos en el registro"; exit 1 }
       - name: Reinstalar encima (debe respaldar y conservar .env)
         run: |
           $antes = Get-FileHash C:\inst\motor\.env
@@ -289,6 +292,12 @@ jobs:
           Expand-Archive "$env:RUNNER_TEMP\v11.zip" C:\inst\anterior -Force
           New-Item -ItemType Directory -Force C:\inst\anterior\data | Out-Null
           Copy-Item tests\fixtures\bd_v1_0.sqlite C:\inst\anterior\data\monitoreo.db
+          # Archivos de las fuentes JSON/CSV de demostración que acompañan a esa base en una instalación real
+          New-Item -ItemType Directory -Force C:\inst\anterior\data\feeds | Out-Null
+          '{"complete": true, "items": [{"resource_key": "CJ-1", "name": "Agenda Ficticia", "resource_type": "turno", "available": 0, "capacity": 3}]}' |
+            Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\centro_calendario.json
+          "clave,nombre,tipo,disponibles,capacidad,estado`nNC-1,Lote Ficticio A,unidad,0,5,ACTIVO" |
+            Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\norte_inventario.csv
           "MONITOREO_ADMIN_PASSWORD=Anterior-Ficticia-2026`nMONITOREO_SECRET_KEY=$([guid]::NewGuid())$([guid]::NewGuid())" |
             Set-Content -Encoding utf8 C:\inst\anterior\.env
           (Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash | Set-Content C:\inst\hash-anterior.txt
