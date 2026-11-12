@@ -1,0 +1,310 @@
+{
+  "aviso": "Simulación acelerada con reloj virtual y fallos INYECTADOS a propósito. Tiempo, CPU y memoria son mediciones reales de este proceso en esta máquina; no son mediciones de un servidor en producción.",
+  "maquina": {
+    "cpus": 4,
+    "python": "3.13.18",
+    "plataforma": "linux"
+  },
+  "parametros": {
+    "dias_virtuales": 7,
+    "paso_s": 60,
+    "semilla": 11,
+    "solicitudes_iniciales": 1000,
+    "solicitudes_nuevas_por_hora": 4,
+    "base_de_datos": "sqlite temporal",
+    "arrendamiento_ttl_s_virtual": 180
+  },
+  "tiempo_real_s": 1333.2,
+  "aceleracion_x": 453.7,
+  "cpu_s": 1233.7,
+  "cpu_medio_pct_de_un_nucleo": 92.5,
+  "memoria_mb": {
+    "inicial": 78.4,
+    "pico": 127.2
+  },
+  "ciclo_ms": {
+    "n": 10073,
+    "p50": 109.82,
+    "p95": 293.94,
+    "p99": 443.12,
+    "max": 1926.19
+  },
+  "solicitudes": {
+    "total": 1672,
+    "por_estado": {
+      "COMPLETADO": 1670,
+      "EXPIRADO": 2
+    }
+  },
+  "asignaciones": {
+    "CANCELADA": 30,
+    "COMPLETADA": 1670,
+    "RECHAZADA": 183
+  },
+  "eventos": 15324,
+  "eventos_sin_procesar_al_final": 0,
+  "alertas_por_tipo": {
+    "ASIGNACION": 1865,
+    "DISPONIBILIDAD": 11757,
+    "SISTEMA": 4
+  },
+  "entregas_por_canal": {
+    "Panel": {
+      "ENVIADA": 13626
+    },
+    "Simulado": {
+      "ENVIADA": 13626
+    },
+    "Telegram": {
+      "FALLIDA": 13626
+    },
+    "Webhook local": {
+      "FALLIDA": 13626
+    }
+  },
+  "fallos_inyectados": {
+    "base_de_datos": {
+      "al_abrir": 859,
+      "antes_de_confirmar": 790
+    },
+    "caidas_de_instancia": 7,
+    "fuente_caida_horas": 8.0,
+    "destinatarios_inalcanzables": [
+      "Webhook local (127.0.0.1:9)",
+      "Telegram (API en 127.0.0.1:9)"
+    ]
+  },
+  "errores_capturados_por_fase": {
+    "mundo:inyectado": 133,
+    "consulta:inyectado": 246,
+    "mantenimiento:inyectado": 50,
+    "despacho:inyectado": 715,
+    "arrendamiento:inyectado": 74,
+    "eventos:inyectado": 214,
+    "historial:inyectado": 2,
+    "operadores:inyectado": 58,
+    "fuentes_pendientes:inyectado": 45
+  },
+  "errores_no_inyectados": [],
+  "liderazgo": {
+    "pasos_con_dos_lideres": 0,
+    "pasos_sin_lider": 22,
+    "pasos_por_instancia": {
+      "instancia-2": 1024,
+      "instancia-3": 1323,
+      "instancia-4": 1243,
+      "instancia-5": 1528,
+      "instancia-6": 1457,
+      "instancia-7": 996,
+      "instancia-8": 1890,
+      "instancia-9": 597
+    },
+    "caidas": [
+      {
+        "momento": "2030-03-04T17:03:16.584077",
+        "instancia": "instancia-2",
+        "entregas_a_medias": 11
+      },
+      {
+        "momento": "2030-03-05T15:10:39.935872",
+        "instancia": "instancia-3",
+        "entregas_a_medias": 10
+      },
+      {
+        "momento": "2030-03-06T11:57:00.926262",
+        "instancia": "instancia-4",
+        "entregas_a_medias": 16
+      },
+      {
+        "momento": "2030-03-07T13:28:22.830028",
+        "instancia": "instancia-5",
+        "entregas_a_medias": 14
+      },
+      {
+        "momento": "2030-03-08T13:48:46.842111",
+        "instancia": "instancia-6",
+        "entregas_a_medias": 20
+      },
+      {
+        "momento": "2030-03-09T06:29:00.648214",
+        "instancia": "instancia-7",
+        "entregas_a_medias": 15
+      },
+      {
+        "momento": "2030-03-10T14:01:35.240792",
+        "instancia": "instancia-8",
+        "entregas_a_medias": 8
+      }
+    ],
+    "recuperaciones": [
+      {
+        "momento": "2030-03-04T00:00:00",
+        "instancia": "instancia-2"
+      },
+      {
+        "momento": "2030-03-04T17:07:16.584077",
+        "instancia": "instancia-3",
+        "entregas_reencoladas": 11,
+        "entregas_pendientes": 11,
+        "asignaciones_activas": 1,
+        "solicitudes_en_proceso": 3
+      },
+      {
+        "momento": "2030-03-05T08:15:30.284690",
+        "instancia": "instancia-3",
+        "entregas_reencoladas": 71,
+        "entregas_pendientes": 78,
+        "eventos_sin_procesar": 2
+      },
+      {
+        "momento": "2030-03-05T15:14:39.935872",
+        "instancia": "instancia-4",
+        "entregas_reencoladas": 158,
+        "entregas_pendientes": 158
+      },
+      {
+        "momento": "2030-03-06T12:01:00.926262",
+        "instancia": "instancia-5",
+        "entregas_reencoladas": 16,
+        "entregas_pendientes": 16,
+        "fuentes_en_error": 1,
+        "fuentes_circuito_abierto": 1
+      },
+      {
+        "momento": "2030-03-07T13:32:22.830028",
+        "instancia": "instancia-6",
+        "entregas_reencoladas": 14,
+        "entregas_pendientes": 14
+      },
+      {
+        "momento": "2030-03-08T13:52:46.842111",
+        "instancia": "instancia-7",
+        "entregas_reencoladas": 20,
+        "entregas_pendientes": 23
+      },
+      {
+        "momento": "2030-03-09T01:31:56.421811",
+        "instancia": "instancia-7",
+        "entregas_reencoladas": 69,
+        "entregas_pendientes": 92,
+        "eventos_sin_procesar": 15,
+        "solicitudes_en_proceso": 1
+      },
+      {
+        "momento": "2030-03-09T06:32:00.774076",
+        "instancia": "instancia-8",
+        "entregas_reencoladas": 34,
+        "entregas_pendientes": 34
+      },
+      {
+        "momento": "2030-03-10T14:05:35.240792",
+        "instancia": "instancia-9",
+        "entregas_reencoladas": 8,
+        "entregas_pendientes": 8
+      }
+    ]
+  },
+  "fuente_caida": {
+    "inicio": "2030-03-06T10:00:56.502250",
+    "error_en": "2030-03-06T10:08:59.092260",
+    "alertas_sistema": 0,
+    "reanudada_en": "2030-03-06T18:01:05.081253",
+    "primer_ok_tras_reanudar": "2030-03-06T18:01:05.081253"
+  },
+  "reproceso_de_eventos": {
+    "pasadas": 25,
+    "eventos_reprocesados": 750,
+    "alertas_nuevas_por_reproceso": 0
+  },
+  "envios_duplicados": 0,
+  "claves_de_alerta_duplicadas": 0,
+  "historial": {
+    "pasadas_en_paralelo": 26,
+    "ultimas": [
+      {
+        "momento": "2030-03-10T06:05:24.473671",
+        "s_real": 1.075,
+        "agregado": {
+          "horas": 6,
+          "dias": 1,
+          "agregado_hasta": "2030-03-10T06:00:00"
+        },
+        "borrado": {
+          "consultas": 1190,
+          "eventos_sin_alerta": 248,
+          "estadisticas_horarias": 30,
+          "registro_notificaciones": 0,
+          "pendiente_otra_pasada": false
+        }
+      },
+      {
+        "momento": "2030-03-10T12:05:32.257307",
+        "s_real": 1.175,
+        "agregado": {
+          "horas": 6,
+          "dias": 1,
+          "agregado_hasta": "2030-03-10T12:00:00"
+        },
+        "borrado": {
+          "consultas": 1221,
+          "eventos_sin_alerta": 234,
+          "estadisticas_horarias": 30,
+          "registro_notificaciones": 0,
+          "pendiente_otra_pasada": false
+        }
+      },
+      {
+        "momento": "2030-03-10T18:05:39.149012",
+        "s_real": 1.321,
+        "agregado": {
+          "horas": 6,
+          "dias": 1,
+          "agregado_hasta": "2030-03-10T18:00:00"
+        },
+        "borrado": {
+          "consultas": 1195,
+          "eventos_sin_alerta": 280,
+          "estadisticas_horarias": 30,
+          "registro_notificaciones": 0,
+          "pendiente_otra_pasada": false
+        }
+      }
+    ],
+    "final": {
+      "agregado": {
+        "horas": 7,
+        "dias": 2,
+        "agregado_hasta": "2030-03-11T01:00:00"
+      },
+      "borrado": {
+        "consultas": 1329,
+        "eventos_sin_alerta": 311,
+        "estadisticas_horarias": 35,
+        "registro_notificaciones": 0,
+        "pendiente_otra_pasada": false
+      }
+    },
+    "filas_poll_log_al_final": 9289,
+    "consultas_en_agregados_diarios": 32922,
+    "consultas_sin_agregar": 0,
+    "consultas_registradas_total_sqlite_max_id": 32922,
+    "consultas_cuadran": true,
+    "consulta_mas_antigua_conservada": "2030-03-09T01:18:56.264434"
+  },
+  "tablas_protegidas": {
+    "maximos": {
+      "alertas": 13484,
+      "asignaciones": 1876,
+      "auditoria": 8,
+      "solicitudes": 1668,
+      "eventos_solicitud": 7081
+    },
+    "disminuciones": []
+  },
+  "integridad": {
+    "verificaciones": 81,
+    "violaciones": 0,
+    "ejemplos": []
+  },
+  "tamano_bd_mb": 54.9
+}

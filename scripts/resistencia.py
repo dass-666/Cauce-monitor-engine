@@ -356,6 +356,9 @@ def run(days: float, step_s: float, per_region: int, new_per_hour: int, seed: in
         wm = _get_watermark(s)
         raw_after_wm = s.scalar(select(func.count()).select_from(PollLog).where(PollLog.started_at >= wm)) if wm else None
         max_poll_id = s.scalar(select(func.max(PollLog.id)))
+        down_code = s.get(Source, down_source).code
+        down["alertas_sistema"] = s.scalar(select(func.count()).select_from(Alert).where(
+            Alert.kind == "SISTEMA", Alert.source_code == down_code))
         res = {
             "aviso": ("Simulación acelerada con reloj virtual y fallos INYECTADOS a propósito. Tiempo, CPU y "
                       "memoria son mediciones reales de este proceso en esta máquina; no son mediciones de un "

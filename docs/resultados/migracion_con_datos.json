@@ -1,0 +1,36 @@
+{
+  "aviso": "Medición real en esta máquina sobre una copia de una base con datos simulados.",
+  "base_origen": "resistencia.db",
+  "tamano_mb": 11.5,
+  "filas_v1_0": {
+    "alerts": 2444,
+    "assignments": 1215,
+    "audit_log": 1,
+    "change_events": 2508,
+    "channels": 6,
+    "deliveries": 9776,
+    "notification_log": 29585,
+    "operators": 6,
+    "poll_log": 4794,
+    "regions": 5,
+    "request_events": 4622,
+    "requests": 1096,
+    "settings": 3,
+    "sim_items": 60,
+    "slot_states": 60,
+    "sources": 5
+  },
+  "revertir_a_v1_0_s": 0.23,
+  "actualizar_a_v1_1_s_incluye_respaldo": 0.14,
+  "cpu_actualizacion_s": 0.12,
+  "pasos": [
+    "respaldo: /tmp/monitoreo_migracion_rd7d3yti/respaldos/monitoreo-20261112-161741-681075-antes-de-0002_v1_1.db",
+    "actualizada a 0002_v1_1"
+  ],
+  "revision_final": "0002_v1_1",
+  "datos_v1_0_identicos_tras_actualizar": true,
+  "tablas_con_diferencias": [],
+  "respaldo_identico_al_original": true,
+  "esquema_final_igual_a_modelos": true,
+  "diferencias_esquema": []
+}
