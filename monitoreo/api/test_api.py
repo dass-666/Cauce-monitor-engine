@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from ..config import settings
+from ..webhook_firma import verify as verify_webhook
 from ..models import SimItem
 
 router = APIRouter(prefix="/api-prueba", include_in_schema=False)
@@ -45,9 +46,14 @@ def feed(feed: str, request: Request, fallar: int = 0, limitar: int = 0):
 async def webhook(request: Request, x_firma_sha256: str = Header(""), x_id_alerta: str = Header("")):
     body = await request.body()
     secret = getattr(request.app.state, "webhook_secret", None) or settings.secret_key
-    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, x_firma_sha256):
-        raise HTTPException(401, "firma inválida")
+    if request.headers.get("X-Firma-V2"):        # v1.4: firma con marca de tiempo
+        ok, why = verify_webhook(body, request.headers, secret)
+        if not ok:
+            raise HTTPException(401, why)
+    else:
+        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, x_firma_sha256):
+            raise HTTPException(401, "firma inválida")
     duplicate = x_id_alerta in _seen_ids
     _seen_ids.add(x_id_alerta)
     if not duplicate:

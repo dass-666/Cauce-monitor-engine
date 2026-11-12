@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from ..db import Database
 from ..models import Assignment, Operator, Request, RequestEvent, SlotState, Source
@@ -46,11 +47,27 @@ class TransitionError(Exception):
     pass
 
 
+class ConcurrentChange(TransitionError):
+    """La solicitud cambió de estado en otra transacción entre la lectura y la escritura."""
+
+
 def transition(session: Session, req: Request, to: str, actor: str, note: str, now: datetime) -> None:
+    """Cambia el estado de una solicitud y lo anota en su historial.
+
+    v1.4: la escritura es CONDICIONAL al estado leído (`UPDATE ... WHERE status = <leído>`). Con
+    PostgreSQL (READ COMMITTED) dos transacciones pueden leer el mismo estado; antes la segunda
+    sobrescribía en silencio lo que había hecho la primera (p. ej. cancelar una solicitud que otro
+    proceso acababa de asignar o completar). Ahora la segunda recibe `ConcurrentChange`.
+    En SQLite no cambia nada: las transacciones de escritura ya eran secuenciales."""
     if to not in TRANSITIONS.get(req.status, set()):
         raise TransitionError(f"Transición no permitida: {req.status} -> {to}")
-    session.add(RequestEvent(request_id=req.id, ts=now, from_status=req.status, to_status=to, actor=actor, note=note))
-    req.status, req.updated_at = to, now
+    seen = req.status
+    if session.execute(update(Request).where(Request.id == req.id, Request.status == seen)
+                       .values(status=to, updated_at=now)).rowcount != 1:
+        raise ConcurrentChange(f"la solicitud {req.id} cambió de estado mientras tanto (se leyó {seen})")
+    set_committed_value(req, "status", to)
+    set_committed_value(req, "updated_at", now)
+    session.add(RequestEvent(request_id=req.id, ts=now, from_status=seen, to_status=to, actor=actor, note=note))
 
 
 # ---------------------------------------------------------------- registro y validación
@@ -329,14 +346,17 @@ def expire_assignments(db: Database, now: datetime, params: dict) -> int:
         ids = list(s.scalars(select(Assignment.id).where(Assignment.status == "ACTIVA", Assignment.expires_at <= now)))
     n = 0
     for aid in ids:
-        with db.session() as s:
-            if s.execute(update(Assignment).where(Assignment.id == aid, Assignment.status == "ACTIVA")
-                         .values(status="EXPIRADA")).rowcount != 1:
-                continue
-            a = s.get(Assignment, aid)
-            _release(s, a, "EXPIRADA", now, "no tomada a tiempo")
-            _back_to_queue(s, s.get(Request, a.request_id), params, "motor", "asignación expirada", now)
-            n += 1
+        try:
+            with db.session() as s:
+                if s.execute(update(Assignment).where(Assignment.id == aid, Assignment.status == "ACTIVA")
+                             .values(status="EXPIRADA")).rowcount != 1:
+                    continue
+                a = s.get(Assignment, aid)
+                _release(s, a, "EXPIRADA", now, "no tomada a tiempo")
+                _back_to_queue(s, s.get(Request, a.request_id), params, "motor", "asignación expirada", now)
+                n += 1
+        except ConcurrentChange:
+            continue          # la solicitud cambió a la vez (p. ej. cancelada): se deshizo todo
     return n
 
 
@@ -344,35 +364,63 @@ def invalidate_overheld(db: Database, slot_id: int, now: datetime, params: dict)
     """Si la fuente redujo unidades por debajo de lo retenido, se anulan las asignaciones
     más recientes que el operador aún no tomó, hasta recuperar la coherencia."""
     n = 0
-    while True:
-        with db.session() as s:
-            slot = s.get(SlotState, slot_id)
-            if slot is None or slot.held <= (slot.available if slot.status == "ACTIVO" else 0):
-                return n
-            a = s.scalar(select(Assignment).where(Assignment.slot_id == slot_id, Assignment.status == "ACTIVA")
-                         .order_by(Assignment.created_at.desc(), Assignment.id.desc()).limit(1))
-            if a is None:
-                return n  # solo quedan asignaciones EN_PROCESO: se respetan y quedan señaladas
-            s.execute(update(Assignment).where(Assignment.id == a.id).values(status="CANCELADA"))
-            _release(s, a, "CANCELADA", now, "el recurso dejó de estar disponible en la fuente")
-            req = s.get(Request, a.request_id)
-            transition(s, req, REINTENTO, "motor", "recurso ya no disponible", now)
-            req.operator_id = None
-            n += 1
+    for _ in range(10000):
+        try:
+            n += _invalidate_one(db, slot_id, now)
+        except _Done:
+            return n
+        except ConcurrentChange:
+            continue           # otra transacción cambió esa solicitud a la vez: se vuelve a leer
+    return n
+
+
+class _Done(Exception):
+    pass
+
+
+def _invalidate_one(db: Database, slot_id: int, now: datetime) -> int:
+    with db.session() as s:
+        slot = s.get(SlotState, slot_id)
+        if slot is None or slot.held <= (slot.available if slot.status == "ACTIVO" else 0):
+            raise _Done
+        a = s.scalar(select(Assignment).where(Assignment.slot_id == slot_id, Assignment.status == "ACTIVA")
+                     .order_by(Assignment.created_at.desc(), Assignment.id.desc()).limit(1))
+        if a is None:
+            raise _Done  # solo quedan asignaciones EN_PROCESO: se respetan y quedan señaladas
+        # v1.4: condicional; si el operador la tomó justo ahora, se respeta y se busca otra
+        if s.execute(update(Assignment).where(Assignment.id == a.id, Assignment.status == "ACTIVA")
+                     .values(status="CANCELADA")).rowcount != 1:
+            return 0
+        _release(s, a, "CANCELADA", now, "el recurso dejó de estar disponible en la fuente")
+        req = s.get(Request, a.request_id)
+        transition(s, req, REINTENTO, "motor", "recurso ya no disponible", now)
+        req.operator_id = None
+        return 1
 
 
 def cancel_request(db: Database, request_id: int, now: datetime, actor: str) -> bool:
-    with db.session() as s:
-        req = s.get(Request, request_id)
-        if req is None or req.status in TERMINAL:
-            return False
-        live = s.scalar(select(Assignment).where(Assignment.request_id == request_id,
-                                                 Assignment.status.in_(["ACTIVA", "EN_PROCESO"])))
-        if live:
-            s.execute(update(Assignment).where(Assignment.id == live.id).values(status="CANCELADA"))
-            _release(s, live, "CANCELADA", now, "solicitud cancelada")
-        transition(s, req, CANCELADO, actor, "cancelada", now)
-        return True
+    """v1.4: resistente a cambios simultáneos (asignar, tomar o completar a la vez). Si otro
+    proceso cambia la solicitud o su asignación entre la lectura y la escritura, se deshace todo
+    y se vuelve a leer; una solicitud ya completada nunca se convierte en cancelada."""
+    for _ in range(5):
+        try:
+            with db.session() as s:
+                req = s.get(Request, request_id)
+                if req is None or req.status in TERMINAL:
+                    return False
+                live = s.scalar(select(Assignment).where(Assignment.request_id == request_id,
+                                                         Assignment.status.in_(["ACTIVA", "EN_PROCESO"])))
+                if live:
+                    if s.execute(update(Assignment).where(Assignment.id == live.id,
+                                                          Assignment.status == live.status)
+                                 .values(status="CANCELADA")).rowcount != 1:
+                        raise ConcurrentChange("la asignación cambió mientras tanto")
+                    _release(s, live, "CANCELADA", now, "solicitud cancelada")
+                transition(s, req, CANCELADO, actor, "cancelada", now)
+                return True
+        except ConcurrentChange:
+            continue
+    return False
 
 
 def expire_requests(db: Database, now: datetime) -> int:
@@ -384,11 +432,12 @@ def expire_requests(db: Database, now: datetime) -> int:
             if v:
                 try:
                     if datetime.fromisoformat(v) < now:
-                        if req.status == PENDIENTE:
-                            transition(s, req, CANCELADO, "motor", "vencida antes de validarse", now)
-                        else:
-                            transition(s, req, EXPIRADO, "motor", "vigencia vencida", now)
+                        with s.begin_nested():   # si otro proceso la asignó a la vez, se deja para luego
+                            if req.status == PENDIENTE:
+                                transition(s, req, CANCELADO, "motor", "vencida antes de validarse", now)
+                            else:
+                                transition(s, req, EXPIRADO, "motor", "vigencia vencida", now)
                         n += 1
-                except ValueError:
+                except (ValueError, ConcurrentChange):
                     pass
     return n

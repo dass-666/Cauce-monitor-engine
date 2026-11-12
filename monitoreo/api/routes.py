@@ -113,8 +113,10 @@ def change_password(body: sc.PasswordIn, user: CurrentUser = Depends(current_use
         if not security.verify_password(body.current_password, u.password_hash):
             raise HTTPException(401, "Contraseña actual incorrecta")
         u.password_hash = security.hash_password(body.new_password)
-        security.audit(s, user.username, "cambio_contrasena")
-    return {"ok": True}
+        # v1.4: si alguien conocía la contraseña anterior y abrió sesión, esa sesión deja de valer
+        closed = security.revoke_other_tokens(s, user.id, keep_token=user.token)
+        security.audit(s, user.username, "cambio_contrasena", detail={"sesiones_cerradas": closed})
+    return {"ok": True, "sesiones_cerradas": closed}
 
 
 # ======================================================================= panel principal
@@ -510,6 +512,8 @@ def assignment_action(aid: int, action: str, http: HttpRequest, user: CurrentUse
             ok = asg.complete_assignment(db, aid, scope, now, user.username, op=op)
         else:
             ok = asg.reject_assignment(db, aid, scope, now, user.username, params, op=op)
+    except asg.ConcurrentChange:
+        ok = False            # la solicitud cambió a la vez (p. ej. la cancelaron): no se hizo nada
     except IntegrityError:
         # misma clave enviada dos veces a la vez: la otra petición ganó; se devuelve su resultado
         stored = _stored_operation(db, user.username, key) if key else None

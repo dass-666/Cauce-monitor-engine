@@ -68,6 +68,17 @@ def resolve_token(s: Session, token: str) -> User | None:
     return user if user and user.active else None
 
 
+def revoke_other_tokens(s: Session, user_id: int, keep_token: str | None = None) -> int:
+    """v1.4: cierra todas las sesiones de un usuario salvo la actual (tras cambiar la contraseña)."""
+    keep = _token_hash(keep_token) if keep_token else None
+    n = 0
+    for row in s.scalars(select(ApiToken).where(ApiToken.user_id == user_id, ApiToken.revoked.is_(False))):
+        if row.token_hash != keep:
+            row.revoked = True
+            n += 1
+    return n
+
+
 def revoke_token(s: Session, token: str) -> None:
     row = s.scalar(select(ApiToken).where(ApiToken.token_hash == _token_hash(token)))
     if row:

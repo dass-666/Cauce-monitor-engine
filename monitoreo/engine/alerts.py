@@ -16,6 +16,7 @@ import json
 import logging
 import random
 import threading
+import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -27,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..webhook_firma import sign_v2
 from ..db import Database
 from ..models import Alert, Channel, Delivery, NotificationLog
 from .resilience import backoff_delay
@@ -120,10 +122,13 @@ class WebhookSender(ChannelSender):
             raise DeliveryError(f"host {host} no está en MONITOREO_WEBHOOK_HOSTS", permanent=True)
         body = json.dumps(alert_payload, ensure_ascii=False, default=str).encode()
         secret = self.config.get("secret") or settings.secret_key
+        ts = int(time.time())
         headers = {"Content-Type": "application/json", "X-Id-Alerta": str(alert_payload["dedup_key"]),
                    # Clave estable por alerta y canal: el receptor puede descartar repetidos (al menos una vez).
                    "Idempotency-Key": f"{alert_payload['dedup_key']}@{self.channel.id}",
-                   "X-Firma-SHA256": _sign(body, secret)}
+                   "X-Firma-SHA256": _sign(body, secret),          # v1.0–v1.3 (compatibilidad)
+                   # v1.4: firma con marca de tiempo; el receptor rechaza peticiones viejas (repetición)
+                   "X-Marca-Tiempo": str(ts), "X-Firma-V2": sign_v2(body, secret, ts)}
         try:
             r = http_client().post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
         except httpx.HTTPError as e:
