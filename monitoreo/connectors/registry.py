@@ -7,10 +7,12 @@ from ..config import settings
 from .base import Connector, ConnectorError
 from .files import CsvFileConnector, JsonFileConnector
 from .http_api import HttpApiConnector
+from .proveedor_prueba import ProveedorPruebaConnector
 from .simulation import SimulationConnector
 
 REGISTRY: dict[str, type[Connector]] = {
-    c.type_name: c for c in (SimulationConnector, JsonFileConnector, CsvFileConnector, HttpApiConnector)
+    c.type_name: c for c in (SimulationConnector, JsonFileConnector, CsvFileConnector, HttpApiConnector,
+                                ProveedorPruebaConnector)
 }
 
 
@@ -20,7 +22,7 @@ def build_connector(connector_type: str, config: dict, context: dict | None = No
         raise ConnectorError(f"Tipo de conector desconocido: {connector_type}")
     # Las claves internas (prefijo "_") nunca pueden venir de la configuración del usuario.
     cfg = {k: v for k, v in (config or {}).items() if not str(k).startswith("_")}
-    if connector_type == "http":
+    if getattr(cls, "uses_network", False):
         cfg["_allowed_hosts"] = list(settings.webhook_allowed_hosts)
         # Las credenciales se referencian por nombre de variable de entorno, nunca se guardan en claro.
         env_name = cfg.get("token_env")

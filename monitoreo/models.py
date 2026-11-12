@@ -92,6 +92,8 @@ class Source(Base):
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_outcome: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # v1.3: estado opaco del conector (p. ej. ETag/versión) que se le devuelve en cada consulta.
+    connector_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class SlotState(Base):
@@ -127,7 +129,7 @@ class PollLog(Base):
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     duration_ms: Mapped[float] = mapped_column(Float, default=0)
-    # OK | ERROR_TEMPORAL | LIMITADO | ERROR | CIRCUITO_ABIERTO
+    # OK | ERROR_TEMPORAL | LIMITADO | ERROR | CIRCUITO_ABIERTO | OBSOLETA (v1.3)
     outcome: Mapped[str] = mapped_column(String(24))
     attempts: Mapped[int] = mapped_column(Integer, default=1)
     items: Mapped[int] = mapped_column(Integer, default=0)
@@ -158,6 +160,8 @@ class ChangeEvent(Base):
     # luego se procesa (asignación + alerta). Si el proceso muere entre medio,
     # al reiniciar se retoman los eventos con processed=False.
     processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # v1.3: cuándo terminó su procesamiento (asignación + alertas); mide el tramo "procesamiento".
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # ---------------------------------------------------------------- operadores y solicitudes

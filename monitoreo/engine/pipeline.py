@@ -14,7 +14,7 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
-from ..connectors.base import ConnectorError, RateLimited, TemporaryError
+from ..connectors.base import ConnectorError, RateLimited, StaleResponse, TemporaryError
 from ..connectors.registry import build_connector
 from ..db import Database
 from ..models import Alert, Assignment, ChangeEvent, Operator, PollLog, Request, SlotState, Source
@@ -97,9 +97,11 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
         if decision.state == "SEMIABIERTO":
             src.circuit_state = "SEMIABIERTO"
         ctype, cfg, max_retries, code = src.connector_type, dict(src.config or {}), src.max_retries, src.code
+        cstate = dict(src.connector_state or {})
 
     # ---- consulta a la fuente (fuera de transacción: puede tardar)
-    ctx = {"db": db, "rng": rng, "virtual_time": getattr(clock, "virtual", False), **(context_extra or {})}
+    ctx = {"db": db, "rng": rng, "virtual_time": getattr(clock, "virtual", False), "state": cstate,
+           **(context_extra or {})}
     t0 = time.perf_counter()
     attempts, snapshot, err, outcome, retry_after = 0, None, None, "OK", None
     try:
@@ -116,6 +118,8 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                 log.debug("reintento %s en %s: %s", attempts, code, e)
     except RateLimited as e:
         outcome, err, retry_after = "LIMITADO", str(e), e.retry_after
+    except StaleResponse as e:
+        outcome, err = "OBSOLETA", str(e)
     except TemporaryError as e:
         outcome, err = "ERROR_TEMPORAL", str(e)
     except ConnectorError as e:
@@ -140,19 +144,37 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
                           attempts=attempts, error=err)
         result = PollOutcome(outcome, duration_ms=duration_ms, error=err)
         if outcome == "OK":
-            det = detect(s, src, snapshot, now, params)
-            log_row.items, log_row.changes = det.items, len(det.events)
-            log_row.duplicates, log_row.unchanged = det.duplicates, det.unchanged
-            src.total_changes += len(det.events)
+            if snapshot.not_modified:
+                # v1.3: la fuente confirmó que nada cambió (p. ej. HTTP 304): no hay nada que comparar.
+                src.last_result = {"items": 0, "cambios": 0, "sin_modificar": True, "ms": round(duration_ms, 2)}
+                events = []
+            else:
+                det = detect(s, src, snapshot, now, params)
+                log_row.items, log_row.changes = det.items, len(det.events)
+                log_row.duplicates, log_row.unchanged = det.duplicates, det.unchanged
+                src.last_result = {"items": det.items, "cambios": len(det.events), "duplicados": det.duplicates,
+                                   "sin_cambio": det.unchanged, "ms": round(duration_ms, 2)}
+                if not snapshot.complete:
+                    src.last_result["incompleta"] = True
+                events = det.events
+            if snapshot.meta:
+                src.last_result["conector"] = _compact_meta(snapshot.meta)
+            if snapshot.state is not None:
+                src.connector_state = snapshot.state
+            src.total_changes += len(events)
             src.last_success_at, src.last_error, src.consecutive_failures = now, None, 0
             src.circuit_state, src.circuit_opened_at, src.circuit_open_count = "CERRADO", None, 0
             src.status_reason = None
-            src.last_result = {"items": det.items, "cambios": len(det.events), "duplicados": det.duplicates,
-                               "sin_cambio": det.unchanged, "ms": round(duration_ms, 2)}
             src.next_poll_at = now + timedelta(seconds=jittered_interval(src.interval_s, src.jitter_pct, rng))
             s.flush()
-            result.events = len(det.events)
-            result.relevant_event_ids = [e.id for e in det.events]
+            result.events = len(events)
+            result.relevant_event_ids = [e.id for e in events]
+        elif outcome == "OBSOLETA":
+            # v1.3: la fuente respondió, pero con datos más antiguos que los ya procesados. Se descarta
+            # sin compararla (no genera cambios falsos) y no cuenta como fallo de la fuente.
+            src.last_error = err
+            src.last_result = {"resultado": outcome, "error": err, "ms": round(duration_ms, 2)}
+            src.next_poll_at = now + timedelta(seconds=jittered_interval(src.interval_s, src.jitter_pct, rng))
         else:
             src.total_errors += 1
             src.last_error = err
@@ -215,7 +237,13 @@ def process_pending_events(db: Database, clock, limit: int = 500, guard=None) ->
             ev = s.get(ChangeEvent, eid)
             src = s.get(Source, ev.source_id)
             n_alerts = 0
-            for aid in created:
+            # v1.3: también las asignaciones que este evento creó en un intento anterior que falló
+            # antes de avisar (la asignación se confirma en su propia transacción). Sin esto, un
+            # fallo de la BD en ese instante dejaba una asignación viva de la que nadie se enteraba.
+            # La alerta se deduplica por asignación, así que nunca se avisa dos veces.
+            earlier = s.scalars(select(Assignment.id).where(Assignment.change_event_id == eid,
+                                                            Assignment.status == "ACTIVA"))
+            for aid in sorted(set(created) | set(earlier)):
                 n_alerts += _assignment_alert(s, aid, now) is not None
             # Idempotencia: si este evento ya generó alguna alerta (p. ej. se reprocesa tras
             # un reinicio), no se crea una alerta de disponibilidad adicional.
@@ -225,7 +253,12 @@ def process_pending_events(db: Database, clock, limit: int = 500, guard=None) ->
             slot = s.get(SlotState, slot_id) if slot_id else None
             consumed = (ctype in SUPPLY_TYPES and slot is not None and slot.available - slot.held <= 0
                         and slot.held > 0)
-            if relevant and not created and not already and not consumed:
+            # v1.3: si la oferta ya desapareció cuando se procesa el evento (p. ej. una ventana corta
+            # que venció), avisar de "disponibilidad" sería engañoso: nadie podría usarla. El
+            # historial conserva ambos eventos (la aparición y el agotamiento posterior).
+            gone = (ctype in SUPPLY_TYPES and slot is not None
+                    and (slot.status != "ACTIVO" or slot.available <= 0))
+            if relevant and not created and not already and not consumed and not gone:
                 title = f"{ev.change_type.replace('_', ' ').title()}: {ev.resource_name}"
                 if ctype in SUPPLY_TYPES:
                     title += " (sin solicitud compatible asignable)"
@@ -235,10 +268,23 @@ def process_pending_events(db: Database, clock, limit: int = 500, guard=None) ->
                     payload={"cambio": ev.change_type, "antes": ev.before, "despues": ev.after})
                 n_alerts += a is not None
             ev.processed = True
+            ev.processed_at = clock.now()
         stats["eventos"] += 1
         stats["asignaciones"] += len(created)
         stats["alertas"] += n_alerts
     return stats
+
+
+def _compact_meta(meta: dict) -> dict:
+    """Resumen de los datos de la consulta para `last_result` (sin listas largas)."""
+    out = {}
+    for k, v in meta.items():
+        if isinstance(v, list):
+            nums = [x for x in v if isinstance(x, (int, float)) and x == x]
+            out[k] = round(sum(nums), 2) if k.endswith("_ms") else len(v)
+        else:
+            out[k] = v
+    return out
 
 
 def _assignment_alert(s, assignment_id: int, now):
@@ -269,7 +315,10 @@ def maintenance(db: Database, clock) -> dict:
     created = asg.rebalance(db, now, params)
     n_alerts = 0
     with db.session() as s:
-        for aid in created:
+        # v1.3: incluye asignaciones vivas que se quedaron sin aviso (fallo entre asignar y avisar).
+        orphans = s.scalars(select(Assignment.id).where(
+            Assignment.status == "ACTIVA", ~select(Alert.id).where(Alert.assignment_id == Assignment.id).exists()))
+        for aid in sorted(set(created) | set(orphans)):
             n_alerts += _assignment_alert(s, aid, now) is not None
     return {"validadas": len(pending), "expiradas": expired, "vencidas": vencidas,
             "reasignadas": len(created), "alertas": n_alerts}

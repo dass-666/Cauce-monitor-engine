@@ -26,6 +26,14 @@ class RateLimited(ConnectorError):
         self.retry_after = retry_after
 
 
+class StaleResponse(ConnectorError):
+    """La fuente devolvió datos MÁS ANTIGUOS que los ya procesados (p. ej. una caché intermedia).
+
+    v1.3: el motor descarta la respuesta sin compararla (no genera falsos cambios) y no la
+    cuenta como fallo de la fuente; queda registrada con resultado OBSOLETA.
+    """
+
+
 class Connector(ABC):
     """Contrato de un conector.
 
@@ -35,6 +43,9 @@ class Connector(ABC):
     """
 
     type_name: str = "base"
+    # v1.3: un conector de red recibe la lista de hosts permitidos y la credencial resuelta
+    # desde la variable de entorno indicada en `token_env` (nunca se guarda en la BD).
+    uses_network: bool = False
 
     def __init__(self, config: dict[str, Any], context: dict[str, Any] | None = None):
         self.config = config or {}
