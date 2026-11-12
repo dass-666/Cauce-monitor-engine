@@ -245,3 +245,11 @@ def test_channel(cid: int, user: CurrentUser = Depends(require_admin), db: Datab
         return {"ok": True, "detalle": sender.send(payload, {})}
     except al.DeliveryError as e:
         return {"ok": False, "detalle": str(e)}
+
+
+@router.get("/autodiagnostico")
+def self_diagnosis(request: HttpRequest, profundo: bool = False, user: CurrentUser = Depends(require_admin),
+                   db: Database = Depends(get_db)):
+    """Revisión completa del motor con acciones sugeridas (v1.2)."""
+    from .. import diagnostico
+    return diagnostico.run(db, getattr(request.app.state, "scheduler", None), deep=profundo)

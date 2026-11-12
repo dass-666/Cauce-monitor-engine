@@ -327,8 +327,25 @@ async function viewMonitor() {
 // ------------------------------------------------------------------ SALUD (v1.1)
 const secs = (s) => s === null || s === undefined ? "—" : fmtDur(Math.round(s));
 const lat = (o) => o && o.n ? `${num(o.p50 / 1000, 2)} s / ${num(o.p95 / 1000, 2)} s` : "—";
+async function selfCheckCard() {
+  if (!isAdmin()) return null;
+  // El autodiagnóstico revisa toda la base: se reutiliza durante 60 s salvo que se pida de nuevo.
+  if (!S.diag || Date.now() - S.diagAt > 60000) { S.diag = await api("/api/autodiagnostico"); S.diagAt = Date.now(); }
+  const d = S.diag;
+  const problems = d.comprobaciones.filter((i) => i.estado !== "OK");
+  const oks = d.comprobaciones.filter((i) => i.estado === "OK");
+  return h("section", { class: "card section" },
+    h("div", { class: "page-head" }, h("h2", {}, "Autodiagnóstico"),
+      h("div", { class: "actions" }, badge(d.estado), h("span", { class: "muted" }, ` ${d.criticos} crítico(s), ${d.avisos} aviso(s) · ${fmtTime(d.momento)}`),
+        h("button", { class: "btn small", onclick: () => { S.diag = null; refresh(true); } }, "Revisar ahora"))),
+    problems.length ? h("div", {}, problems.map((i) => h("div", { class: "diag-item" },
+      h("div", {}, badge(i.estado), " ", h("b", {}, `${i.area}: ${i.titulo}`)),
+      i.detalle ? h("div", { class: "muted" }, i.detalle) : null,
+      i.accion ? h("div", {}, "Qué hacer: " + i.accion) : null))) : null,
+    h("p", { class: "muted" }, `Correcto: ${oks.map((i) => i.area + " (" + i.titulo + ")").join(" · ") || "—"}`));
+}
 async function viewHealth() {
-  const [d, st] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7")]);
+  const [d, st, diagCard] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7"), selfCheckCard()]);
   const m = d.motor, lg = m.lider_global;
   const problems = d.fuentes.filter((f) => f.status !== "ACTIVA" || f.desactualizada || f.circuito !== "CERRADO");
   return h("div", {},
@@ -343,6 +360,7 @@ async function viewHealth() {
       kpi("Alertas sin confirmar", num(d.colas.alertas_sin_confirmar), `${num(d.colas.entregas_pendientes)} entregas pendientes · ${num(d.colas.entregas_fallidas_24h)} fallidas 24 h`),
       kpi("Base de datos", `${d.base_de_datos.tipo}`, `latencia ${num(d.base_de_datos.latencia_ms, 2)} ms`),
       kpi("Proceso", `${num(d.proceso.memoria_mb, 1)} MB`, `CPU ${num(d.proceso.cpu_pct, 1)} % · ${d.proceso.hilos} hilos`)),
+    diagCard,
     card("Estado por región", table([
       { t: "Región", f: (r) => h("b", {}, r.name) },
       { t: "Fuentes OK", num: true, f: (r) => `${r.fuentes_ok}/${r.fuentes}` },

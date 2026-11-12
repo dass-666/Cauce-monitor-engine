@@ -134,3 +134,6 @@ pre.json { background: var(--panel-2); border: 1px solid var(--border); border-r
   .alert-item .body { flex-basis: calc(100% - 120px); }
   .alert-item .actions { flex-basis: 100%; }
 }
+
+.diag-item { padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.diag-item:last-child { border-bottom: 0; }

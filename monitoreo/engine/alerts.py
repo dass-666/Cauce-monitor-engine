@@ -16,6 +16,7 @@ import json
 import logging
 import random
 import threading
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -58,6 +59,8 @@ class DeliveryError(Exception):
 
 class ChannelSender(ABC):
     """Interfaz de canal. Telegram o correo se integran implementando `send`."""
+
+    checkpoint = staticmethod(lambda progress: None)  # el despachador la sustituye (progreso parcial)
 
     def __init__(self, channel: Channel):
         self.channel = channel
@@ -118,6 +121,8 @@ class WebhookSender(ChannelSender):
         body = json.dumps(alert_payload, ensure_ascii=False, default=str).encode()
         secret = self.config.get("secret") or settings.secret_key
         headers = {"Content-Type": "application/json", "X-Id-Alerta": str(alert_payload["dedup_key"]),
+                   # Clave estable por alerta y canal: el receptor puede descartar repetidos (al menos una vez).
+                   "Idempotency-Key": f"{alert_payload['dedup_key']}@{self.channel.id}",
                    "X-Firma-SHA256": _sign(body, secret)}
         try:
             r = http_client().post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
@@ -125,7 +130,14 @@ class WebhookSender(ChannelSender):
             raise DeliveryError(f"error de red: {e.__class__.__name__}") from e
         if 200 <= r.status_code < 300:
             return f"HTTP {r.status_code}"
-        raise DeliveryError(f"HTTP {r.status_code}", permanent=400 <= r.status_code < 500 and r.status_code != 429)
+        retry_after = None
+        if r.status_code in (429, 503):
+            try:
+                retry_after = min(3600.0, float(r.headers.get("Retry-After", "")))
+            except ValueError:
+                retry_after = None  # formato de fecha HTTP: se usa el retroceso normal
+        raise DeliveryError(f"HTTP {r.status_code}", permanent=400 <= r.status_code < 500 and r.status_code != 429,
+                            retry_after=retry_after)
 
 
 class NotConfiguredSender(ChannelSender):
@@ -142,7 +154,12 @@ SENDERS: dict[str, type[ChannelSender]] = {
 
 
 def _register_telegram() -> None:
-    from ..notifiers.telegram import TelegramSender
+    # Si el módulo de Telegram se importó primero, aún está a medio cargar: él mismo se
+    # registrará al terminar (ver final de notifiers/telegram.py). Antes esto fallaba (v1.1).
+    try:
+        from ..notifiers.telegram import TelegramSender
+    except ImportError:
+        return
     SENDERS["telegram"] = TelegramSender
 
 
@@ -190,7 +207,7 @@ def recover_inflight(db: Database, now: datetime | None = None, stale_s: float =
     if now is not None and stale_s > 0:
         cond.append((Delivery.claimed_at.is_(None)) | (Delivery.claimed_at < now - timedelta(seconds=stale_s)))
     with db.session() as s:
-        return s.execute(update(Delivery).where(*cond).values(status="PENDIENTE")).rowcount
+        return s.execute(update(Delivery).where(*cond).values(status="PENDIENTE", claim_token=None)).rowcount
 
 
 def _refresh_alert_status(s: Session, alert_id: int) -> None:
@@ -208,16 +225,42 @@ def _refresh_alert_status(s: Session, alert_id: int) -> None:
         a.status = "PENDIENTE"
 
 
+def requeue_stale_claims(db: Database, now: datetime, older_than_s: float) -> int:
+    """Entregas reclamadas hace demasiado (el despachador murió o se colgó) vuelven a la cola.
+    Independiente del liderazgo: así nunca quedan atascadas en ENVIANDO."""
+    with db.session() as s:
+        return s.execute(update(Delivery).where(
+            Delivery.status == "ENVIANDO", Delivery.claimed_at < now - timedelta(seconds=older_than_s))
+            .values(status="PENDIENTE", claim_token=None)).rowcount
+
+
+def _checkpoint(db: Database, did: int, token: str):
+    """Guarda el progreso parcial (p. ej. chats de Telegram ya servidos) en cuanto ocurre, para que
+    tras una caída no se reenvíe a quien ya lo recibió. Solo si el reclamo sigue siendo nuestro."""
+    def save(progress: dict) -> None:
+        with db.session() as s:
+            s.execute(update(Delivery).where(Delivery.id == did, Delivery.claim_token == token,
+                                             Delivery.status == "ENVIANDO").values(meta=dict(progress)))
+    return save
+
+
 def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200,
                      rng: random.Random | None = None) -> dict:
-    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0}
+    """Envía las entregas pendientes. Garantías (ver docs/NOTIFICACIONES.md):
+    - un reclamo atómico con testigo único impide que dos despachadores envíen la misma entrega a la vez;
+    - el resultado solo se registra si el testigo sigue vigente (un resultado tardío no pisa a otro);
+    - el progreso por destinatario se guarda en cuanto ocurre;
+    - entrega "al menos una vez": una caída entre el envío y su registro puede producir un repetido."""
+    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0, "tardias": 0,
+             "reencoladas": requeue_stale_claims(db, now, float(params.get("entrega_reclamo_vence_s", 300)))}
     with db.session() as s:
         ids = list(s.scalars(select(Delivery.id).where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
                              .order_by(Delivery.id).limit(limit)))
     for did in ids:
+        token = uuid.uuid4().hex
         with db.session() as s:  # reclamar la entrega (evita doble envío si hubiera dos despachadores)
             if s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "PENDIENTE")
-                         .values(status="ENVIANDO", claimed_at=now)).rowcount != 1:
+                         .values(status="ENVIANDO", claimed_at=now, claim_token=token)).rowcount != 1:
                 continue
             d = s.get(Delivery, did)
             ch = s.get(Channel, d.channel_id)
@@ -226,6 +269,8 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             sender = SENDERS.get(ch.type, NotConfiguredSender)(ch)
             ch_name = ch.name
             progress = dict(d.meta or {})
+            alert_id, attempts = d.alert_id, d.attempts
+        sender.checkpoint = _checkpoint(db, did, token)
         ok, detail, permanent, retry_after = True, "", False, None
         try:
             detail = sender.send(payload, progress)
@@ -235,28 +280,36 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             ok, detail = False, f"error inesperado: {e.__class__.__name__}"
             log.exception("fallo en canal %s", ch_name)
         with db.session() as s:
-            d = s.get(Delivery, did)
-            d.attempts += 1
-            d.meta = progress or None
+            attempts += 1
+            values = {"attempts": attempts, "meta": progress or None, "claim_token": None}
             if ok:
-                d.status, d.delivered_at, d.last_error = "ENVIADA", now, None
-                a = s.get(Alert, d.alert_id)
-                d.latency_ms = max(0.0, (now - a.created_at).total_seconds() * 1000)
-                stats["enviadas"] += 1
+                a = s.get(Alert, alert_id)
+                values.update(status="ENVIADA", delivered_at=now, last_error=None,
+                              latency_ms=max(0.0, (now - a.created_at).total_seconds() * 1000))
+            elif permanent or attempts >= int(params["reintentos_notificacion"]):
+                values.update(status="FALLIDA", last_error=detail)
             else:
-                stats["fallos"] += 1
-                d.last_error = detail
-                if permanent or d.attempts >= int(params["reintentos_notificacion"]):
-                    d.status = "FALLIDA"
-                    stats["definitivas"] += 1
+                wait = backoff_delay(attempts, float(params["backoff_notificacion_s"]), 300, rng)
+                values.update(status="PENDIENTE", last_error=detail,
+                              next_attempt_at=now + timedelta(seconds=max(wait, retry_after or 0)))
+            # Registro del resultado SOLO si el reclamo sigue siendo nuestro (testigo vigente).
+            current = s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "ENVIANDO",
+                                                       Delivery.claim_token == token).values(**values)).rowcount == 1
+            if current:
+                if ok:
+                    stats["enviadas"] += 1
                 else:
-                    d.status = "PENDIENTE"
-                    wait = backoff_delay(d.attempts, float(params["backoff_notificacion_s"]), 300, rng)
-                    d.next_attempt_at = now + timedelta(seconds=max(wait, retry_after or 0))
-            s.add(NotificationLog(ts=now, alert_id=d.alert_id, channel=ch_name, outcome="OK" if ok else "FALLO",
+                    stats["fallos"] += 1
+                    stats["definitivas"] += values["status"] == "FALLIDA"
+            else:
+                stats["tardias"] += 1
+                detail = "[resultado tardío: la entrega ya se había reasignado; no se modifica su estado] " + detail
+                log.warning("resultado tardío de la entrega %s (%s)", did, ch_name)
+            # El registro refleja lo que ocurrió de verdad, también si fue tardío.
+            s.add(NotificationLog(ts=now, alert_id=alert_id, channel=ch_name, outcome="OK" if ok else "FALLO",
                                   detail=detail[:500]))
             s.flush()
-            _refresh_alert_status(s, d.alert_id)
+            _refresh_alert_status(s, alert_id)
     return stats
 
 

@@ -99,12 +99,14 @@ class TelegramSender(ChannelSender):
                 body = {}
             if r.status_code == 200 and body.get("ok"):
                 done.append(chat)
+                self.checkpoint(progress)  # v1.2: guardado inmediato; tras una caída no se repite a este chat
             elif r.status_code == 429:
                 retry_after = float((body.get("parameters") or {}).get("retry_after") or 5)
                 transient.append(f"chat …{chat[-3:]}: limitado {retry_after:.0f}s")
                 break  # Telegram pide esperar: no seguir enviando ahora
             elif r.status_code in (400, 403):
                 failed[chat] = f"{r.status_code}: {str(body.get('description', ''))[:80]}"
+                self.checkpoint(progress)
             elif r.status_code == 401:
                 raise DeliveryError("token de Telegram inválido (401)", permanent=True)
             else:
@@ -115,3 +117,9 @@ class TelegramSender(ChannelSender):
             raise DeliveryError(f"ningún destinatario aceptó el mensaje: {failed}", permanent=True)
         extra = f"; rechazado por {len(failed)} destinatario(s)" if failed else ""
         return f"entregado a {len(done)} chat(s){extra}"
+
+
+# Registro del canal (también si este módulo se importa antes que engine.alerts).
+from ..engine.alerts import SENDERS as _SENDERS  # noqa: E402
+
+_SENDERS["telegram"] = TelegramSender

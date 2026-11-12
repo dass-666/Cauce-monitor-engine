@@ -56,6 +56,8 @@ class Scheduler:
         self.last_error_at = None
         self.consecutive_cycle_errors = 0
         self.last_history_at = 0.0
+        self.last_selfcheck_at = time.monotonic()  # el primero, pasado un intervalo (no al arrancar)
+        self._selfcheck_task: asyncio.Task | None = None
         self.last_history: dict | None = None
         self.recovery: dict | None = None
         self._history_task: asyncio.Task | None = None
@@ -77,6 +79,14 @@ class Scheduler:
 
     def _error(self, msg: str) -> None:
         self.last_error, self.last_error_at = msg[:500], self.clock.now()
+
+    async def _selfcheck(self) -> None:
+        try:
+            from ..diagnostico import run_and_alert
+            res = await asyncio.to_thread(run_and_alert, self.db, self, self.clock.now())
+            self.last_selfcheck = {k: res[k] for k in ("momento", "estado", "criticos", "avisos")}
+        except Exception as e:  # noqa: BLE001
+            log.warning("autodiagnóstico falló: %s", e)
 
     async def _history(self) -> None:
         try:
@@ -130,6 +140,11 @@ class Scheduler:
                                 and (self._history_task is None or self._history_task.done())):
                             self.last_history_at = now_m
                             self._history_task = asyncio.create_task(self._history())
+                        every = float(params.get("autodiagnostico_cada_s", 600))
+                        if (every > 0 and now_m - self.last_selfcheck_at >= every
+                                and (self._selfcheck_task is None or self._selfcheck_task.done())):
+                            self.last_selfcheck_at = now_m
+                            self._selfcheck_task = asyncio.create_task(self._selfcheck())
                     self.cycles += 1
                     self.consecutive_cycle_errors = 0
                 except Exception as e:
@@ -148,8 +163,9 @@ class Scheduler:
         finally:
             if polls:
                 await asyncio.gather(*polls, return_exceptions=True)
-            if self._history_task:
-                await asyncio.gather(self._history_task, return_exceptions=True)
+            for task in (self._history_task, self._selfcheck_task):
+                if task:
+                    await asyncio.gather(task, return_exceptions=True)
             try:
                 if self.role == "LIDER":
                     self.lease.release(self.clock.now())
@@ -171,6 +187,7 @@ class Scheduler:
                 "ultimo_error": self.last_error,
                 "ultimo_error_en": self.last_error_at.isoformat() + "Z" if self.last_error_at else None,
                 "arrendamiento": self.lease.info(), "ultima_recuperacion": self.recovery,
+                "ultimo_autodiagnostico": getattr(self, "last_selfcheck", None),
                 "ultimo_mantenimiento_historial": self.last_history,
                 "iniciado": self.started_at.isoformat() + "Z",
                 "proceso": {"pid": proc.pid, "memoria_mb": round(proc.memory_info().rss / 1048576, 1),

@@ -83,4 +83,7 @@ ENGINE_DEFAULTS: dict = {
     "mantenimiento_historial_cada_s": 300,
     # --- v1.1: coordinación entre instancias
     "lease_duracion_s": 15,
+    # --- v1.2
+    "autodiagnostico_cada_s": 600,              # 0 = desactivado
+    "entrega_reclamo_vence_s": 300,             # una entrega en ENVIANDO más tiempo vuelve a la cola
 }

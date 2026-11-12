@@ -275,6 +275,8 @@ class Delivery(Base):
     # v1.1: progreso por destinatario (p. ej. chats de Telegram ya entregados) para no reenviar
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # v1.2: testigo del reclamo vigente. Solo quien lo posee puede registrar el resultado.
+    claim_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class NotificationLog(Base):
