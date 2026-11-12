@@ -134,7 +134,7 @@ ejecutar una **simulación acelerada** (por ejemplo 12 horas virtuales en ~1 min
 monitoreo/
   app.py, __main__.py      Aplicación FastAPI y arranque
   config.py, db.py, models.py, contracts.py, security.py
-  connectors/              Interfaz + simulación, JSON, CSV, HTTP
+  connectors/              Interfaz + simulación, JSON, CSV, HTTP, proveedor de prueba (v1.3)
   engine/                  planificador, pipeline, detector, asignación, alertas, resiliencia, integridad,
                            arrendamiento (lease), recuperación, retención del historial
   migrations/, migrate.py  migraciones Alembic con respaldo previo
@@ -142,9 +142,10 @@ monitoreo/
   simulator/               mundo ficticio, datos de demostración, simulación acelerada
   api/                     rutas REST, esquemas de validación, API de prueba local
   web/                     panel (HTML/CSS/JS sin compilación)
+proveedor_prueba/          v1.3: servicio HTTP de PRUEBA independiente (datos ficticios, CONTRATO.md)
 tests/                     pruebas automatizadas (pytest)
 scripts/                   preparar.py (instalación), verificar_arranque.py, capacidad.py, benchmark.py,
-                           resistencia.py, e2e_panel.js, e2e_produccion.js
+                           resistencia.py, integracion_http.py (v1.3), e2e_panel.js, e2e_produccion.js
 .github/workflows/ci.yml   integración continua en Windows y Linux (ver docs/INFORME_v1.2.md)
 instalar.ps1, actualizar.ps1, iniciar.bat, diagnostico.bat, pruebas.bat
 docs/                      arquitectura, conectores, informe y resultados medidos

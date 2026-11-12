@@ -127,6 +127,18 @@ def test_full_path_release_detect_assign_notify_and_trace(motor, prov):
     assert st["etag"] and st["version"] >= 2
     out = motor.poll()
     assert out.outcome == "OK" and out.events == 0 and motor.source()["last_result"]["sin_modificar"] is True
+    # métricas de servicio y recorrido (lo que muestran /api/metricas/servicio y /api/eventos/{id}/recorrido)
+    from monitoreo.engine.metricas import service_metrics, trace_event
+    with db.session() as s:
+        m = service_metrics(s, since=RealClock().now() - timedelta(minutes=5))
+        tr = trace_event(s, ev.id)
+    assert m["tiempos_ms"]["deteccion"]["n"] >= 1 and m["tiempos_ms"]["hasta_asignacion"]["n"] == 1
+    assert m["tiempos_ms"]["hasta_notificacion"]["panel"]["n"] == 1
+    assert m["consultas"]["por_resultado"]["OK"] == 3 and m["consultas"]["exito_pct"] == 100.0
+    pasos = [p["paso"] for p in tr["pasos"]]
+    assert pasos[:4] == ["cambio en la fuente", "detectado por el motor", "procesado", "asignación"]
+    assert "alerta" in pasos and "entrega por Panel" in pasos
+    assert tr["pasos"][0]["conector"] == "proveedor_prueba"
     _ok_integrity(db)
 
 
@@ -341,6 +353,30 @@ def test_two_engine_workers_processing_same_events_never_overallocate(motor, pro
         for st in s.scalars(select(SlotState).where(SlotState.held > 0)):
             assert st.held <= st.available
         assert s.scalar(select(func.count()).select_from(Alert).where(Alert.kind == "ASIGNACION")) == 6
+    _ok_integrity(db)
+
+
+def test_completed_assignment_does_not_leave_a_stale_local_count(motor, prov):
+    """El operador reserva en el proveedor (la consulta ya ve la bajada) y DESPUÉS completa en el
+    motor. El descuento local al completar no debe dejar al motor con menos unidades que la fuente."""
+    db = motor.db
+    make_operator(db, "Operador Norte", regions=["NORTE"])
+    make_request(db, "SOL-HTTP-7", region="NORTE", rtype="entrada", conditions={"nombre_contiene": "Norte · 7"})
+    motor.poll()
+    prov.liberar("NOR-007", 2)
+    motor.poll()
+    motor.process()
+    with db.session() as s:
+        aid = s.scalar(select(Assignment.id))
+    assert asg.take_assignment(db, aid, None, RealClock().now(), "operador")
+    r = prov.http.post(prov.base + "/v1/reservas", headers={"Authorization": f"Bearer {prov.token}"},
+                       json={"recurso": "NOR-007", "unidades": 1, "titular": "Titular Ficticio 007"})
+    assert r.status_code == 201
+    motor.poll()                                                     # el motor ya ve 1 libre
+    assert motor.slot("NOR-007")["available"] == 1
+    assert asg.complete_assignment(db, aid, None, RealClock().now(), "operador")
+    motor.poll()
+    assert motor.slot("NOR-007")["available"] == 1                   # lo que publica la fuente
     _ok_integrity(db)
 
 

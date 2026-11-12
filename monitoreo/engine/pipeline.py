@@ -98,10 +98,15 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
             src.circuit_state = "SEMIABIERTO"
         ctype, cfg, max_retries, code = src.connector_type, dict(src.config or {}), src.max_retries, src.code
         cstate = dict(src.connector_state or {})
+        # v1.3: si el motor modificó localmente algún recurso de esta fuente (consumo optimista al
+        # completar), se pide la lista completa: una respuesta condicional "sin cambios" (304)
+        # impediría corregir ese valor local con lo que publica la fuente.
+        refresh = s.scalar(select(SlotState.id).where(SlotState.source_id == source_id,
+                                                      SlotState.fingerprint == "").limit(1)) is not None
 
     # ---- consulta a la fuente (fuera de transacción: puede tardar)
     ctx = {"db": db, "rng": rng, "virtual_time": getattr(clock, "virtual", False), "state": cstate,
-           **(context_extra or {})}
+           "refresh": refresh, **(context_extra or {})}
     t0 = time.perf_counter()
     attempts, snapshot, err, outcome, retry_after = 0, None, None, "OK", None
     try:

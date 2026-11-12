@@ -94,6 +94,24 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await page.screenshot({ path: `${outDir}/10_diagnostico.png` });
   await page.keyboard.press("Escape");
 
+  // v1.3: métricas de servicio, operadores y recorrido de un evento de punta a punta
+  const svcText = await page.locator("#view section", { has: page.locator("h2:has-text('Servicio en la última hora')") }).first().textContent();
+  const opsRows = await page.locator("#view section", { has: page.locator("h2:has-text('Operadores')") }).first().locator("tbody tr").count();
+  const svcOk = /Detección/.test(svcText) && /p50 \/ p95 \/ p99/.test(svcText) && opsRows > 0;
+  log("métricas de servicio:", svcText.slice(0, 160).replace(/\s+/g, " "), "· operadores:", opsRows);
+  await page.goto(base + "/#monitor");
+  const evCard = page.locator("#view section", { has: page.locator("h2:has-text('Eventos detectados')") }).first();
+  await evCard.locator("tr.clickable").first().waitFor();
+  // el evento de la alerta de asignación recibida (si está en la lista) o el primero
+  const target = found && found.change_event_id ? evCard.locator("tr.clickable", { hasText: found.resource }).first() : evCard.locator("tr.clickable").first();
+  await ((await target.count()) ? target : evCard.locator("tr.clickable").first()).click();
+  await page.waitForSelector("#drawer:not(.hidden) >> text=Recorrido del evento");
+  const trace = await page.textContent("#drawer-body");
+  const traceOk = /detectado por el motor/.test(trace);
+  log("recorrido:", trace.slice(0, 200).replace(/\s+/g, " "));
+  await page.screenshot({ path: `${outDir}/12_recorrido_evento.png` });
+  await page.keyboard.press("Escape");
+
   // Teléfono
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const p2 = await phone.newPage();
@@ -116,5 +134,5 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await p2.screenshot({ path: `${outDir}/11_telefono_salud.png`, fullPage: true });
   log("errores de consola:", errors.length ? errors : "ninguno");
   await browser.close();
-  process.exit(found && diagOk && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
+  process.exit(found && diagOk && svcOk && traceOk && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

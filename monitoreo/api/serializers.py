@@ -66,7 +66,8 @@ def assignment(a, slot=None, req=None, op=None) -> dict:
 def alert(a) -> dict:
     return {"id": a.id, "kind": a.kind, "title": a.title, "source_code": a.source_code, "region": a.region,
             "resource": a.resource, "priority": a.priority, "operator_name": a.operator_name,
-            "request_id": a.request_id, "status": a.status, "payload": a.payload, "created_at": iso(a.created_at),
+            "request_id": a.request_id, "change_event_id": a.change_event_id, "status": a.status,
+            "payload": a.payload, "created_at": iso(a.created_at),
             "acknowledged_at": iso(a.acknowledged_at), "acknowledged_by": a.acknowledged_by}
 
 

@@ -184,6 +184,12 @@ def crear_app(archivo: Path | None, token: str, token_control: str, semilla: int
             metricas["por_codigo"][k] = metricas["por_codigo"].get(k, 0) + 1
         return resp
 
+    def etag(region: str, version: int) -> str:
+        # Incluye el número de arranque: tras un corte brusco el proveedor puede perder sus
+        # últimos cambios y volver a pasar por una versión ya usada con OTROS datos. Con la
+        # versión sola, el motor recibiría un 304 falso y no vería esos cambios.
+        return f'W/"{region}-{prov.arranques}-{version}"'
+
     def auth(authorization: str | None) -> str:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(401, "falta la credencial", headers={"WWW-Authenticate": "Bearer"})
@@ -247,8 +253,8 @@ def crear_app(archivo: Path | None, token: str, token_control: str, semilla: int
             if v_cursor != version:
                 # Los datos cambiaron entre páginas: la paginación ya no es coherente.
                 return JSONResponse({"error": "cursor_obsoleto", "version_actual": version}, 409)
-        elif if_none_match and if_none_match.strip('W/"') == f"{region}-{version}":
-            return Response(status_code=304, headers={"ETag": f'W/"{region}-{version}"'})
+        elif if_none_match and if_none_match == etag(region, version):
+            return Response(status_code=304, headers={"ETag": etag(region, version)})
         pagina = items[offset:offset + limite]
         siguiente = _cursor(version, offset + limite) if offset + limite < len(items) else None
         if modo == "malformada" and pagina:
@@ -275,7 +281,7 @@ def crear_app(archivo: Path | None, token: str, token_control: str, semilla: int
                 raise ConnectionResetError("corte simulado")
             return StreamingResponse(a_medias(), media_type="application/json",
                                      headers={"Content-Length": str(len(cuerpo))})
-        return Response(cuerpo, media_type="application/json", headers={"ETag": f'W/"{region}-{version}"'})
+        return Response(cuerpo, media_type="application/json", headers={"ETag": etag(region, version)})
 
     @app.post("/v1/reservas", status_code=201)
     async def crear_reserva(request: Request, authorization: str | None = Header(None)):

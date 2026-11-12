@@ -80,6 +80,7 @@ const BADGE = {
   CANCELACION: "b-bad", CAMBIO_HORARIO: "b-info", NUEVO_RECURSO: "", ASIGNACION: "b-acc", DISPONIBILIDAD: "b-info",
   CRITICO: "b-bad", AVISO: "b-warn", INFO: "b-info", LIDER: "b-ok", EN_ESPERA: "b-info", DETENIDO: "b-bad",
   SIN_MOTOR: "b-bad", DESACTUALIZADA: "b-warn", AL_DIA: "b-ok", SISTEMA: "b-bad", ENVIANDO: "b-warn",
+  OBSOLETA: "b-warn", DISPONIBLE: "b-ok", OCUPADO: "b-warn", INACTIVO: "",
 };
 const badge = (s) => h("span", { class: "badge " + (BADGE[s] || "") }, String(s || "—").replace(/_/g, " "));
 
@@ -292,7 +293,8 @@ async function viewMonitor() {
   return h("div", {},
     h("div", { class: "page-head" }, h("h1", {}, "Monitor de fuentes")),
     card("Estado de cada fuente", table([
-      { t: "Fuente", f: (s) => h("div", {}, h("b", {}, s.name), h("div", { class: "muted mono" }, `${s.code} · ${s.connector_type}`)) },
+      { t: "Fuente", f: (s) => h("div", {}, h("b", {}, s.name), h("div", { class: "muted mono" }, `${s.code} · ${s.connector_type}${srcHost(s) ? " · " + srcHost(s) : ""}`),
+          httpSummary(s)) },
       { t: "Región", f: (s) => s.region },
       { t: "Estado", f: (s) => h("div", {}, badge(s.status), s.status_reason ? h("div", { class: "muted" }, s.status_reason) : null) },
       { t: "Circuito", f: (s) => badge(s.circuit_state) },
@@ -313,7 +315,8 @@ async function viewMonitor() {
           { t: "Recurso", f: (e) => e.resource_name }, { t: "Cambio", f: (e) => badge(e.change_type) },
           { t: "Libres", num: true, f: (e) => `${e.before.available ?? "—"} → ${e.after.available}` },
           { t: "Tiempo de detección", num: true, f: (e) => e.detection_latency_ms === null ? "—" : num(e.detection_latency_ms / 1000, 2) + " s" },
-          { t: "Alerta", f: (e) => e.relevant ? "Sí" : "No" }], events)),
+          { t: "Alerta", f: (e) => e.relevant ? "Sí" : "No" }], events, (e) => showTrace(e.id)),
+        h("p", { class: "muted" }, "Pulsa un evento para ver su recorrido completo: fuente → detección → asignación → aviso.")),
       card("Historial de consultas",
         h("div", { class: "filters" }, sel("source", [["", "Todas las fuentes"], ...sources.map((s) => [String(s.id), s.code])])),
         table([
@@ -322,6 +325,50 @@ async function viewMonitor() {
           { t: "Recursos", num: true, f: (p) => p.items }, { t: "Cambios", num: true, f: (p) => p.changes },
           { t: "Duplicados", num: true, f: (p) => p.duplicates }, { t: "ms", num: true, f: (p) => num(p.duration_ms, 1) },
           { t: "Error", f: (p) => p.error || "" }], polls))));
+}
+
+// ------------------------------------------------------------------ v1.3: fuentes HTTP y recorrido de un evento
+function srcHost(s) {
+  const u = (s.config || {}).url_base || (s.config || {}).url;
+  try { return u ? new URL(u).host : ""; } catch (_) { return ""; }
+}
+function httpSummary(s) {
+  const c = (s.last_result || {}).conector;
+  if (!c) return null;
+  const parts = [`${c.paginas} pág.`, `HTTP ${num(c.http_ms, 0)} ms`];
+  if (c.sin_cambios) parts.push("sin cambios (304)");
+  if (c.reinicios) parts.push(`${c.reinicios} reinicio(s) por cambios entre páginas`);
+  if (c.descartados) parts.push(`${c.descartados} elemento(s) descartado(s)`);
+  if (c.incompleta) parts.push("consulta INCOMPLETA");
+  return h("div", { class: "muted" }, parts.join(" · "));
+}
+async function showTrace(id) {
+  const t = await api(`/api/eventos/${id}/recorrido`);
+  openDrawer(h("h2", {}, `Recorrido del evento ${t.evento}`), h("p", {}, `${t.recurso} · ${t.region}`),
+    table([{ t: "Paso", f: (p) => h("b", {}, p.paso) }, { t: "Cuándo", f: (p) => p.en ? fmtTime(p.en) : "—" },
+      { t: "Desde el cambio", num: true, f: (p) => p.desde_el_cambio_ms === null ? "—" : num(p.desde_el_cambio_ms / 1000, 3) + " s" },
+      { t: "Detalle", f: (p) => h("span", { class: "muted mono" }, Object.entries(p).filter(([k, v]) => !["paso", "en", "desde_el_cambio_ms"].includes(k) && v !== null && v !== undefined)
+        .map(([k, v]) => `${k}: ${v}`).join(" · ")) }], t.pasos));
+}
+const p3 = (o) => o && o.n ? `${num(o.p50 / 1000, 2)} / ${num(o.p95 / 1000, 2)} / ${num(o.p99 / 1000, 2)} s` : "—";
+function serviceCard(m) {
+  const t = m.tiempos_ms, c = m.consultas;
+  const rows = [["Detección (cambio en la fuente → motor)", t.deteccion], ["Procesamiento (detección → asignación y avisos)", t.procesamiento],
+    ["Hasta la asignación", t.hasta_asignacion], ["Hasta la alerta", t.hasta_alerta],
+    ...Object.entries(t.hasta_notificacion).map(([k, v]) => [`Hasta la entrega por ${k}`, v])];
+  return card("Servicio en la última hora (medido)",
+    table([{ t: "Tramo", f: (r) => r[0] }, { t: "Casos", num: true, f: (r) => num(r[1].n) }, { t: "p50 / p95 / p99", num: true, f: (r) => p3(r[1]) }], rows),
+    h("p", {}, `Consultas correctas: ${c.exito_pct === null ? "—" : num(c.exito_pct, 1) + " %"} de ${num(c.total)} · `,
+      Object.entries(c.por_resultado).map(([k, v]) => `${k.replace(/_/g, " ")}: ${num(v)}`).join(" · ")),
+    h("p", {}, `Cambios detectados: ${num(m.cambios.detectados)} · ofertas que desaparecieron antes de usarse: ${num(m.cambios.ofertas_desaparecidas_antes_de_usarse)} · asignaciones anuladas por la fuente: ${num(m.cambios.asignaciones_anuladas_por_la_fuente)}`),
+    h("p", { class: "muted" }, `Retrasos: ${num(m.retrasos.eventos_sin_procesar)} evento(s) sin procesar (el más antiguo hace ${secs(m.retrasos.evento_mas_antiguo_sin_procesar_s)}) · entrega pendiente más antigua: ${secs(m.retrasos.entrega_pendiente_mas_antigua_s)}`));
+}
+function operatorsCard(ops) {
+  return card("Operadores", table([{ t: "Operador", f: (o) => h("b", {}, o.name) },
+    { t: "Regiones", f: (o) => o.regions.length ? o.regions.join(", ") : "todas" },
+    { t: "Estado", f: (o) => badge(o.active ? (o.current_load >= o.max_concurrent ? "OCUPADO" : "DISPONIBLE") : "INACTIVO") },
+    { t: "Carga", num: true, f: (o) => `${o.current_load} / ${o.max_concurrent}` },
+    { t: "Última asignación", f: (o) => o.last_assigned_at ? ago(o.last_assigned_at) : "—" }], ops));
 }
 
 // ------------------------------------------------------------------ SALUD (v1.1)
@@ -345,7 +392,8 @@ async function selfCheckCard() {
     h("p", { class: "muted" }, `Correcto: ${oks.map((i) => i.area + " (" + i.titulo + ")").join(" · ") || "—"}`));
 }
 async function viewHealth() {
-  const [d, st, diagCard] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7"), selfCheckCard()]);
+  const [d, st, diagCard, svc, ops] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7"), selfCheckCard(),
+    api("/api/metricas/servicio?minutos=60"), api("/api/operators")]);
   const m = d.motor, lg = m.lider_global;
   const problems = d.fuentes.filter((f) => f.status !== "ACTIVA" || f.desactualizada || f.circuito !== "CERRADO");
   return h("div", {},
@@ -361,6 +409,7 @@ async function viewHealth() {
       kpi("Base de datos", `${d.base_de_datos.tipo}`, `latencia ${num(d.base_de_datos.latencia_ms, 2)} ms`),
       kpi("Proceso", `${num(d.proceso.memoria_mb, 1)} MB`, `CPU ${num(d.proceso.cpu_pct, 1)} % · ${d.proceso.hilos} hilos`)),
     diagCard,
+    h("div", { class: "grid cols-2 section" }, serviceCard(svc), operatorsCard(ops)),
     card("Estado por región", table([
       { t: "Región", f: (r) => h("b", {}, r.name) },
       { t: "Fuentes OK", num: true, f: (r) => `${r.fuentes_ok}/${r.fuentes}` },

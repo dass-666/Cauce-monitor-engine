@@ -81,7 +81,7 @@ class ProveedorPruebaConnector(Connector):
             cursor, coherente, terminado = None, True, False
             while True:
                 h = dict(headers)
-                if cursor is None and intento == 0 and state.get("etag"):
+                if cursor is None and intento == 0 and state.get("etag") and not self.context.get("refresh"):
                     h["If-None-Match"] = state["etag"]
                 params = {"limite": self.limite, **({"cursor": cursor} if cursor else {})}
                 t0 = time.perf_counter()

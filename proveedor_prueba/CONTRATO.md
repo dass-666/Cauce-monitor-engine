@@ -75,8 +75,9 @@ Todas requieren `Authorization: Bearer <PROVEEDOR_TOKEN>`. Sin ella o con otra: 
 - `siguiente`: cursor de la página siguiente, o `null` en la última. El cursor lleva la
   versión: si los datos cambian entre páginas, la siguiente petición responde
   **409** `{"error": "cursor_obsoleto", "version_actual": N}` y hay que empezar de nuevo.
-- Cabecera `ETag: W/"norte-14"`. Con `If-None-Match` igual a la versión actual responde
-  **304** sin cuerpo.
+- Cabecera `ETag: W/"norte-3-14"` (región, número de arranque, versión). Con `If-None-Match`
+  igual al ETag actual responde **304** sin cuerpo. El número de arranque evita un 304 falso si,
+  tras un corte brusco, el proveedor vuelve a pasar por una versión ya usada con otros datos.
 - Cabecera `X-Tiempo-Servidor-ms`: lo que tardó el servidor (para separar red de servidor).
 
 | Código | Significado | Qué hace el motor |

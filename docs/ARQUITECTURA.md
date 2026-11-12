@@ -163,6 +163,31 @@ tiene pruebas automáticas en cualquier sistema. Los `.ps1` buscan Python, encad
 muestran mensajes. La actualización es "lado a lado": se copia a una carpeta nueva y la anterior
 queda intacta como vuelta atrás inmediata.
 
+## Decisiones de la versión 1.3
+
+**19. El proveedor de prueba es otro proceso con su propio almacenamiento.** `proveedor_prueba/`
+no importa nada de `monitoreo` y guarda su estado en su propio JSON (escritura atómica). El
+motor solo lo ve por HTTP. Así las pruebas miden red, códigos y cortes reales, y la "verdad"
+(su historial de cambios) es independiente de lo que el motor registró.
+
+**20. Estado del conector persistido junto con los cambios.** El ETag y la versión se guardan en
+la misma transacción que los eventos. Si se guardaran aparte, un fallo entre ambos dejaría el
+ETag avanzado sin los eventos y la siguiente consulta recibiría un 304: el cambio se perdería
+para siempre (cubierto por `test_db_error_while_saving_poll_loses_nothing`).
+
+**21. Paginación coherente o consulta incompleta.** Si los datos cambian entre páginas, el
+conector reinicia una vez; si vuelve a pasar, entrega lo leído como incompleto. Una consulta
+incompleta nunca provoca cancelaciones por ausencia ni guarda el ETag.
+
+**22. El ETag incluye el número de arranque del proveedor.** Tras un corte brusco el proveedor
+puede perder sus últimos cambios y volver a pasar por una versión ya usada con otros datos; con
+la versión sola el motor recibiría un 304 falso.
+
+**23. Avisos solo de lo que todavía existe.** Si una oferta ya desapareció cuando se procesa su
+evento, no se emite "disponibilidad sin solicitud compatible": nadie podría usarla. Y una
+asignación creada en un intento que falló antes de avisar recibe su aviso al reprocesar (o en el
+mantenimiento): nunca queda una asignación viva sin que el operador se entere.
+
 ## Máquina de estados de solicitudes
 
 ```

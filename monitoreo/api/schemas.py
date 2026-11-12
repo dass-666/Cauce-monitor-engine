@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Code = Field(pattern=r"^[A-Za-z0-9_.\-]{2,64}$")
 
@@ -37,12 +37,22 @@ class SourceIn(Strict):
     region: str = Field(max_length=32)
     category: str = Field(default="general", max_length=64)
     availability_type: Literal["evento", "reservacion", "inventario", "calendario"]
-    connector_type: Literal["simulacion", "json", "csv", "http"]
+    # v1.3: cualquier tipo registrado (antes era una lista fija: añadir un conector obligaba a
+    # tocar también la API).
+    connector_type: str = Field(min_length=1, max_length=32)
     config: dict = Field(default_factory=dict)
     interval_s: float = Field(default=30, ge=1, le=86400)
     jitter_pct: float = Field(default=0.1, ge=0, le=0.9)
     rate_limit_per_min: int = Field(default=30, ge=1, le=600)
     max_retries: int = Field(default=2, ge=0, le=10)
+
+    @field_validator("connector_type")
+    @classmethod
+    def _known_type(cls, v: str) -> str:
+        from ..connectors.registry import REGISTRY
+        if v not in REGISTRY:
+            raise ValueError(f"tipo de conector desconocido; válidos: {sorted(REGISTRY)}")
+        return v
 
 
 class SourcePatch(Strict):

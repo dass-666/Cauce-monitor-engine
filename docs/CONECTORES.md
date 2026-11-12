@@ -63,3 +63,29 @@ class MiProveedorConnector(Connector):
 | `json` | `path` (dentro de `data/feeds`) | `{"complete": true, "items": [...]}` o lista. Acepta alias en español (`clave`, `nombre`, `disponibles`...) |
 | `csv` | `path`, `delimiter` | Cabeceras como en JSON |
 | `http` | `url`, `timeout_s`, `token_env` | Contrato interno en JSON. Probado contra `/api-prueba/feeds/{feed}` |
+| `proveedor_prueba` (v1.3) | `url_base`, `region`, `token_env`, `limite`, `timeout_s`, `max_paginas` | Habla con **nuestro** proveedor de prueba (`proveedor_prueba/CONTRATO.md`): paginación, ETag/304, respuestas antiguas, cambios entre páginas, ventanas que vencen. No es un proveedor real |
+
+## v1.3: capacidades genéricas que puede usar cualquier conector
+
+Se añadieron al motor sin nada específico de un proveedor (lo comprueba
+`test_engine_core_has_no_provider_specific_code`):
+
+- `Snapshot.state` + `context["state"]`: estado propio del conector (ETag, versión, cursor...)
+  que el motor guarda en `sources.connector_state` **en la misma transacción** que los cambios
+  detectados. Si esa transacción falla, el estado no avanza y nada se pierde.
+- `Snapshot.not_modified=True`: "la fuente confirma que nada cambió" (HTTP 304). No se compara.
+- `context["refresh"]=True`: el motor pide la lista completa (sin petición condicional) porque
+  modificó un valor localmente y necesita corregirlo con lo que publica la fuente.
+- `StaleResponse`: la respuesta es más antigua que lo ya procesado; se descarta (resultado
+  OBSOLETA) sin contar como fallo de la fuente.
+- `Snapshot.meta`: datos de diagnóstico de la consulta (páginas, ms de HTTP, descartados) que
+  el panel muestra en el Monitor.
+- `uses_network = True`: el registro le pasa la lista de hosts permitidos y la credencial
+  resuelta desde `token_env`.
+- El tipo de conector de la API (`POST /api/sources`) ya no es una lista fija: vale cualquier
+  tipo registrado en `connectors/registry.py`.
+
+**Integración futura con un proveedor real:** escribir un conector nuevo a partir de SU contrato
+y SUS condiciones de uso (autenticación, cuotas, paginación), registrarlo y probarlo primero
+contra un simulador de ese contrato. El conector `proveedor_prueba` sirve de ejemplo de
+estructura, no de contrato.

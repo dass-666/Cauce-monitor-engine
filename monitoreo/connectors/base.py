@@ -37,6 +37,11 @@ class StaleResponse(ConnectorError):
 class Connector(ABC):
     """Contrato de un conector.
 
+    Contexto que el motor pasa en `context` (v1.3):
+    - "state":   lo que el conector devolvió en `Snapshot.state` la vez anterior (persistido en la BD).
+    - "refresh": True si el conector NO debe usar peticiones condicionales (ETag/304) esta vez,
+                 porque el motor necesita la lista completa para corregir un valor local.
+
     Un conector solo tiene una responsabilidad: leer la fuente y traducir su
     formato al `Snapshot` interno. No decide alertas, ni asignaciones, ni ritmo
     de consulta: eso lo hace el motor.

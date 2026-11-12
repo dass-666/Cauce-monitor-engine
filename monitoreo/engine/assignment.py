@@ -250,8 +250,12 @@ def complete_assignment(db: Database, assignment_id: int, operator_id: int | Non
         a = s.get(Assignment, assignment_id)
         _release(s, a, "COMPLETADA", now, "completada")
         # Consumo local optimista: la unidad ya no está libre hasta que la fuente confirme.
+        # v1.3: se invalida la huella para que la siguiente consulta compare de verdad. Antes, si la
+        # fuente ya había reflejado la reserva (o publicaba el mismo número por otro motivo), la
+        # huella coincidía, la consulta se daba por "sin cambios" y el motor se quedaba con MENOS
+        # unidades de las reales indefinidamente (detectado en la prueba HTTP de la v1.3).
         s.execute(update(SlotState).where(SlotState.id == a.slot_id, SlotState.available >= a.quantity)
-                  .values(available=SlotState.available - a.quantity))
+                  .values(available=SlotState.available - a.quantity, fingerprint=""))
         _consume_in_simulator(s, a)
         req = s.get(Request, a.request_id)
         transition(s, req, COMPLETADO, actor, f"asignación {assignment_id} completada", now)

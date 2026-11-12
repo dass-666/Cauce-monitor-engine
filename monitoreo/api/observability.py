@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from .. import security
 from ..db import Database, utcnow
 from ..engine import alerts as al
+from ..engine.metricas import service_metrics, trace_event
 from ..engine.params import get_params
 from ..engine.retention import get_watermark, poll_stats
 from ..models import (Alert, AuditLog, ChangeEvent, Channel, Delivery, MaintenanceLog, PollLog, Region, Request,
@@ -253,3 +254,23 @@ def self_diagnosis(request: HttpRequest, profundo: bool = False, user: CurrentUs
     """Revisión completa del motor con acciones sugeridas (v1.2)."""
     from .. import diagnostico
     return diagnostico.run(db, getattr(request.app.state, "scheduler", None), deep=profundo)
+
+
+# ---------------------------------------------------------------- v1.3: métricas de servicio y recorrido
+@router.get("/metricas/servicio")
+def metricas_servicio(minutos: float = Query(60, gt=0, le=60 * 24 * 7), user: CurrentUser = Depends(current_user),
+                      db: Database = Depends(get_db)):
+    now = utcnow()
+    with db.session() as s:
+        m = service_metrics(s, since=now - timedelta(minutes=minutos), now=now)
+    m["proceso"] = {"cpu_pct": _proc.cpu_percent(None), "memoria_mb": round(_proc.memory_info().rss / 2**20, 1)}
+    return m
+
+
+@router.get("/eventos/{eid}/recorrido")
+def recorrido(eid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    with db.session() as s:
+        t = trace_event(s, eid)
+    if t is None:
+        raise HTTPException(404, "Evento no encontrado")
+    return t

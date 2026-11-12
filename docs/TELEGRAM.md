@@ -74,3 +74,31 @@ Simular problemas: `POST /api-prueba/telegram/control` con, por ejemplo,
 
 El token nunca aparece en mensajes de error, registros ni en la API del panel
 (probado en tests/test_telegram.py y tests/test_observability.py).
+
+## v1.3: punta a punta desde el proveedor HTTP de prueba (emulador)
+
+`scripts/integracion_http.py` ejecuta el emulador como **proceso aparte** y comprueba la cadena
+completa: liberación en el proveedor de prueba → consulta HTTP → asignación → alerta → entrega
+por Telegram (emulado) a 2 chats. Comprueba que cada entrega marcada ENVIADA llegó exactamente a
+los 2 chats y mide el tiempo desde el cambio en la fuente hasta la entrega
+(`auditoria_cambios.controladas.hasta_telegram_ms` en el JSON de resultados).
+**Sigue sin haberse llamado nunca a api.telegram.org.** Eso queda para la prueba manual.
+
+## Prueba manual corta con tu bot real (cuando decidas configurarlo, ~10 minutos)
+
+Hazla con un chat de prueba tuyo, no con un grupo de operadores.
+
+1. Pasos 1–3 de "Cómo conectarlo" (token y chat en `.env`; **quita** `MONITOREO_TELEGRAM_API`
+   si estaba apuntando al emulador).
+2. Reinicia y en el panel pulsa **Probar** en el canal Telegram.
+   ✔ Esperado: llega "Mensaje de prueba del Motor de Monitoreo" en menos de 5 s.
+3. Activa el canal solo para `ASIGNACION` y `SISTEMA` (paso 6).
+4. Provoca una asignación: Laboratorio → "Liberar +1" en una región con solicitudes en espera.
+   ✔ Esperado: un mensaje con código de solicitud, recurso, operador y `Ref:`; **sin** el titular.
+5. En el panel abre la alerta → "Entregas por canal": estado ENVIADA, 1 intento.
+6. Comprueba el registro `data/logs/monitoreo.log`: el token **no** debe aparecer
+   (busca los primeros dígitos del token).
+7. (Opcional) Bloquea el bot desde tu chat y repite el paso 4.
+   ✔ Esperado: entrega FALLIDA para ese chat con el motivo de Telegram; el motor sigue funcionando.
+8. Anota fecha, versión y resultado de cada paso. Hasta tener esta nota, el envío real
+   sigue siendo **no verificado**.
