@@ -146,6 +146,10 @@ class Operadores(threading.Thread):
         self.api, self.prov, self.rng, self.stats = api, prov, rng, stats
         self.stop_ev = threading.Event()
         self.pool = ThreadPoolExecutor(8)
+        # Las dos "tomas" simultáneas van en OTRO grupo de hilos: si fueran al mismo, 8 operadores
+        # esperando a sus tomas ocuparían los 8 hilos y nadie ejecutaría las tomas (bloqueo mutuo
+        # del propio banco de pruebas; ocurrió en GitHub Actions con PostgreSQL).
+        self.take_pool = ThreadPoolExecutor(16)
         self.taken: dict[int, int] = {}
         self.res_ids: set[str] = set()
         self.lock = threading.Lock()
@@ -160,12 +164,15 @@ class Operadores(threading.Thread):
     def handle(self, a: dict, compete: bool) -> None:
         aid = a["id"]
         if compete:   # dos operadores pulsan "tomar" a la vez sobre la misma asignación
-            barrier = threading.Barrier(2)
+            barrier = threading.Barrier(2, timeout=10)
 
             def take():
-                barrier.wait()
+                try:
+                    barrier.wait()
+                except threading.BrokenBarrierError:
+                    pass                            # sin pareja a tiempo: toma igualmente
                 return self._act(aid, "tomar")
-            f1, f2 = self.pool.submit(take), self.pool.submit(take)
+            f1, f2 = self.take_pool.submit(take), self.take_pool.submit(take)
             codes = sorted([f1.result(), f2.result()])
             self.stats["competencias"] += 1
             self.stats["competencias_resultado"][str(codes)] = self.stats["competencias_resultado"].get(str(codes), 0) + 1
@@ -234,6 +241,7 @@ class Operadores(threading.Thread):
         self.stop_ev.set()
         self.join(5)
         self.pool.shutdown(wait=True)
+        self.take_pool.shutdown(wait=True)
 
 
 # --------------------------------------------------------------------------- escenario
@@ -639,7 +647,11 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
             t = parse(h["t"])
             nxt = parse(lst[i + 1]["t"]) if i + 1 < len(lst) else end
             own = h["motivo"].startswith("reserva ") and h["motivo"].split()[1] in own_reservations
-            near_local = any(abs((c - t).total_seconds()) <= 2 * interval + 1 for c in local.get(rk, []))
+            # Un descuento local del motor solo explica una BAJADA de unidades. (Antes también se
+            # aplicaba a subidas: una cancelación justo después de completar dejaba "known" mal y
+            # la auditoría contaba como perdido un cambio que el motor sí tenía bien.)
+            near_local = h["despues"] < h["antes"] and any(
+                abs((c - t).total_seconds()) <= 2 * interval + 1 for c in local.get(rk, []))
             if (rk, t) in seen:
                 res["detectados"] += 1
                 known = h["despues"]
