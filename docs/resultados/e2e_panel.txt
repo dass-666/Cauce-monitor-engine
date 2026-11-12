@@ -1,0 +1,7 @@
+14:36:46 regiones visibles: 5 Región Centro (ficticia) | Región Este (ficticia) | Región Norte (ficticia) | Región Oeste (ficticia) | Región Sur (ficticia)
+14:36:46 solicitud: Solicitud SOL-EFF27326 registrada (ELEGIBLE)
+14:36:46 filas del inventario filtrado por región: ESTE
+14:36:47 laboratorio: Liberada 1 unidad
+14:36:52 alerta recibida en 5.3 s: SOL-47D16557 asignada a Operador 03: Kit Alfa · sesión 1
+14:36:53 desbordamiento horizontal en teléfono (px): 0
+14:36:53 errores de consola: ninguno

@@ -1,0 +1,11 @@
+# Versiones verificadas el 2026-11-12 con Python 3.13 (funciona con Python 3.11+)
+fastapi==0.162.5
+uvicorn==0.54.0
+sqlalchemy==2.1.8
+pydantic==2.13.5
+httpx==0.28.1
+psutil==7.2.2
+# Solo si se usa PostgreSQL:
+psycopg[binary]==3.3.9
+# Pruebas:
+pytest==9.2.0

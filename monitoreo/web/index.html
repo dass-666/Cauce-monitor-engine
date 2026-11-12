@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Centro de Operaciones · Monitoreo</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div id="login-view" class="login hidden">
+    <form id="login-form" class="login-card" autocomplete="on">
+      <div class="brand"><span class="dot"></span> Motor de Monitoreo</div>
+      <p class="muted">Centro de operaciones · datos ficticios</p>
+      <label>Usuario <input name="username" autocomplete="username" required maxlength="64"></label>
+      <label>Contraseña <input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+      <button type="submit" class="btn primary">Entrar</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </div>
+
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand"><span class="dot" id="engine-dot"></span> Monitoreo</div>
+      <nav id="nav" class="nav" aria-label="Secciones"></nav>
+      <div class="user"><span id="user-label"></span> <button id="logout" class="btn ghost small">Salir</button></div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="drawer" class="drawer hidden" role="dialog" aria-modal="true">
+      <div class="drawer-panel">
+        <button id="drawer-close" class="btn ghost small drawer-close" aria-label="Cerrar">✕</button>
+        <div id="drawer-body"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

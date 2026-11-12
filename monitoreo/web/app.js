@@ -1,0 +1,607 @@
+/* Panel del Centro de Operaciones.
+ * Sin dependencias ni compilación. Todo el contenido dinámico se inserta con
+ * textContent (nunca innerHTML con datos) para prevenir XSS. */
+"use strict";
+
+const S = { token: null, user: null, view: "inicio", timer: null, regions: [], filters: {} };
+try { S.token = sessionStorage.getItem("token"); } catch (_) { /* almacenamiento bloqueado */ }
+
+// ------------------------------------------------------------------ utilidades
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c === null || c === undefined || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+const $ = (id) => document.getElementById(id);
+const isAdmin = () => S.user && S.user.role === "admin";
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || "GET",
+    headers: { "Content-Type": "application/json", ...(S.token ? { Authorization: "Bearer " + S.token } : {}) },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 401 && !path.endsWith("/login")) { logout(true); throw new Error("Sesión expirada"); }
+  let data = null;
+  try { data = await res.json(); } catch (_) { /* sin cuerpo */ }
+  if (!res.ok) {
+    let msg = data && data.detail;
+    if (Array.isArray(msg)) msg = msg.map((d) => `${(d.loc || []).slice(-1)[0]}: ${d.msg}`).join("; ");
+    throw new Error(msg || `Error ${res.status}`);
+  }
+  return data;
+}
+
+function toast(msg, ms = 2600) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), ms);
+}
+async function act(fn, okMsg) {
+  try {
+    const r = await fn(); if (okMsg) toast(typeof okMsg === "function" ? okMsg(r) : okMsg);
+    S.dirty = false; refresh(true); return r;
+  }
+  catch (e) { toast("⚠ " + e.message, 4000); }
+}
+
+const fmtTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString("es", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+};
+const ago = (iso) => {
+  if (!iso) return "—";
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 0) return "en " + fmtDur(-s);
+  return "hace " + fmtDur(s);
+};
+const fmtDur = (s) => s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`;
+const num = (n, d = 0) => (n === null || n === undefined) ? "—" : Number(n).toLocaleString("es", { maximumFractionDigits: d });
+
+const BADGE = {
+  ACTIVA: "b-ok", ACTIVO: "b-ok", CERRADO: "b-ok", OK: "b-ok", ENVIADA: "b-ok", COMPLETADO: "b-ok", COMPLETADA: "b-ok",
+  CONFIRMADA: "b-acc", TERMINADA: "b-ok",
+  SUSPENDIDA: "", PENDIENTE: "", ELEGIBLE: "b-info", ASIGNADO: "b-acc", EN_PROCESO: "b-warn", REINTENTO: "b-warn",
+  SEMIABIERTO: "b-warn", LIMITADO: "b-warn", LIMITE_LOCAL: "b-warn", PARCIAL: "b-warn", EN_CURSO: "b-warn",
+  ERROR: "b-bad", ABIERTO: "b-bad", ERROR_TEMPORAL: "b-bad", FALLIDA: "b-bad", EXPIRADO: "b-bad", EXPIRADA: "b-bad",
+  CANCELADO: "b-bad", CANCELADA: "b-bad", RECHAZADA: "b-bad", DESAPARECIDO: "b-bad", INTERRUMPIDA: "b-bad",
+  NUEVA_DISPONIBILIDAD: "b-ok", REAPARICION: "b-ok", AUMENTO: "b-ok", AGOTADO: "b-bad", REDUCCION: "b-warn",
+  CANCELACION: "b-bad", CAMBIO_HORARIO: "b-info", NUEVO_RECURSO: "", ASIGNACION: "b-acc", DISPONIBILIDAD: "b-info",
+};
+const badge = (s) => h("span", { class: "badge " + (BADGE[s] || "") }, String(s || "—").replace(/_/g, " "));
+
+function table(cols, rows, onRow) {
+  if (!rows || !rows.length) return h("div", { class: "empty" }, "Sin datos todavía");
+  return h("div", { class: "table-wrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, cols.map((c) => h("th", { class: c.num ? "num" : null }, c.t)))),
+    h("tbody", {}, rows.map((r) => h("tr", { class: onRow ? "clickable" : null, onclick: onRow ? () => onRow(r) : null },
+      cols.map((c) => h("td", { class: c.num ? "num" : null }, c.f(r))))))));
+}
+function bar(frac) {
+  const span = h("span"); span.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + "%"; // CSSOM: permitido por la CSP
+  return h("div", { class: "bar" }, span);
+}
+const card = (title, ...body) => h("section", { class: "card" }, title ? h("h2", {}, title) : null, ...body);
+const kpi = (label, value, sub) => h("div", { class: "card kpi" }, h("div", { class: "label" }, label),
+  h("div", { class: "value" }, value), sub ? h("div", { class: "sub" }, sub) : null);
+
+function formData(form) {
+  const o = {};
+  for (const el of form.elements) {
+    if (!el.name || el.disabled) continue;
+    if (el.type === "checkbox") o[el.name] = el.checked;
+    else if (el.value === "") continue;
+    else if (el.type === "number") o[el.name] = Number(el.value);
+    else o[el.name] = el.value;
+  }
+  return o;
+}
+const field = (label, input, cls) => h("label", { class: cls }, label, input);
+const regionSelect = (name, withAll, value) => h("select", { name },
+  withAll ? h("option", { value: "" }, "Todas las regiones") : null,
+  S.regions.map((r) => h("option", { value: r.code, selected: r.code === value }, r.name)));
+
+function openDrawer(...content) {
+  const b = $("drawer-body"); b.replaceChildren(...content); $("drawer").classList.remove("hidden");
+}
+$("drawer-close").addEventListener("click", () => $("drawer").classList.add("hidden"));
+$("drawer").addEventListener("click", (e) => { if (e.target.id === "drawer") $("drawer").classList.add("hidden"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("drawer").classList.add("hidden"); });
+
+// ------------------------------------------------------------------ sesión
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("login-error").textContent = "";
+  try {
+    const r = await api("/api/auth/login", { method: "POST", body: formData(e.target) });
+    S.token = r.token;
+    try { sessionStorage.setItem("token", r.token); } catch (_) {}
+    e.target.reset();
+    await start();
+  } catch (err) { $("login-error").textContent = err.message; }
+});
+$("logout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (_) {}
+  logout();
+});
+function logout(expired) {
+  S.token = null; S.user = null;
+  try { sessionStorage.removeItem("token"); } catch (_) {}
+  clearInterval(S.timer);
+  $("app").classList.add("hidden"); $("login-view").classList.remove("hidden");
+  if (expired) $("login-error").textContent = "Tu sesión expiró. Vuelve a entrar.";
+}
+
+// ------------------------------------------------------------------ navegación
+const VIEWS = {
+  inicio: { t: "Inicio", f: viewHome },
+  monitor: { t: "Monitor", f: viewMonitor },
+  solicitudes: { t: "Solicitudes", f: viewRequests },
+  alertas: { t: "Alertas", f: viewAlerts },
+  laboratorio: { t: "Laboratorio", f: viewLab, admin: true },
+  config: { t: "Configuración", f: viewConfig, admin: true },
+};
+function renderNav() {
+  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => !v.admin || isAdmin()).map(([k, v]) =>
+    h("a", { href: "#" + k, class: S.view === k ? "active" : null }, v.t)));
+}
+window.addEventListener("hashchange", () => { go(location.hash.slice(1)); });
+function go(v) {
+  if (!VIEWS[v] || (VIEWS[v].admin && !isAdmin())) v = "inicio";
+  S.view = v; S.dirty = false; renderNav(); refresh(true, true);
+}
+
+let rendering = false;
+// Si el usuario empezó a rellenar un formulario, no se repinta la vista hasta que lo envíe o cambie de sección.
+$("view").addEventListener("input", (e) => { if (e.target.closest("form")) S.dirty = true; });
+// refresh(): repintado periódico (respeta formularios a medio rellenar).
+// refresh(true): repintado inmediato pedido por el usuario (filtros, botones, cambio de sección).
+async function refresh(force, scrollTop) {
+  if (!S.user) return;
+  if (rendering) { if (force) S.pendingForce = true; return; }  // se repite al terminar el repintado en curso
+  // No repintar mientras el usuario escribe en un formulario de la vista.
+  const a = document.activeElement;
+  if (!force && S.dirty) return;
+  if (!force && a && $("view").contains(a) && ["INPUT", "SELECT", "TEXTAREA"].includes(a.tagName)) return;
+  rendering = true;
+  try {
+    const node = await VIEWS[S.view].f();
+    $("view").replaceChildren(node);
+    if (scrollTop) window.scrollTo(0, 0);
+  } catch (e) {
+    $("view").replaceChildren(card("No se pudo cargar", h("p", { class: "error" }, e.message)));
+  } finally {
+    rendering = false;
+    if (S.pendingForce) { S.pendingForce = false; refresh(true); }
+  }
+}
+
+async function start() {
+  S.user = await api("/api/auth/me");
+  S.regions = await api("/api/regions");
+  $("user-label").textContent = `${S.user.username} · ${S.user.role}`;
+  $("login-view").classList.add("hidden"); $("app").classList.remove("hidden");
+  go(location.hash.slice(1) || "inicio");
+  clearInterval(S.timer);
+  S.timer = setInterval(() => { if (!document.hidden && $("drawer").classList.contains("hidden")) refresh(); }, 4000);
+}
+
+// ------------------------------------------------------------------ INICIO
+async function viewHome() {
+  const d = await api("/api/dashboard");
+  $("engine-dot").className = "dot " + (d.motor.activo ? "on" : "off");
+  const fuentesActivas = d.fuentes.ACTIVA || 0;
+  const totalFuentes = Object.values(d.fuentes).reduce((a, b) => a + b, 0);
+  const cola = (d.solicitudes.PENDIENTE || 0) + (d.solicitudes.ELEGIBLE || 0) + (d.solicitudes.REINTENTO || 0);
+  return h("div", {},
+    h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Centro de operaciones"),
+      h("div", { class: "muted" }, d.motor.activo ? `Motor en marcha · ${num(d.motor.ciclos)} ciclos` : "Motor detenido"))),
+    h("div", { class: "grid kpis" },
+      kpi("Estado del motor", d.motor.activo ? "Activo" : "Detenido", d.motor.ultimo_error ? "Último error: " + d.motor.ultimo_error : "Sin errores del planificador"),
+      kpi("Fuentes activas", `${fuentesActivas}/${totalFuentes}`, `${d.fuentes.ERROR || 0} en error · ${d.fuentes.SUSPENDIDA || 0} suspendidas`),
+      kpi("Solicitudes en cola", num(cola), `${(d.solicitudes.ASIGNADO || 0) + (d.solicitudes.EN_PROCESO || 0)} asignadas o en proceso`),
+      kpi("Alertas sin confirmar", num(d.alertas_sin_confirmar), `${d.ultima_hora.alertas} en la última hora`),
+      kpi("Operadores activos", num(d.operadores_activos)),
+      kpi("Errores (1 h)", num(d.ultima_hora.errores), `${num(d.ultima_hora.consultas)} consultas · ${num(d.ultima_hora.eventos)} eventos`)),
+    h("h3", {}, "Regiones monitoreadas"),
+    h("div", { class: "grid regions" }, d.regiones.map((r) => h("div", { class: "card region" },
+      h("div", { class: "name" }, r.name),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Fuentes activas"), h("b", {}, `${r.fuentes_activas}/${r.fuentes}`)),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Unidades libres"), h("b", {}, num(r.unidades_libres))),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "En cola"), h("b", {}, num(r.solicitudes_en_cola))),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Asignadas"), h("b", {}, num(r.asignadas))),
+      r.fuentes_con_error ? h("div", {}, badge("ERROR"), " ", `${r.fuentes_con_error} fuente(s) con problemas`) : null))),
+    h("div", { class: "grid cols-2 section" },
+      card("Alertas recientes", alertList(d.alertas_recientes)),
+      card("Últimas disponibilidades", table([
+        { t: "Detectado", f: (e) => ago(e.detected_at) }, { t: "Región", f: (e) => e.region },
+        { t: "Recurso", f: (e) => e.resource_name }, { t: "Cambio", f: (e) => badge(e.change_type) },
+        { t: "Libres", num: true, f: (e) => `${e.before.available ?? 0} → ${e.after.available}` }], d.ultimas_disponibilidades))),
+    h("div", { class: "grid cols-2 section" },
+      card("Operadores", table([
+        { t: "Nombre", f: (o) => o.name }, { t: "Regiones", f: (o) => o.regions.length ? o.regions.join(", ") : "Todas" },
+        { t: "Carga", num: true, f: (o) => `${o.current_load}/${o.max_concurrent}` },
+        { t: "Estado", f: (o) => badge(o.active ? "ACTIVO" : "SUSPENDIDA") }], d.operadores)),
+      card("Errores detectados", table([
+        { t: "Cuándo", f: (p) => ago(p.started_at) }, { t: "Fuente", f: (p) => "#" + p.source_id },
+        { t: "Resultado", f: (p) => badge(p.outcome) }, { t: "Detalle", f: (p) => p.error || "" }], d.errores_recientes))));
+}
+
+function alertList(alerts) {
+  if (!alerts.length) return h("div", { class: "empty" }, "Sin alertas todavía");
+  return h("div", {}, alerts.map((a) => h("div", { class: "alert-item" },
+    badge(a.kind),
+    h("div", { class: "body" },
+      h("div", { class: "title" }, a.title),
+      h("div", { class: "meta" }, `${a.region} · ${a.source_code} · ${fmtTime(a.created_at)}`,
+        a.priority ? ` · prioridad ${a.priority}` : "", a.operator_name ? ` · ${a.operator_name}` : "")),
+    h("div", { class: "actions" }, badge(a.status),
+      !a.acknowledged_at ? h("button", { class: "btn small", onclick: () => act(() => api(`/api/alerts/${a.id}/confirmar`, { method: "POST" }), "Alerta confirmada") }, "Confirmar") : null,
+      h("button", { class: "btn small ghost", onclick: () => showAlert(a.id) }, "Ver")))));
+}
+
+async function showAlert(id) {
+  const a = await api(`/api/alerts/${id}`);
+  openDrawer(h("h1", {}, a.title), h("p", {}, badge(a.kind), " ", badge(a.status)),
+    h("dl", { class: "kv" },
+      h("dt", {}, "Fuente"), h("dd", {}, a.source_code), h("dt", {}, "Región"), h("dd", {}, a.region),
+      h("dt", {}, "Recurso"), h("dd", {}, a.resource), h("dt", {}, "Fecha y hora"), h("dd", {}, fmtTime(a.created_at)),
+      h("dt", {}, "Solicitud"), h("dd", {}, a.payload.solicitud || "—"), h("dt", {}, "Prioridad"), h("dd", {}, a.priority ?? "—"),
+      h("dt", {}, "Operador"), h("dd", {}, a.operator_name || "—"),
+      h("dt", {}, "Estado de la solicitud"), h("dd", {}, a.payload.estado_solicitud || "—"),
+      h("dt", {}, "Confirmada"), h("dd", {}, a.acknowledged_at ? `${fmtTime(a.acknowledged_at)} por ${a.acknowledged_by}` : "No")),
+    h("h3", {}, "Entregas por canal"),
+    table([{ t: "Canal", f: (d) => d.canal }, { t: "Estado", f: (d) => badge(d.estado) },
+      { t: "Intentos", num: true, f: (d) => d.intentos }, { t: "Error", f: (d) => d.ultimo_error || "" }], a.entregas),
+    h("h3", {}, "Registro de notificaciones"),
+    table([{ t: "Cuándo", f: (l) => fmtTime(l.ts) }, { t: "Canal", f: (l) => l.canal },
+      { t: "Resultado", f: (l) => badge(l.resultado === "OK" ? "OK" : "FALLIDA") }, { t: "Detalle", f: (l) => l.detalle }], a.registro),
+    h("h3", {}, "Contenido"), h("pre", { class: "json" }, JSON.stringify(a.payload, null, 2)));
+}
+
+// ------------------------------------------------------------------ MONITOR
+async function viewMonitor() {
+  const f = S.filters.monitor || (S.filters.monitor = { region: "", type: "", source: "" });
+  const [sources, events, polls] = await Promise.all([
+    api("/api/sources"),
+    api(`/api/events?limit=100${f.region ? "&region=" + f.region : ""}${f.type ? "&change_type=" + f.type : ""}`),
+    api(`/api/polls?limit=100${f.source ? "&source_id=" + f.source : ""}`)]);
+  const byId = Object.fromEntries(sources.map((s) => [s.id, s]));
+  const sourceActions = (s) => !isAdmin() ? null : h("div", { class: "actions" },
+    s.status === "ACTIVA"
+      ? h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/sources/${s.id}/suspender`, { method: "POST" }), "Fuente suspendida"); } }, "Suspender")
+      : h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/sources/${s.id}/reanudar`, { method: "POST" }), "Fuente reanudada"); } }, "Reanudar"),
+    h("button", { class: "btn small ghost", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/sources/${s.id}/consultar`, { method: "POST" }), (r) => `Consulta: ${r.resultado} · ${r.eventos} eventos · ${r.ms} ms`); } }, "Consultar ya"));
+  const sel = (key, options) => h("select", { onchange: (e) => { f[key] = e.target.value; refresh(true); } },
+    options.map(([v, t]) => h("option", { value: v, selected: f[key] === v }, t)));
+  return h("div", {},
+    h("div", { class: "page-head" }, h("h1", {}, "Monitor de fuentes")),
+    card("Estado de cada fuente", table([
+      { t: "Fuente", f: (s) => h("div", {}, h("b", {}, s.name), h("div", { class: "muted mono" }, `${s.code} · ${s.connector_type}`)) },
+      { t: "Región", f: (s) => s.region }, { t: "Estado", f: (s) => badge(s.status) },
+      { t: "Circuito", f: (s) => badge(s.circuit_state) },
+      { t: "Última consulta", f: (s) => ago(s.last_polled_at) }, { t: "Próxima", f: (s) => s.status === "ACTIVA" ? ago(s.next_poll_at) : "—" },
+      { t: "Consultas", num: true, f: (s) => num(s.metrics.consultas) },
+      { t: "Errores", num: true, f: (s) => `${num(s.metrics.errores)} (${num(s.metrics.tasa_error * 100, 1)}%)` },
+      { t: "Cambios", num: true, f: (s) => num(s.metrics.cambios) },
+      { t: "Latencia", num: true, f: (s) => num(s.metrics.latencia_media_ms, 1) + " ms" },
+      { t: "Último error", f: (s) => s.last_error || "" },
+      { t: "", f: sourceActions }], sources)),
+    h("div", { class: "grid cols-2 section" },
+      card("Eventos detectados",
+        h("div", { class: "filters" },
+          sel("region", [["", "Todas las regiones"], ...S.regions.map((r) => [r.code, r.name])]),
+          sel("type", [["", "Todos los cambios"], ...["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO", "REDUCCION", "AGOTADO", "CANCELACION", "CAMBIO_HORARIO", "NUEVO_RECURSO"].map((t) => [t, t.replace(/_/g, " ")])])),
+        table([
+          { t: "Detectado", f: (e) => fmtTime(e.detected_at) }, { t: "Región", f: (e) => e.region },
+          { t: "Recurso", f: (e) => e.resource_name }, { t: "Cambio", f: (e) => badge(e.change_type) },
+          { t: "Libres", num: true, f: (e) => `${e.before.available ?? "—"} → ${e.after.available}` },
+          { t: "Tiempo de detección", num: true, f: (e) => e.detection_latency_ms === null ? "—" : num(e.detection_latency_ms / 1000, 2) + " s" },
+          { t: "Alerta", f: (e) => e.relevant ? "Sí" : "No" }], events)),
+      card("Historial de consultas",
+        h("div", { class: "filters" }, sel("source", [["", "Todas las fuentes"], ...sources.map((s) => [String(s.id), s.code])])),
+        table([
+          { t: "Inicio", f: (p) => fmtTime(p.started_at) }, { t: "Fuente", f: (p) => (byId[p.source_id] || {}).code || p.source_id },
+          { t: "Resultado", f: (p) => badge(p.outcome) }, { t: "Intentos", num: true, f: (p) => p.attempts },
+          { t: "Recursos", num: true, f: (p) => p.items }, { t: "Cambios", num: true, f: (p) => p.changes },
+          { t: "Duplicados", num: true, f: (p) => p.duplicates }, { t: "ms", num: true, f: (p) => num(p.duration_ms, 1) },
+          { t: "Error", f: (p) => p.error || "" }], polls))));
+}
+
+// ------------------------------------------------------------------ SOLICITUDES
+async function viewRequests() {
+  const f = S.filters.req || (S.filters.req = { region: "", status: "", q: "" });
+  const qs = new URLSearchParams({ limit: "300" });
+  if (f.region) qs.set("region", f.region); if (f.status) qs.set("status", f.status); if (f.q) qs.set("q", f.q);
+  const [reqs, mine] = await Promise.all([api("/api/requests?" + qs), api("/api/assignments?mine=" + (!isAdmin()) + "&limit=50")]);
+  const form = h("form", { class: "form", onsubmit: (e) => {
+    e.preventDefault();
+    const d = formData(e.target);
+    const cond = {};
+    for (const k of ["desde", "hasta", "vence"]) if (d[k]) { cond[k] = new Date(d[k]).toISOString(); delete d[k]; }
+    if (d.nombre_contiene) { cond.nombre_contiene = d.nombre_contiene; delete d.nombre_contiene; }
+    d.conditions = cond;
+    act(() => api("/api/requests", { method: "POST", body: d }), (r) => `Solicitud ${r.code} registrada (${r.status})`).then((r) => { if (r) e.target.reset(); });
+  } },
+    field("Titular (ficticio)", h("input", { name: "holder", required: true, maxlength: 128, placeholder: "Expediente Ficticio 001" })),
+    field("Región", regionSelect("region")),
+    field("Tipo de recurso", h("select", { name: "resource_type" }, ["entrada", "mesa", "unidad", "turno"].map((t) => h("option", { value: t }, t)))),
+    field("Prioridad (1 = máxima)", h("select", { name: "priority" }, [1, 2, 3, 4, 5].map((p) => h("option", { value: p, selected: p === 3 }, p)))),
+    field("Cantidad", h("input", { name: "quantity", type: "number", min: 1, max: 100, value: 1 })),
+    field("Nombre contiene (opcional)", h("input", { name: "nombre_contiene", maxlength: 128 })),
+    field("Desde (opcional)", h("input", { name: "desde", type: "datetime-local" })),
+    field("Hasta (opcional)", h("input", { name: "hasta", type: "datetime-local" })),
+    h("button", { class: "btn primary", type: "submit" }, "Registrar solicitud"));
+  const statuses = ["PENDIENTE", "ELEGIBLE", "ASIGNADO", "EN_PROCESO", "COMPLETADO", "REINTENTO", "EXPIRADO", "CANCELADO", "ERROR"];
+  const counts = {};
+  return h("div", {},
+    h("div", { class: "page-head" }, h("h1", {}, "Solicitudes"), h("div", { class: "muted" }, `${reqs.total} expedientes ficticios`)),
+    card("Registrar solicitud", form),
+    h("div", { class: "section" }, card(isAdmin() ? "Asignaciones recientes" : "Mis asignaciones", assignmentsTable(mine))),
+    h("div", { class: "section" }, card("Cola de solicitudes",
+      h("div", { class: "filters" },
+        h("select", { onchange: (e) => { f.region = e.target.value; refresh(true); } }, h("option", { value: "" }, "Todas las regiones"),
+          S.regions.map((r) => h("option", { value: r.code, selected: f.region === r.code }, r.name))),
+        h("select", { onchange: (e) => { f.status = e.target.value; refresh(true); } }, h("option", { value: "" }, "Todos los estados"),
+          statuses.map((s) => h("option", { value: s, selected: f.status === s }, s.replace(/_/g, " ")))),
+        h("input", { type: "search", placeholder: "Buscar código o titular", value: f.q, maxlength: 64,
+          onchange: (e) => { f.q = e.target.value; e.target.blur(); refresh(true); } })),
+      table([
+        { t: "Código", f: (r) => h("span", { class: "mono" }, r.code) }, { t: "Titular", f: (r) => r.holder },
+        { t: "Región", f: (r) => r.region }, { t: "Recurso", f: (r) => `${r.resource_type} ×${r.quantity}` },
+        { t: "Prioridad", num: true, f: (r) => r.priority }, { t: "Estado", f: (r) => badge(r.status) },
+        { t: "Operador", f: (r) => r.operator_name || "—" }, { t: "Intentos", num: true, f: (r) => r.attempts },
+        { t: "Registro", f: (r) => fmtTime(r.created_at) }], reqs.items, (r) => showRequest(r.id)))));
+}
+
+function assignmentsTable(list) {
+  return table([
+    { t: "#", f: (a) => a.id }, { t: "Solicitud", f: (a) => h("span", { class: "mono" }, a.request_code) },
+    { t: "Recurso", f: (a) => a.resource }, { t: "Región", f: (a) => a.region }, { t: "Operador", f: (a) => a.operator_name },
+    { t: "Estado", f: (a) => badge(a.status) },
+    { t: "Vence", f: (a) => a.status === "ACTIVA" ? ago(a.expires_at) : "—" },
+    { t: "", f: (a) => h("div", { class: "actions" },
+      a.status === "ACTIVA" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/tomar`, { method: "POST" }), "Asignación tomada"); } }, "Tomar") : null,
+      a.status === "EN_PROCESO" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/completar`, { method: "POST" }), "Completada"); } }, "Completar") : null,
+      ["ACTIVA", "EN_PROCESO"].includes(a.status) ? h("button", { class: "btn small danger", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/rechazar`, { method: "POST" }), "Rechazada: vuelve a la cola"); } }, "Rechazar") : null) }], list);
+}
+
+async function showRequest(id) {
+  const r = await api(`/api/requests/${id}`);
+  const cancellable = !["COMPLETADO", "CANCELADO", "EXPIRADO"].includes(r.status);
+  openDrawer(h("h1", {}, r.code), h("p", {}, badge(r.status)),
+    h("dl", { class: "kv" },
+      h("dt", {}, "Titular"), h("dd", {}, r.holder), h("dt", {}, "Región"), h("dd", {}, r.region),
+      h("dt", {}, "Recurso"), h("dd", {}, `${r.resource_type} ×${r.quantity}`), h("dt", {}, "Prioridad"), h("dd", {}, r.priority),
+      h("dt", {}, "Operador"), h("dd", {}, r.operator_name || "—"), h("dt", {}, "Intentos"), h("dd", {}, r.attempts),
+      h("dt", {}, "Condiciones"), h("dd", { class: "mono" }, JSON.stringify(r.conditions)),
+      r.last_error ? [h("dt", {}, "Error"), h("dd", { class: "error" }, r.last_error)] : null),
+    h("div", { class: "actions section" },
+      cancellable ? h("button", { class: "btn danger", onclick: async () => { await act(() => api(`/api/requests/${id}/cancelar`, { method: "POST" }), "Solicitud cancelada"); showRequest(id); } }, "Cancelar solicitud") : null,
+      isAdmin() && r.status === "ERROR" ? h("button", { class: "btn", onclick: async () => { await act(() => api(`/api/requests/${id}/reactivar`, { method: "POST" }), "Reactivada"); showRequest(id); } }, "Reactivar") : null),
+    h("h3", {}, "Historial de estados"),
+    h("ul", { class: "timeline" }, r.historial.map((e) => h("li", {},
+      h("b", {}, e.to.replace(/_/g, " ")), h("span", { class: "muted" }, ` · ${fmtTime(e.ts)} · ${e.actor}`),
+      e.note ? h("div", { class: "muted" }, e.note) : null))),
+    h("h3", {}, "Historial de asignaciones"), assignmentsTable(r.asignaciones));
+}
+
+// ------------------------------------------------------------------ ALERTAS
+async function viewAlerts() {
+  const f = S.filters.alerts || (S.filters.alerts = { region: "", unacked: false });
+  const alerts = await api(`/api/alerts?limit=200${f.region ? "&region=" + f.region : ""}${f.unacked ? "&unacked=true" : ""}`);
+  return h("div", {},
+    h("div", { class: "page-head" }, h("h1", {}, "Alertas")),
+    card(null,
+      h("div", { class: "filters" },
+        h("select", { onchange: (e) => { f.region = e.target.value; refresh(true); } }, h("option", { value: "" }, "Todas las regiones"),
+          S.regions.map((r) => h("option", { value: r.code, selected: f.region === r.code }, r.name))),
+        h("select", { onchange: (e) => { f.unacked = e.target.value === "1"; refresh(true); } },
+          h("option", { value: "0", selected: !f.unacked }, "Todas"), h("option", { value: "1", selected: f.unacked }, "Sin confirmar"))),
+      alertList(alerts)));
+}
+
+// ------------------------------------------------------------------ LABORATORIO
+async function viewLab() {
+  const [items, runs, sources] = await Promise.all([api("/api/lab/items"), api("/api/lab/runs"), api("/api/sources")]);
+  const f = S.filters.lab || (S.filters.lab = { region: "" });
+  const shown = items.filter((i) => !f.region || i.region === f.region);
+  const feeds = [...new Set(sources.filter((s) => s.connector_type === "simulacion").map((s) => s.config.feed))];
+  const itemAction = (i, action, body, msg) => (e) => { e.stopPropagation(); act(() => api(`/api/lab/items/${i.id}/${action}`, { method: "POST", body }), msg); };
+  const createForm = h("form", { class: "form", onsubmit: (e) => {
+    e.preventDefault(); const d = formData(e.target);
+    if (d.starts_at) d.starts_at = new Date(d.starts_at).toISOString();
+    act(() => api("/api/lab/items", { method: "POST", body: d }), "Evento ficticio creado").then((r) => { if (r) e.target.reset(); });
+  } },
+    field("Feed (fuente simulada)", h("select", { name: "feed" }, feeds.map((x) => h("option", { value: x }, x)))),
+    field("Clave", h("input", { name: "resource_key", required: true, pattern: "[A-Za-z0-9_.\\-]{1,64}", placeholder: "EV-100" })),
+    field("Nombre", h("input", { name: "name", required: true, maxlength: 256, placeholder: "Función Ficticia" })),
+    field("Región", regionSelect("region")),
+    field("Tipo de recurso", h("select", { name: "resource_type" }, ["entrada", "mesa", "unidad", "turno"].map((t) => h("option", { value: t }, t)))),
+    field("Capacidad", h("input", { name: "capacity", type: "number", min: 1, value: 5 })),
+    field("Disponibles", h("input", { name: "available", type: "number", min: 0, value: 0 })),
+    field("Inicio", h("input", { name: "starts_at", type: "datetime-local" })),
+    h("button", { class: "btn primary" }, "Crear evento"));
+  const compForm = h("form", { class: "form", onsubmit: (e) => {
+    e.preventDefault(); const d = formData(e.target); d.item_id = Number(d.item_id);
+    act(() => api("/api/lab/competencia", { method: "POST", body: d }), (r) => `${r.solicitudes_creadas} solicitudes compiten (${r.grupo}); se liberaron ${r.unidades_liberadas} unidades`);
+  } },
+    field("Recurso", h("select", { name: "item_id" }, items.map((i) => h("option", { value: i.id }, `${i.region} · ${i.name}`)))),
+    field("Solicitudes compitiendo", h("input", { name: "requests", type: "number", min: 2, max: 500, value: 10 })),
+    field("Unidades a liberar", h("input", { name: "units", type: "number", min: 1, max: 100, value: 1 })),
+    h("button", { class: "btn primary" }, "Lanzar competencia"));
+  const accForm = h("form", { class: "form", onsubmit: (e) => {
+    e.preventDefault();
+    act(() => api("/api/lab/acelerada", { method: "POST", body: formData(e.target) }), "Simulación acelerada iniciada: los resultados aparecerán abajo");
+  } },
+    field("Horas virtuales", h("input", { name: "hours", type: "number", min: 1, max: 168, step: "any", value: 12 })),
+    field("Paso (s)", h("input", { name: "step_s", type: "number", min: 5, max: 3600, value: 30 })),
+    field("Solicitudes por región", h("input", { name: "requests_per_region", type: "number", min: 1, max: 2000, value: 40 })),
+    field("Tasa de error de fuentes", h("input", { name: "error_rate", type: "number", min: 0, max: 1, step: "0.01", value: 0.03 })),
+    field("Tasa de fallo de notificaciones", h("input", { name: "notify_fail_rate", type: "number", min: 0, max: 1, step: "0.01", value: 0.1 })),
+    field("Semilla", h("input", { name: "seed", type: "number", value: 7 })),
+    h("button", { class: "btn primary" }, "Ejecutar simulación"));
+  return h("div", {},
+    h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Laboratorio de simulación"),
+      h("div", { class: "muted" }, "Provoca cambios en el inventario ficticio y observa cómo el motor los detecta, asigna y alerta.")),
+      h("div", { class: "actions" },
+        h("button", { class: "btn", onclick: () => act(() => api("/api/lab/random", { method: "POST", body: { steps: 1 } }), (r) => `${r.cambios} cambios aleatorios`) }, "Cambios aleatorios"),
+        h("button", { class: "btn", onclick: () => act(() => api("/api/lab/random", { method: "POST", body: { steps: 1, burst: true } }), (r) => `Pico de demanda: ${r.cambios} cambios simultáneos`) }, "Pico de cambios simultáneos"))),
+    card("Inventario ficticio",
+      h("div", { class: "filters" }, h("select", { onchange: (e) => { f.region = e.target.value; refresh(true); } },
+        h("option", { value: "" }, "Todas las regiones"), S.regions.map((r) => h("option", { value: r.code, selected: f.region === r.code }, r.name)))),
+      table([
+        { t: "Región", f: (i) => i.region }, { t: "Recurso", f: (i) => h("div", {}, i.name, h("div", { class: "muted mono" }, `${i.feed} · ${i.resource_key}`)) },
+        { t: "Inicio", f: (i) => fmtTime(i.starts_at) },
+        { t: "Libres", num: true, f: (i) => h("div", {}, `${i.available}/${i.capacity}`, bar(i.capacity ? i.available / i.capacity : 0)) },
+        { t: "Estado", f: (i) => badge(i.cancelled ? "CANCELADO" : i.available ? "ACTIVO" : "AGOTADO") },
+        { t: "Acciones", f: (i) => h("div", { class: "actions" },
+          h("button", { class: "btn small primary", onclick: itemAction(i, "liberar", { units: 1 }, "Liberada 1 unidad") }, "Liberar +1"),
+          h("button", { class: "btn small", onclick: itemAction(i, "consumir", { units: 1 }, "Consumida 1 unidad") }, "−1"),
+          h("button", { class: "btn small", onclick: itemAction(i, "agotar", {}, "Inventario agotado") }, "Agotar"),
+          i.cancelled ? h("button", { class: "btn small", onclick: itemAction(i, "restaurar", {}, "Restaurado") }, "Restaurar")
+            : h("button", { class: "btn small danger", onclick: itemAction(i, "cancelar", {}, "Evento cancelado") }, "Cancelar"),
+          h("button", { class: "btn small ghost", onclick: itemAction(i, "reprogramar", { hours: 2 }, "Horario +2 h") }, "+2 h")) }], shown)),
+    h("div", { class: "grid cols-2 section" }, card("Crear evento ficticio", createForm), card("Solicitudes compitiendo por un recurso", compForm)),
+    h("div", { class: "section" }, card("Simulación acelerada (base de datos aislada)", accForm,
+      h("h3", {}, "Resultados"),
+      runs.length ? runs.map((r) => h("details", { class: "section" },
+        h("summary", {}, `#${r.id} · `, badge(r.status), ` · ${fmtTime(r.started_at)} · ${r.params.hours} h virtuales`,
+          r.results && r.results.tiempo_real_s ? ` · ${r.results.tiempo_real_s} s reales · ${r.results.eventos_detectados} eventos · ${r.results.total_violaciones} violaciones de integridad` : ""),
+        h("pre", { class: "json" }, JSON.stringify(r.results, null, 2)))) : h("div", { class: "empty" }, "Aún no hay simulaciones"))));
+}
+
+// ------------------------------------------------------------------ CONFIGURACIÓN
+async function viewConfig() {
+  const tab = S.filters.cfgTab || "motor";
+  const tabs = [["motor", "Parámetros del motor"], ["fuentes", "Fuentes y frecuencias"], ["operadores", "Operadores"],
+    ["canales", "Notificaciones"], ["usuarios", "Usuarios"], ["auditoria", "Auditoría"], ["metricas", "Métricas"]];
+  const head = h("div", {}, h("div", { class: "page-head" }, h("h1", {}, "Configuración")),
+    h("div", { class: "tabs" }, tabs.map(([k, t]) => h("button", { class: "btn small " + (tab === k ? "primary" : ""), onclick: () => { S.filters.cfgTab = k; refresh(true); } }, t))));
+  let body;
+  if (tab === "motor") {
+    const p = await api("/api/settings/engine");
+    const help = {
+      tick_segundos: "Cada cuánto revisa el planificador qué fuentes tocan", concurrencia_maxima: "Consultas simultáneas",
+      umbral_circuito: "Fallos seguidos para abrir el circuito", enfriamiento_circuito_s: "Segundos con el circuito abierto",
+      aperturas_hasta_error: "Aperturas seguidas antes de marcar la fuente en ERROR", backoff_max_s: "Tope del retroceso exponencial",
+      ausencias_para_cancelar: "Consultas completas sin ver un recurso para considerarlo cancelado",
+      ttl_asignacion_s: "Segundos que tiene el operador para tomar una asignación", max_intentos_solicitud: "Reasignaciones máximas",
+      alerta_minimo_aumento: "Unidades mínimas de aumento para alertar", reintentos_notificacion: "Reintentos por canal",
+      backoff_notificacion_s: "Base del retroceso entre reintentos de notificación" };
+    body = card("Parámetros del motor", h("form", { class: "form", onsubmit: (e) => {
+      e.preventDefault(); const d = formData(e.target);
+      d.tipos_que_alertan = [...e.target.querySelectorAll("input[data-tipo]:checked")].map((x) => x.value);
+      for (const k of Object.keys(d)) if (k.startsWith("tipo_")) delete d[k];
+      act(() => api("/api/settings/engine", { method: "PUT", body: d }), "Parámetros guardados");
+    } },
+      Object.entries(p).filter(([k]) => k !== "tipos_que_alertan").map(([k, v]) =>
+        field(help[k] || k, h("input", { name: k, type: "number", min: 0, step: "any", value: v }))),
+      h("div", { class: "full" }, h("div", { class: "muted" }, "Cambios que generan alerta"),
+        h("div", { class: "actions" }, ["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO", "REDUCCION", "AGOTADO", "CANCELACION", "CAMBIO_HORARIO"].map((t) =>
+          h("label", { class: "badge" }, h("input", { type: "checkbox", value: t, "data-tipo": "1", checked: p.tipos_que_alertan.includes(t) }), " " + t.replace(/_/g, " "))))),
+      h("button", { class: "btn primary" }, "Guardar")));
+  } else if (tab === "fuentes") {
+    const sources = await api("/api/sources");
+    body = card("Frecuencias y límites por fuente", h("p", { class: "muted" }, "Intervalo: segundos entre consultas. Variación: ± porcentaje aleatorio. Límite: consultas máximas por minuto."),
+      table([
+        { t: "Fuente", f: (s) => h("div", {}, h("b", {}, s.code), h("div", { class: "muted" }, `${s.region} · ${s.connector_type}`)) },
+        { t: "Estado", f: (s) => badge(s.status) },
+        { t: "Configuración", f: (s) => h("form", { class: "form", onsubmit: (e) => {
+          e.preventDefault(); act(() => api(`/api/sources/${s.id}`, { method: "PATCH", body: formData(e.target) }), "Fuente actualizada");
+        } },
+          field("Intervalo (s)", h("input", { name: "interval_s", type: "number", min: 1, step: "any", value: s.interval_s })),
+          field("Variación (0–0.9)", h("input", { name: "jitter_pct", type: "number", min: 0, max: 0.9, step: "0.01", value: s.jitter_pct })),
+          field("Límite/min", h("input", { name: "rate_limit_per_min", type: "number", min: 1, max: 600, value: s.rate_limit_per_min })),
+          field("Reintentos", h("input", { name: "max_retries", type: "number", min: 0, max: 10, value: s.max_retries })),
+          h("button", { class: "btn small primary" }, "Guardar")) }], sources));
+  } else if (tab === "operadores") {
+    const ops = await api("/api/operators");
+    body = h("div", { class: "grid" },
+      card("Nuevo operador", h("form", { class: "form", onsubmit: (e) => {
+        e.preventDefault(); const d = formData(e.target); d.regions = d.regions ? [d.regions] : [];
+        act(() => api("/api/operators", { method: "POST", body: d }), "Operador creado");
+      } },
+        field("Nombre", h("input", { name: "name", required: true, maxlength: 128 })),
+        field("Región", h("select", { name: "regions" }, h("option", { value: "" }, "Todas"), S.regions.map((r) => h("option", { value: r.code }, r.name)))),
+        field("Máx. simultáneas", h("input", { name: "max_concurrent", type: "number", min: 1, max: 100, value: 3 })),
+        h("button", { class: "btn primary" }, "Crear"))),
+      card("Operadores", table([
+        { t: "Nombre", f: (o) => o.name }, { t: "Regiones", f: (o) => o.regions.length ? o.regions.join(", ") : "Todas" },
+        { t: "Carga", num: true, f: (o) => `${o.current_load}/${o.max_concurrent}` }, { t: "Usuario", f: (o) => o.user_id ? "#" + o.user_id : "—" },
+        { t: "Estado", f: (o) => badge(o.active ? "ACTIVO" : "SUSPENDIDA") },
+        { t: "", f: (o) => h("button", { class: "btn small", onclick: () => act(() => api(`/api/operators/${o.id}`, { method: "PATCH", body: { active: !o.active } }), "Operador actualizado") }, o.active ? "Desactivar" : "Activar") }], ops)));
+  } else if (tab === "canales") {
+    const chs = await api("/api/channels");
+    body = card("Canales de notificación", h("p", { class: "muted" }, "Telegram y correo tienen la interfaz preparada pero no están implementados en esta versión. Los webhooks solo pueden apuntar a hosts permitidos en MONITOREO_WEBHOOK_HOSTS."),
+      table([
+        { t: "Canal", f: (c) => h("div", {}, h("b", {}, c.name), h("div", { class: "muted" }, c.type)) },
+        { t: "Estado", f: (c) => badge(c.enabled ? "ACTIVO" : "SUSPENDIDA") },
+        { t: "Configuración", f: (c) => c.type === "webhook" ? h("form", { class: "form", onsubmit: (e) => {
+          e.preventDefault(); act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { config: formData(e.target) } }), "Canal actualizado");
+        } }, field("URL", h("input", { name: "url", value: c.config.url || "", maxlength: 500 })),
+          field("Secreto de firma", h("input", { name: "secret", type: "password", value: c.config.secret || "", autocomplete: "new-password" })),
+          h("button", { class: "btn small primary" }, "Guardar"))
+          : c.type === "simulado" ? h("form", { class: "form", onsubmit: (e) => {
+            e.preventDefault(); act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { config: formData(e.target) } }), "Canal actualizado");
+          } }, field("Tasa de fallo (0–1)", h("input", { name: "fail_rate", type: "number", min: 0, max: 1, step: "0.05", value: c.config.fail_rate ?? 0 })),
+            h("button", { class: "btn small primary" }, "Guardar")) : h("span", { class: "mono muted" }, JSON.stringify(c.config)) },
+        { t: "", f: (c) => h("button", { class: "btn small", onclick: () => act(() => api(`/api/channels/${c.id}`, { method: "PATCH", body: { enabled: !c.enabled } }), "Canal actualizado") }, c.enabled ? "Desactivar" : "Activar") }], chs));
+  } else if (tab === "usuarios") {
+    const users = await api("/api/users");
+    body = h("div", { class: "grid" },
+      card("Nuevo usuario", h("form", { class: "form", onsubmit: (e) => {
+        e.preventDefault(); const d = formData(e.target); d.regions = d.regions ? [d.regions] : [];
+        act(() => api("/api/users", { method: "POST", body: d }), "Usuario creado").then((r) => { if (r) e.target.reset(); });
+      } },
+        field("Usuario", h("input", { name: "username", required: true, pattern: "[a-zA-Z0-9_.\\-]{3,64}", autocomplete: "off" })),
+        field("Contraseña (mín. 10)", h("input", { name: "password", type: "password", required: true, minlength: 10, autocomplete: "new-password" })),
+        field("Rol", h("select", { name: "role" }, h("option", { value: "operador" }, "Operador"), h("option", { value: "admin" }, "Administrador"))),
+        field("Nombre de operador", h("input", { name: "operator_name", maxlength: 128 })),
+        field("Región del operador", h("select", { name: "regions" }, h("option", { value: "" }, "Todas"), S.regions.map((r) => h("option", { value: r.code }, r.name)))),
+        h("button", { class: "btn primary" }, "Crear usuario"))),
+      card("Cambiar mi contraseña", h("form", { class: "form", onsubmit: (e) => {
+        e.preventDefault(); act(() => api("/api/auth/password", { method: "POST", body: formData(e.target) }), "Contraseña actualizada").then((r) => { if (r) e.target.reset(); });
+      } },
+        field("Actual", h("input", { name: "current_password", type: "password", required: true, autocomplete: "current-password" })),
+        field("Nueva (mín. 10)", h("input", { name: "new_password", type: "password", required: true, minlength: 10, autocomplete: "new-password" })),
+        h("button", { class: "btn primary" }, "Cambiar"))),
+      card("Usuarios", table([
+        { t: "Usuario", f: (u) => u.username }, { t: "Rol", f: (u) => u.role }, { t: "Estado", f: (u) => badge(u.active ? "ACTIVO" : "SUSPENDIDA") },
+        { t: "Creado", f: (u) => fmtTime(u.created_at) },
+        { t: "", f: (u) => u.active && u.username !== S.user.username ? h("button", { class: "btn small danger", onclick: () => act(() => api(`/api/users/${u.id}/desactivar`, { method: "POST" }), "Usuario desactivado") }, "Desactivar") : null }], users)));
+  } else if (tab === "auditoria") {
+    const log = await api("/api/audit?limit=300");
+    body = card("Registro de auditoría", table([
+      { t: "Cuándo", f: (a) => fmtTime(a.ts) }, { t: "Usuario", f: (a) => a.usuario }, { t: "Acción", f: (a) => a.accion },
+      { t: "Objetivo", f: (a) => a.objetivo }, { t: "IP", f: (a) => a.ip }, { t: "Detalle", f: (a) => h("span", { class: "mono" }, JSON.stringify(a.detalle)) }], log));
+  } else {
+    const m = await api("/api/metrics");
+    const pct = (o, unit) => o.n ? `p50 ${num(o.p50, 1)} · p95 ${num(o.p95, 1)} · p99 ${num(o.p99, 1)} · máx ${num(o.max, 1)} ${unit} (n=${o.n})` : "sin datos";
+    body = h("div", { class: "grid kpis" },
+      kpi("CPU del proceso", num(m.proceso.cpu_pct, 1) + " %", `${m.proceso.hilos} hilos`),
+      kpi("Memoria", num(m.proceso.memoria_mb, 1) + " MB"),
+      kpi("Consultas", num(m.totales.consultas), pct(m.consulta_ms, "ms")),
+      kpi("Eventos", num(m.totales.eventos), "Detección: " + pct(m.deteccion_ms, "ms")),
+      kpi("Alertas", num(m.totales.alertas), "Entrega: " + pct(m.entrega_alerta_ms, "ms")),
+      kpi("Integridad", m.integridad.length ? `${m.integridad.length} problemas` : "Correcta", m.integridad.slice(0, 3).join(" · ") || "Retenciones, cargas y estados coherentes"));
+  }
+  return h("div", {}, head, body);
+}
+
+// ------------------------------------------------------------------ arranque
+(async () => {
+  if (S.token) { try { await start(); return; } catch (_) { /* token inválido */ } }
+  logout();
+  $("login-error").textContent = "";
+})();

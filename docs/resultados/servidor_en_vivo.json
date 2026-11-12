@@ -1,0 +1,25 @@
+{
+  "segundos": 60,
+  "cpu_pct_media": 5.0,
+  "cpu_pct_max": 7.3,
+  "memoria_mb_media": 129.1,
+  "memoria_mb_max": 129.2,
+  "latencia_api_ms": {
+    "/api/dashboard": {
+      "p50": 34.4,
+      "p95": 44.6,
+      "max": 72.4
+    },
+    "/api/requests?limit=200": {
+      "p50": 22.2,
+      "p95": 30.4,
+      "max": 34.1
+    },
+    "/api/alerts?limit=100": {
+      "p50": 19.5,
+      "p95": 42.0,
+      "max": 57.6
+    }
+  },
+  "ciclos_planificador": 964
+}

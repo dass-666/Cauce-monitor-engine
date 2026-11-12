@@ -1,0 +1,109 @@
+{
+  "fecha": "2026-11-12T14:27:35",
+  "motor_bd": "sqlite",
+  "python": "3.13.18",
+  "sistema": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+  "cpus": 4,
+  "simulacion_acelerada": {
+    "parametros": {
+      "horas_virtuales": 24,
+      "paso_s": 30,
+      "semilla": 11,
+      "solicitudes_por_region": 100,
+      "intervalo_fuente_s": 30,
+      "tasa_error_fuente": 0.03,
+      "tasa_limitacion": 0.01,
+      "tasa_duplicados": 0.05,
+      "tasa_fallo_notificacion": 0.1,
+      "base_de_datos": "sqlite"
+    },
+    "tiempo_real_s": 113.81,
+    "aceleracion_x": 759.2,
+    "cambios_simulados": 8610,
+    "consultas": 9591,
+    "consultas_por_resultado": {
+      "LIMITADO": 105,
+      "OK": 9486
+    },
+    "duplicados_descartados": 499,
+    "eventos_detectados": 5740,
+    "eventos_por_tipo": {
+      "AGOTADO": 993,
+      "AUMENTO": 1252,
+      "CAMBIO_HORARIO": 458,
+      "CANCELACION": 445,
+      "NUEVA_DISPONIBILIDAD": 53,
+      "NUEVO_RECURSO": 59,
+      "REAPARICION": 1526,
+      "REDUCCION": 954
+    },
+    "eventos_pendientes": 0,
+    "asignaciones": {
+      "CANCELADA": 10,
+      "COMPLETADA": 500,
+      "RECHAZADA": 54
+    },
+    "solicitudes": {
+      "COMPLETADO": 500
+    },
+    "alertas": {
+      "ASIGNACION": 564,
+      "DISPONIBILIDAD": 3426
+    },
+    "alertas_por_estado": {
+      "ENVIADA": 3990
+    },
+    "entregas": {
+      "ENVIADA": 7980
+    },
+    "regiones": [
+      "CENTRO",
+      "ESTE",
+      "NORTE",
+      "OESTE",
+      "SUR"
+    ],
+    "latencia_deteccion_virtual_s": {
+      "n": 5740,
+      "media": 10.357,
+      "p50": 0.0,
+      "p95": 30.109,
+      "p99": 60.0,
+      "max": 150.0
+    },
+    "duracion_consulta_ms": {
+      "n": 9591,
+      "media": 0.607,
+      "p50": 0.568,
+      "p95": 0.864,
+      "p99": 1.061,
+      "max": 4.748
+    },
+    "duracion_ciclo_ms": {
+      "n": 2880,
+      "media": 39.454,
+      "p50": 32.364,
+      "p95": 93.677,
+      "p99": 146.41,
+      "max": 248.13
+    },
+    "cpu_s": 110.4,
+    "memoria_pico_mb": 76.4,
+    "verificaciones_integridad": 59,
+    "violaciones_integridad": [],
+    "total_violaciones": 0
+  },
+  "concurrencia": {
+    "hilos": 32,
+    "intentos": 1920,
+    "asignaciones_exitosas": 30,
+    "rechazadas_por_conflicto": 1890,
+    "unidades_totales": 30,
+    "asignaciones_en_bd": 30,
+    "unidades_retenidas": 30,
+    "violaciones_integridad": [],
+    "segundos": 2.65,
+    "intentos_por_segundo": 724.4,
+    "correcto": true
+  }
+}
