@@ -24,13 +24,13 @@ def db(request, tmp_path, monkeypatch):
         d = Database(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
     else:
         d = Database(PG_URL)
-        d.drop_all()
+        d.reset_for_tests()
     d.create_all()
     from monitoreo.simulator.seed import seed_base
     seed_base(d)
     yield d
     if request.param == "postgres":
-        d.drop_all()
+        d.reset_for_tests()
     d.engine.dispose()
 
 

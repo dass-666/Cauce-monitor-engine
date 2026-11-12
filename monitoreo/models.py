@@ -88,6 +88,10 @@ class Source(Base):
     total_changes: Mapped[int] = mapped_column(Integer, default=0)
     avg_latency_ms: Mapped[float] = mapped_column(Float, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # v1.1: diagnóstico. Por qué está en su estado actual y desde cuándo.
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_outcome: Mapped[str | None] = mapped_column(String(24), nullable=True)
 
 
 class SlotState(Base):
@@ -189,6 +193,7 @@ class Request(Base):
 
 
 Index("ix_requests_matching", Request.status, Request.region, Request.priority, Request.created_at)
+Index("ix_change_events_purge", ChangeEvent.relevant, ChangeEvent.processed, ChangeEvent.detected_at)
 
 
 class RequestEvent(Base):
@@ -267,6 +272,9 @@ class Delivery(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # v1.1: progreso por destinatario (p. ej. chats de Telegram ya entregados) para no reenviar
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class NotificationLog(Base):
@@ -308,3 +316,62 @@ class SimRun(Base):
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     results: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(16), default="EN_CURSO")
+
+
+# ---------------------------------------------------------------- v1.1: estadísticas, coordinación, mantenimiento
+class PollStatHourly(Base):
+    """Agregado horario de consultas (sobrevive a la limpieza de poll_log)."""
+    __tablename__ = "poll_stats_hourly"
+    __table_args__ = (UniqueConstraint("source_id", "hour", name="uq_pstat_h_source_hour"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    region: Mapped[str] = mapped_column(String(32), index=True)
+    hour: Mapped[datetime] = mapped_column(DateTime, index=True)
+    polls: Mapped[int] = mapped_column(Integer, default=0)
+    ok: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    rate_limited: Mapped[int] = mapped_column(Integer, default=0)
+    items: Mapped[int] = mapped_column(Integer, default=0)
+    changes: Mapped[int] = mapped_column(Integer, default=0)
+    duplicates: Mapped[int] = mapped_column(Integer, default=0)
+    sum_ms: Mapped[float] = mapped_column(Float, default=0)
+    max_ms: Mapped[float] = mapped_column(Float, default=0)
+
+
+class PollStatDaily(Base):
+    __tablename__ = "poll_stats_daily"
+    __table_args__ = (UniqueConstraint("source_id", "day", name="uq_pstat_d_source_day"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    region: Mapped[str] = mapped_column(String(32), index=True)
+    day: Mapped[datetime] = mapped_column(DateTime, index=True)
+    polls: Mapped[int] = mapped_column(Integer, default=0)
+    ok: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    rate_limited: Mapped[int] = mapped_column(Integer, default=0)
+    items: Mapped[int] = mapped_column(Integer, default=0)
+    changes: Mapped[int] = mapped_column(Integer, default=0)
+    duplicates: Mapped[int] = mapped_column(Integer, default=0)
+    sum_ms: Mapped[float] = mapped_column(Float, default=0)
+    max_ms: Mapped[float] = mapped_column(Float, default=0)
+
+
+class SchedulerLease(Base):
+    """Arrendamiento ("lease") del planificador: solo la instancia que lo tiene vigente trabaja."""
+    __tablename__ = "scheduler_leases"
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    holder: Mapped[str] = mapped_column(String(128))
+    acquired_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    renewed_at: Mapped[datetime] = mapped_column(DateTime)
+    fencing_token: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class MaintenanceLog(Base):
+    __tablename__ = "maintenance_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    task: Mapped[str] = mapped_column(String(32), index=True)
+    holder: Mapped[str] = mapped_column(String(128), default="")
+    duration_ms: Mapped[float] = mapped_column(Float, default=0)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)

@@ -25,7 +25,9 @@ WEB_DIR = Path(__file__).parent / "web"
 def bootstrap(db: Database, seed_demo: bool) -> str | None:
     """Crea tablas, datos base y el administrador inicial. Devuelve la contraseña generada si la hubo."""
     from .simulator.seed import seed_base, seed_demo as do_seed_demo
-    db.create_all()
+    report = db.migrate(make_backup=True)  # respaldo automático si cambia el esquema de una base con datos
+    if report.steps:
+        log.warning("Migración de esquema: %s", "; ".join(report.steps))
     seed_base(db)
     if seed_demo:
         import os

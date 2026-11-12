@@ -36,7 +36,7 @@ from monitoreo.simulator.accelerated import run_accelerated  # noqa: E402
 def concurrency_stress(db_url: str, threads: int = 32, requests: int = 500, slots: int = 10, units: int = 3) -> dict:
     """Muchos hilos compiten a la vez por pocos recursos. Nada debe asignarse dos veces."""
     db = Database(db_url)
-    db.drop_all()
+    db.reset_for_tests()
     db.create_all()
     from monitoreo.simulator.seed import seed_base
     seed_base(db)

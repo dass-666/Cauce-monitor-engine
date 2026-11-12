@@ -64,13 +64,28 @@ class Database:
     def is_sqlite(self) -> bool:
         return self.url.startswith("sqlite")
 
-    def create_all(self) -> None:
-        from . import models  # noqa: F401  (registra tablas)
-        Base.metadata.create_all(self.engine)
+    def migrate(self, make_backup: bool = True):
+        """Crea o actualiza el esquema con Alembic (v1.1+). Ver monitoreo/migrate.py."""
+        from .migrate import upgrade
+        return upgrade(self.url, make_backup=make_backup)
 
-    def drop_all(self) -> None:
-        from . import models  # noqa: F401
-        Base.metadata.drop_all(self.engine)
+    def create_all(self) -> None:
+        """Compatibilidad: crea/actualiza el esquema mediante migraciones, sin respaldo
+        (pensado para bases nuevas y temporales: pruebas y simulación)."""
+        self.migrate(make_backup=False)
+
+    def reset_for_tests(self) -> None:
+        """SOLO para bases temporales de pruebas/simulación: borra todo el esquema."""
+        from sqlalchemy import text
+        if self.is_sqlite:
+            from . import models  # noqa: F401
+            Base.metadata.drop_all(self.engine)
+            with self.engine.begin() as c:
+                c.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+        else:
+            with self.engine.begin() as c:
+                c.execute(text("DROP SCHEMA public CASCADE"))
+                c.execute(text("CREATE SCHEMA public"))
 
     @contextmanager
     def session(self) -> Iterator[Session]:

@@ -41,7 +41,7 @@ def run_accelerated(hours: float = 24, step_s: float = 30, seed: int = 7, reques
         tmpdir = tempfile.mkdtemp(prefix="monitoreo_sim_")
         db_url = f"sqlite:///{os.path.join(tmpdir, 'sim.db')}"
     db = Database(db_url)
-    db.drop_all()
+    db.reset_for_tests()
     db.create_all()
     clock = VirtualClock(datetime(2030, 1, 1, 8, 0, 0))
     seed_demo(db, rng=rng, requests_per_region=requests_per_region, interval_s=interval_s,
