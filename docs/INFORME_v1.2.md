@@ -14,9 +14,9 @@ Leyenda usada en todo el informe:
 
 | Objetivo | Estado | Evidencia |
 |---|---|---|
-| Validación en Windows | **Probado en Windows real** (GitHub Actions, `windows-latest`), no en el MSI de Diego | §5 |
+| Validación en Windows | **Probado en Windows real** (GitHub Actions `windows-latest`, Python 3.11–3.13, PowerShell 5.1 y 7); falta el MSI | §5 |
 | Modo producción | Terminado y probado | 19 pruebas, arranque real en modo producción |
-| Instalación y actualización para Windows | Terminado; probado en Windows real con PowerShell 5.1 y 7 | §5.3 |
+| Instalación y actualización para Windows | Terminado y probado en Windows real (instalación limpia, reinstalación, actualización desde datos v1.0, negativa a sobrescribir) | §5.3 |
 | Integridad de notificaciones | Terminado y probado (8 escenarios de fallo) | 11 pruebas + `NOTIFICACIONES.md` |
 | Autodiagnóstico | Terminado y probado (consola, panel y planificador) | 12 pruebas + navegador real |
 | Capacidad | Medido en 10 ejecuciones (5 escenarios × SQLite y PostgreSQL) | §6 |
@@ -210,19 +210,38 @@ En Windows la parada con Ctrl+Break es ordenada en los dos entornos.
 
 ### 5.3 Instalación y actualización
 
-Primera ejecución, con PowerShell 5.1 y con 7:
+La ejecución de referencia es la 43278001279, la última, con todos los trabajos en verde.
+Se probó igual con **Windows PowerShell 5.1** (el que trae Windows de serie) y con
+**PowerShell 7**:
 
-- pasaron la instalación limpia, la reinstalación con respaldo, `diagnostico.bat` y el
-  arranque desde la carpeta instalada;
-- la actualización lado a lado sí copió los datos y migró la base desde la v1.0, pero terminó
-  con error por los defectos 10 y 11, y porque a los datos de prueba les faltaba un archivo
-  CSV de una fuente.
+1. Se crea un ZIP con `git archive`, como el que recibiría el usuario, y se descomprime en
+   `C:\inst\motor`.
+2. `instalar.ps1 -NoInteractivo`: **"Instalación terminada y comprobada."** Existen `.env`,
+   la base de datos, `.venv` y el registro de la instalación, y el registro no contiene
+   acentos dañados.
+3. Reinstalación encima: crea un respaldo previo y deja `.env` sin cambios (se comprueba su
+   huella SHA-256).
+4. `diagnostico.bat --motor-detenido`: código de salida 0 o 1.
+5. Arranque real desde la carpeta instalada: 35/35 comprobaciones.
+6. Actualización lado a lado desde una instalación con **datos de la v1.0** (base de ejemplo
+   con 40 solicitudes): **"Actualización terminada y comprobada."**
+   - La base de la instalación anterior no cambia: la huella SHA-256 es idéntica antes y después.
+   - La nueva tiene las 40 solicitudes y el esquema `0003_v1_2`.
+   - Hubo respaldo antes de migrar.
+7. Segundo intento sobre la misma carpeta: **se niega** y no modifica nada.
 
-Segunda ejecución, con las correcciones: ver §5.4.
+Hicieron falta cuatro ejecuciones hasta dejarlo todo en verde. La primera destapó los defectos
+10 y 11. La segunda mostró que `preparar.py`, en modo aislado, seguía escribiendo los acentos
+mal. La tercera mostró que una prueba leía esa salida con la codificación antigua.
 
-### 5.4 Segunda ejecución
+### 5.4 Qué NO demuestra esto
 
-_Se completa más abajo cuando termina._
+- Es Windows Server en una máquina virtual de GitHub, **no el MSI**. Allí no hay antivirus
+  de consumo, OneDrive, una ruta de usuario con acentos ni un Python de la Microsoft Store.
+- No se probó el modo interactivo (pedir la contraseña por teclado): en la CI no hay nadie
+  que la escriba.
+- `iniciar.bat` (doble clic y apertura del navegador) no se ejecuta en la CI. El arranque
+  que sí se prueba es el mismo `python -m monitoreo` que lanza ese archivo.
 
 ## 6. Capacidad (MEDIDO con el servidor real; fuentes y usuarios SIMULADOS)
 
