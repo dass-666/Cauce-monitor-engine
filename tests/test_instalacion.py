@@ -165,3 +165,22 @@ def test_production_env_file_passes_production_review(tmp_path, monkeypatch):
 def test_production_env_rejects_short_password(tmp_path):
     r = _crear_env(tmp_path, MON_PWD="Corta-12345", MON_ENTORNO="produccion")      # 11 caracteres
     assert r.returncode != 0 and "12 caracteres" in r.stderr and not (tmp_path / ".env").exists()
+
+
+def test_env_file_saved_with_bom_by_notepad_is_read(tmp_path, monkeypatch):
+    """Regresión v1.2: el Bloc de notas de Windows 10 guarda UTF-8 con BOM y la primera clave se perdía."""
+    from monitoreo.config import _load_dotenv
+    monkeypatch.delenv("MONITOREO_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("MONITOREO_ADMIN_USER", raising=False)
+    p = tmp_path / ".env"
+    p.write_bytes("﻿MONITOREO_ADMIN_PASSWORD=Con-Bom-12345\nMONITOREO_ADMIN_USER=ñandú\n".encode("utf-8"))
+    try:
+        _load_dotenv(p)
+        import os
+        assert os.environ.get("MONITOREO_ADMIN_PASSWORD") == "Con-Bom-12345"
+        assert os.environ.get("MONITOREO_ADMIN_USER") == "ñandú"
+    finally:
+        import os
+        os.environ.pop("﻿MONITOREO_ADMIN_PASSWORD", None)
+        os.environ.pop("MONITOREO_ADMIN_PASSWORD", None)
+        os.environ.pop("MONITOREO_ADMIN_USER", None)

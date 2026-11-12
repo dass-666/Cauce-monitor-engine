@@ -22,7 +22,8 @@ def _load_dotenv(path: Path) -> None:
     """
     if not path.exists():
         return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    # utf-8-sig: el Bloc de notas de Windows 10 guarda con BOM y la primera clave se perdería.
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

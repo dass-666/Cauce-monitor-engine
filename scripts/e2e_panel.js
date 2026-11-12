@@ -79,6 +79,11 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   // v1.1: Salud y diagnóstico de una fuente
   await page.goto(base + "/#salud");
   await page.waitForSelector("text=Estado por fuente");
+  // v1.2: tarjeta de autodiagnóstico con problemas y "qué hacer"
+  await page.waitForSelector("#view h2:has-text('Autodiagnóstico')");
+  const diag = await page.locator("#view section", { has: page.locator("h2:has-text('Autodiagnóstico')") }).first().textContent();
+  const diagOk = /crítico\(s\)/.test(diag) && /Correcto:/.test(diag);
+  log("autodiagnóstico en el panel:", diag.slice(0, 160).replace(/\s+/g, " "));
   await page.screenshot({ path: `${outDir}/09_salud.png`, fullPage: true });
   // Preferir una fuente con problemas (la demo incluye una API que falla a propósito).
   const bad = page.locator("#view tr.clickable", { hasText: "DESACTUALIZADA" });
@@ -111,5 +116,5 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await p2.screenshot({ path: `${outDir}/11_telefono_salud.png`, fullPage: true });
   log("errores de consola:", errors.length ? errors : "ninguno");
   await browser.close();
-  process.exit(found && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
+  process.exit(found && diagOk && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

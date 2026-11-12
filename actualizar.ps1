@@ -40,8 +40,9 @@ if ($code -eq 2) {
 }
 
 Write-Paso "Instalando la versión nueva con los datos copiados"
-$instArgs = @("-NoInteractivo", "-DesdeActualizacion")
-if ((Test-Path ".env") -and (Select-String -Path ".env" -Pattern "^MONITOREO_DB_URL=postgresql" -Quiet)) { $instArgs += "-ConPostgres" }
+# Tabla (hashtable) y no lista: con una lista de textos PowerShell no activa los modificadores.
+$instArgs = @{ NoInteractivo = $true; DesdeActualizacion = $true }
+if ((Test-Path ".env") -and (Select-String -Path ".env" -Pattern "^MONITOREO_DB_URL=postgresql" -Quiet)) { $instArgs.ConPostgres = $true }
 & (Join-Path $PSScriptRoot "instalar.ps1") @instArgs
 $code = $LASTEXITCODE
 
