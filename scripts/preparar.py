@@ -310,8 +310,13 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     try:
-        # Con la salida redirigida, Windows usa cp1252: un carácter sin equivalente no debe abortar.
-        sys.stdout.reconfigure(errors="replace")
+        # Se ejecuta con -I (modo aislado), que ignora PYTHONIOENCODING. Con la salida redirigida
+        # (instalar.ps1 la pasa por PowerShell, que la lee en UTF-8) Windows usaría cp1252 y los
+        # acentos se verían dañados ("atr�s"): visto en la CI de Windows.
+        if os.name == "nt" and not sys.stdout.isatty():
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        else:
+            sys.stdout.reconfigure(errors="replace")
     except Exception:  # noqa: BLE001
         pass
     raise SystemExit(main(sys.argv[1:]))
