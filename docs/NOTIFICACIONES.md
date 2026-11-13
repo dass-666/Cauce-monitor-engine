@@ -1,4 +1,4 @@
-# Notificaciones: qué se garantiza y qué depende del destinatario (v1.2)
+# Notificaciones: qué se garantiza y qué depende del destinatario (v1.2, revisado en v1.4)
 
 Este documento explica, sin adornos, qué puede prometer el motor al enviar avisos por
 **webhook** y **Telegram**, y qué parte depende del sistema que los recibe.
@@ -34,6 +34,7 @@ PostgreSQL.
 | Telegram: un destinatario bloqueado no impide avisar al resto | 400/403 por chat se anota en `rechazado_por` y se sigue con los demás | `test_telegram_blocked_recipient_and_429_partial` |
 | Telegram: al reintentar no se repite a quien ya lo recibió | Tras cada chat servido se guarda al instante `entregado_a` (punto de control) | `test_telegram_crash_mid_delivery_does_not_repeat_served_chats` |
 | Identificadores estables entre reintentos | `X-Id-Alerta = dedup_key` y `Idempotency-Key = dedup_key@id_canal`, iguales en cada intento | `test_idempotency_key_is_stable_across_retries` |
+| **v1.4:** un destino que no responde no frena al motor ni a los demás canales | El envío va en una tarea aparte del ciclo del planificador; tras un fallo temporal de un canal, sus demás entregas esperan a la pasada siguiente (siguen `PENDIENTE`, sin gastar intentos); cada pasada dura como máximo `despacho_presupuesto_s` | `tests/test_alertas_destino_caido.py` |
 
 ## Lo que NO puede garantizarse sin ayuda del destinatario
 
@@ -56,11 +57,19 @@ escritura en la base), pero existe.
 
 ### 2. Autenticidad y repetición maliciosa de webhooks
 
-Cada webhook lleva `X-Firma-SHA256` (HMAC-SHA256 del cuerpo con el secreto del canal o
-`MONITOREO_SECRET_KEY`). El receptor debe **verificar la firma** para saber que viene del
-motor. La firma **no incluye una marca de tiempo**: quien capture una petición válida podría
-reenviarla. La defensa es la misma que para los duplicados: descartar `Idempotency-Key` ya
-vistos. Además, usar siempre HTTPS (ver `PRODUCCION.md`).
+Cada webhook lleva dos firmas HMAC-SHA256 con el secreto del canal (campo `secret` de su
+configuración) o, si no tiene, `MONITOREO_SECRET_KEY`:
+
+- `X-Firma-V2` (**v1.4, recomendada**): firma de `"<X-Marca-Tiempo>." + cuerpo`, donde
+  `X-Marca-Tiempo` son los segundos Unix del envío. El receptor rechaza la petición si la marca
+  tiene más de 5 minutos de diferencia con su reloj: una petición capturada no sirve después.
+  Verificación lista para usar: `monitoreo/webhook_firma.py` (`verify(cuerpo, cabeceras, secreto)`).
+- `X-Firma-SHA256`: firma del cuerpo solo, como en v1.0–v1.3 (se mantiene por compatibilidad).
+  No impide reenviar una petición capturada.
+
+Contra repeticiones dentro de esos 5 minutos sigue valiendo descartar `Idempotency-Key` ya
+vistos. Usar siempre HTTPS (ver `PRODUCCION.md`). Recomendación: dar a cada canal su propio
+`secret` en lugar de compartir `MONITOREO_SECRET_KEY`.
 
 ### 3. Orden
 
@@ -75,7 +84,8 @@ de Telegram). No significa que una persona lo haya leído.
 
 ## Qué tiene que hacer un receptor de webhooks (lista corta)
 
-1. Verificar `X-Firma-SHA256` con el secreto compartido; rechazar si no coincide.
+1. Verificar `X-Firma-V2` y que `X-Marca-Tiempo` no tenga más de 5 minutos; rechazar si no
+   coincide (receptores antiguos: `X-Firma-SHA256`).
 2. Guardar las `Idempotency-Key` procesadas (al menos 7 días) y responder 200 sin repetir el
    efecto si llega una repetida.
 3. Responder rápido (menos de 5 s, o el `timeout_s` del canal) y hacer el trabajo pesado después.
@@ -89,6 +99,7 @@ de Telegram). No significa que una persona lo haya leído.
 | `reintentos_notificacion` | 5 | Intentos antes de `FALLIDA` |
 | `backoff_notificacion_s` | 2 | Base del retroceso exponencial |
 | `entrega_reclamo_vence_s` | 300 | Cuándo se considera colgado un `ENVIANDO` |
+| `despacho_presupuesto_s` | 10 | v1.4: duración máxima de cada pasada de envío; lo que no cabe va en la siguiente |
 
 El autodiagnóstico avisa de entregas `ENVIANDO` de más de 10 minutos, de pendientes antiguas
 y de una tasa de fallos superior al 20 % en 24 h.

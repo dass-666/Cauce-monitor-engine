@@ -53,6 +53,9 @@ h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 0 0 10px;
 .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .kpi .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .kpi .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.kpi.attention { border-color: var(--warn); box-shadow: inset 4px 0 0 var(--warn); }
+.kpi.attention .value { color: var(--warn); }
+.kpi.clickable { cursor: pointer; }
 .card > p, .card > div > p { overflow-wrap: anywhere; }  /* textos largos sin espacios (JSON, identificadores) */
 .region .name { font-weight: 600; } .region .row { display: flex; justify-content: space-between; padding: 3px 0; }
 .region .row b { font-variant-numeric: tabular-nums; }
@@ -92,6 +95,8 @@ input, select, textarea { font: inherit; padding: 8px 10px; border-radius: 8px; 
 input:focus, select:focus, textarea:focus, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
 .form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 500; }
+.form label.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text, inherit); }
+.form label.check input { width: auto; }
 .form .full { grid-column: 1 / -1; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .filters > * { width: auto; min-width: 140px; flex: 1 1 140px; max-width: 240px; }

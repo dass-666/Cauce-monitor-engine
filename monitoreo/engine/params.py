@@ -16,7 +16,7 @@ LIMITS = {
     "aperturas_hasta_error": (1, 1000), "enfriamiento_circuito_s": (1, 86400), "enfriamiento_intervalos": (1, 1000),
     "enfriamiento_min_s": (1, 86400), "enfriamiento_max_s": (1, 86400), "minutos_sin_exito_hasta_error": (0, 100000),
     "backoff_max_s": (1, 86400), "ausencias_para_cancelar": (1, 1000), "ttl_asignacion_s": (10, 7 * 86400),
-    "max_intentos_solicitud": (1, 1000), "reintentos_notificacion": (0, 100), "backoff_notificacion_s": (0.1, 3600),
+    "max_intentos_solicitud": (1, 1000), "reintentos_notificacion": (0, 100), "despacho_presupuesto_s": (0.5, 600), "backoff_notificacion_s": (0.1, 3600),
     "retencion_lote": (1, 100000), "retencion_lotes_por_pasada": (1, 100000), "retencion_pausa_lote_s": (0, 10),
     "mantenimiento_historial_cada_s": (10, 7 * 86400), "lease_duracion_s": (3, 3600),
     "entrega_reclamo_vence_s": (10, 86400), "inactividad_en_proceso_min": (0, 7 * 24 * 60),

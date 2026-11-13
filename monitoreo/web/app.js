@@ -29,7 +29,7 @@ const labOn = () => !S.info || S.info.laboratorio;
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     method: opts.method || "GET",
-    headers: { "Content-Type": "application/json", ...(S.token ? { Authorization: "Bearer " + S.token } : {}) },
+    headers: { "Content-Type": "application/json", ...(S.token ? { Authorization: "Bearer " + S.token } : {}), ...(opts.headers || {}) },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   if (res.status === 401 && !path.endsWith("/login")) { logout(true); throw new Error("Sesión expirada"); }
@@ -53,6 +53,31 @@ async function act(fn, okMsg) {
     S.dirty = false; refresh(true); return r;
   }
   catch (e) { toast("⚠ " + e.message, 4000); }
+}
+
+// v1.4: tomar / completar / rechazar con clave de operación. Si se pierde la respuesta (red caída,
+// motor reiniciado) se reintenta con la MISMA clave: el servidor no lo hace dos veces y devuelve el
+// resultado guardado. Así una asignación no queda "tomada" sin que el operador lo sepa.
+function opKey() {
+  try { return crypto.randomUUID(); } catch (_) { return "op-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10); }
+}
+async function assignmentOp(aid, action, okMsg) {
+  const key = opKey();
+  let last;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await api(`/api/assignments/${aid}/${action}`, { method: "POST", headers: { "Idempotency-Key": key } });
+      toast(r && r.repetida ? okMsg + " (confirmado tras reintentar)" : okMsg);
+      S.dirty = false; refresh(true); return r;
+    } catch (e) {
+      if (!(e instanceof TypeError)) { toast("⚠ " + e.message, 4000); refresh(true); return null; }   // respuesta del servidor
+      last = e;
+      await new Promise((ok) => setTimeout(ok, 1000 * (i + 1)));                    // sin respuesta: reintento
+    }
+  }
+  toast("⚠ Sin conexión con el motor. No sabemos si se guardó: pulsa otra vez cuando vuelva la conexión " +
+        "(no se hará dos veces) o revisa la lista.", 8000);
+  return null;
 }
 
 const fmtTime = (iso) => {
@@ -218,6 +243,11 @@ async function viewHome() {
       kpi("Solicitudes en cola", num(cola), `${(d.solicitudes.ASIGNADO || 0) + (d.solicitudes.EN_PROCESO || 0)} asignadas o en proceso`),
       kpi("Alertas sin confirmar", num(d.alertas_sin_confirmar), `${d.ultima_hora.alertas} en la última hora`),
       kpi("Operadores activos", num(d.operadores_activos)),
+      // v1.4: dos indicadores de "requiere atención" con un clic hacia donde se resuelve
+      attentionKpi("Asignaciones sin actividad", d.asignaciones_sin_actividad,
+        d.asignaciones_sin_actividad ? (isAdmin() ? "Pulsa para revisarlas y recuperarlas" : "Pulsa «Sigo con ella» o complétalas") : "Ninguna parada", "solicitudes"),
+      attentionKpi("Fuentes en recuperación", d.fuentes_en_recuperacion,
+        d.fuentes_en_recuperacion ? "Pausa automática tras fallos; el motor reintenta solo" : "Todas consultan con normalidad", "monitor"),
       kpi("Errores (1 h)", num(d.ultima_hora.errores), `${num(d.ultima_hora.consultas)} consultas · ${num(d.ultima_hora.eventos)} eventos`)),
     h("h3", {}, "Regiones monitoreadas"),
     h("div", { class: "grid regions" }, d.regiones.map((r) => h("div", { class: "card region" },
@@ -241,6 +271,12 @@ async function viewHome() {
       card("Errores detectados", table([
         { t: "Cuándo", f: (p) => ago(p.started_at) }, { t: "Fuente", f: (p) => "#" + p.source_id },
         { t: "Resultado", f: (p) => badge(p.outcome) }, { t: "Detalle", f: (p) => p.error || "" }], d.errores_recientes))));
+}
+
+function attentionKpi(label, n, sub, view) {
+  const el = kpi(label, num(n || 0), sub);
+  if (n) { el.classList.add("attention", "clickable"); el.addEventListener("click", () => go(view)); }
+  return el;
 }
 
 function alertList(alerts) {
@@ -297,7 +333,7 @@ async function viewMonitor() {
           httpSummary(s)) },
       { t: "Región", f: (s) => s.region },
       { t: "Estado", f: (s) => h("div", {}, badge(s.status), s.status_reason ? h("div", { class: "muted" }, s.status_reason) : null) },
-      { t: "Circuito", f: (s) => badge(s.circuit_state) },
+      { t: "Circuito", f: circuitCell },
       { t: "Última consulta", f: (s) => ago(s.last_polled_at) }, { t: "Próxima", f: (s) => s.status === "ACTIVA" ? ago(s.next_poll_at) : "—" },
       { t: "Consultas", num: true, f: (s) => num(s.metrics.consultas) },
       { t: "Errores", num: true, f: (s) => `${num(s.metrics.errores)} (${num(s.metrics.tasa_error * 100, 1)}%)` },
@@ -325,6 +361,19 @@ async function viewMonitor() {
           { t: "Recursos", num: true, f: (p) => p.items }, { t: "Cambios", num: true, f: (p) => p.changes },
           { t: "Duplicados", num: true, f: (p) => p.duplicates }, { t: "ms", num: true, f: (p) => num(p.duration_ms, 1) },
           { t: "Error", f: (p) => p.error || "" }], polls))));
+}
+
+// v1.4: el circuito explicado sin jerga. CERRADO = normal; ABIERTO = pausa tras varios fallos,
+// el motor prueba de nuevo él solo; SEMIABIERTO = esa consulta de prueba está en curso.
+function circuitCell(s) {
+  if (s.circuit_state === "ABIERTO")
+    return h("div", {}, h("span", { class: "badge b-warn" }, "EN RECUPERACIÓN"),
+      h("div", { class: "muted" }, `Pausa automática tras fallos${s.circuit_open_count > 1 ? ` (${s.circuit_open_count}.ª vez seguida)` : ""}`),
+      h("div", { class: "muted" }, "Próxima prueba " + ago(s.next_poll_at)));
+  if (s.circuit_state === "SEMIABIERTO")
+    return h("div", {}, h("span", { class: "badge b-warn" }, "PROBANDO"), h("div", { class: "muted" }, "Consulta de prueba en curso"));
+  return h("div", {}, h("span", { class: "badge b-ok" }, "NORMAL"),
+    s.circuit_open_count > 0 ? h("div", { class: "muted" }, "Recuperándose de fallos recientes") : null);
 }
 
 // ------------------------------------------------------------------ v1.3: fuentes HTTP y recorrido de un evento
@@ -457,7 +506,8 @@ async function viewRequests() {
   const f = S.filters.req || (S.filters.req = { region: "", status: "", q: "" });
   const qs = new URLSearchParams({ limit: "300" });
   if (f.region) qs.set("region", f.region); if (f.status) qs.set("status", f.status); if (f.q) qs.set("q", f.q);
-  const [reqs, mine] = await Promise.all([api("/api/requests?" + qs), api("/api/assignments?mine=" + (!isAdmin()) + "&limit=50")]);
+  const [reqs, mine, idle] = await Promise.all([api("/api/requests?" + qs), api("/api/assignments?mine=" + (!isAdmin()) + "&limit=50"),
+    api("/api/assignments?sin_actividad=true&limit=200")]);
   const form = h("form", { class: "form", onsubmit: (e) => {
     e.preventDefault();
     const d = formData(e.target);
@@ -480,6 +530,11 @@ async function viewRequests() {
   const counts = {};
   return h("div", {},
     h("div", { class: "page-head" }, h("h1", {}, "Solicitudes"), h("div", { class: "muted" }, `${reqs.total} expedientes ficticios`)),
+    idle.length ? h("div", { class: "section" }, card("⚠ Asignaciones sin actividad",
+      h("p", { class: "muted" }, isAdmin()
+        ? "Se tomaron y llevan tiempo sin novedades. El motor no las libera solo: pregunta al operador y usa «Recuperar…»."
+        : "Llevan tiempo sin novedades. Si sigues con ellas pulsa «Sigo con ella»; si ya terminaste, «Completar»."),
+      assignmentsTable(idle))) : null,
     card("Registrar solicitud", form),
     h("div", { class: "section" }, card(isAdmin() ? "Asignaciones recientes" : "Mis asignaciones", assignmentsTable(mine))),
     h("div", { class: "section" }, card("Cola de solicitudes",
@@ -502,12 +557,41 @@ function assignmentsTable(list) {
   return table([
     { t: "#", f: (a) => a.id }, { t: "Solicitud", f: (a) => h("span", { class: "mono" }, a.request_code) },
     { t: "Recurso", f: (a) => a.resource }, { t: "Región", f: (a) => a.region }, { t: "Operador", f: (a) => a.operator_name },
-    { t: "Estado", f: (a) => badge(a.status) },
-    { t: "Vence", f: (a) => a.status === "ACTIVA" ? ago(a.expires_at) : "—" },
+    { t: "Estado", f: (a) => h("div", {}, badge(a.status),
+        a.inactiva ? h("div", {}, h("span", { class: "badge b-warn" }, "SIN ACTIVIDAD"),
+          h("div", { class: "muted" }, "Última actividad " + ago(a.last_activity_at || a.taken_at || a.created_at))) : null) },
+    { t: "Vence", f: (a) => a.status === "ACTIVA" ? ago(a.expires_at) : a.status === "EN_PROCESO" ? "Tomada " + ago(a.taken_at || a.created_at) : "—" },
     { t: "", f: (a) => h("div", { class: "actions" },
-      a.status === "ACTIVA" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/tomar`, { method: "POST" }), "Asignación tomada"); } }, "Tomar") : null,
-      a.status === "EN_PROCESO" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/completar`, { method: "POST" }), "Completada"); } }, "Completar") : null,
-      ["ACTIVA", "EN_PROCESO"].includes(a.status) ? h("button", { class: "btn small danger", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/rechazar`, { method: "POST" }), "Rechazada: vuelve a la cola"); } }, "Rechazar") : null) }], list);
+      a.status === "ACTIVA" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); assignmentOp(a.id, "tomar", "Asignación tomada"); } }, "Tomar") : null,
+      a.status === "EN_PROCESO" ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); assignmentOp(a.id, "completar", "Completada"); } }, "Completar") : null,
+      a.status === "EN_PROCESO" && !isAdmin() ? h("button", { class: "btn small", title: "Avisa de que sigues trabajando en ella (quita el aviso de inactividad)", onclick: (e) => { e.stopPropagation(); act(() => api(`/api/assignments/${a.id}/actividad`, { method: "POST" }), "Anotado: sigues con ella"); } }, "Sigo con ella") : null,
+      ["ACTIVA", "EN_PROCESO"].includes(a.status) ? h("button", { class: "btn small danger", onclick: (e) => { e.stopPropagation(); assignmentOp(a.id, "rechazar", "Rechazada: vuelve a la cola"); } }, "Rechazar") : null,
+      a.status === "EN_PROCESO" && isAdmin() ? h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); showRecover(a); } }, "Recuperar…") : null) }], list);
+}
+
+// v1.4: recuperación manual de una asignación EN_PROCESO abandonada (solo administrador).
+// Nunca se libera sola: una persona decide qué pasó, con motivo y confirmación, y queda auditado.
+function showRecover(a) {
+  const form = h("form", { class: "form", onsubmit: async (e) => {
+    e.preventDefault();
+    const d = formData(e.target);
+    const r = await act(() => api(`/api/assignments/${a.id}/recuperar`, { method: "POST",
+      body: { resultado: d.resultado, motivo: d.motivo, confirmar: !!d.confirmar } }),
+      d.resultado === "completada" ? "Marcada como completada" : "Devuelta a la cola");
+    if (r) $("drawer").classList.add("hidden");
+  } },
+    h("p", { class: "full" }, `Asignación #${a.id} · solicitud ${a.request_code} · ${a.operator_name || "—"} · tomada ${ago(a.taken_at || a.created_at)}.`),
+    h("p", { class: "muted full" }, "Antes de decidir, pregunta al operador. Si el trabajo se hizo, márcala como completada; " +
+      "si no, devuélvela a la cola para que otro la atienda. El recurso retenido se libera en ambos casos."),
+    field("¿Qué pasó?", h("select", { name: "resultado" },
+      h("option", { value: "devolver_a_cola" }, "No se terminó: devolver a la cola"),
+      h("option", { value: "completada" }, "Se terminó: marcar como completada"))),
+    field("Motivo (queda en la auditoría)", h("input", { name: "motivo", required: true, minlength: 3, maxlength: 300,
+      placeholder: "Ej.: el operador confirma que no pudo terminarla" })),
+    h("label", { class: "check full" }, h("input", { type: "checkbox", name: "confirmar", required: true }),
+      " Confirmo que he comprobado la situación con el operador"),
+    h("button", { class: "btn primary", type: "submit" }, "Aplicar"));
+  openDrawer(h("h1", {}, "Recuperar asignación"), form);
 }
 
 async function showRequest(id) {

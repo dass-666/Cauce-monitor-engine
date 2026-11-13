@@ -256,12 +256,26 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
     - el resultado solo se registra si el testigo sigue vigente (un resultado tardío no pisa a otro);
     - el progreso por destinatario se guarda en cuanto ocurre;
     - entrega "al menos una vez": una caída entre el envío y su registro puede producir un repetido."""
-    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0, "tardias": 0,
+    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0, "tardias": 0, "aplazadas_por_canal": 0,
+             "aplazadas_por_tiempo": 0,
              "reencoladas": requeue_stale_claims(db, now, float(params.get("entrega_reclamo_vence_s", 300)))}
+    # v1.4: un destino que no responde no debe retener a los demás ni al motor.
+    # - tras un fallo transitorio de un canal, sus demás entregas esperan a la siguiente pasada
+    #   (siguen PENDIENTES, sin gastar intentos);
+    # - cada pasada tiene un presupuesto de tiempo; lo que no cabe queda para la siguiente.
+    budget_end = time.monotonic() + float(params.get("despacho_presupuesto_s", 10))
+    down_channels: set[int] = set()
     with db.session() as s:
-        ids = list(s.scalars(select(Delivery.id).where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
-                             .order_by(Delivery.id).limit(limit)))
-    for did in ids:
+        rows = list(s.execute(select(Delivery.id, Delivery.channel_id)
+                              .where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
+                              .order_by(Delivery.id).limit(limit)))
+    for i, (did, channel_id) in enumerate(rows):
+        if time.monotonic() >= budget_end:
+            stats["aplazadas_por_tiempo"] = len(rows) - i
+            break
+        if channel_id in down_channels:
+            stats["aplazadas_por_canal"] += 1
+            continue
         token = uuid.uuid4().hex
         with db.session() as s:  # reclamar la entrega (evita doble envío si hubiera dos despachadores)
             if s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "PENDIENTE")
@@ -294,6 +308,7 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             elif permanent or attempts >= int(params["reintentos_notificacion"]):
                 values.update(status="FALLIDA", last_error=detail)
             else:
+                down_channels.add(channel_id)
                 wait = backoff_delay(attempts, float(params["backoff_notificacion_s"]), 300, rng)
                 values.update(status="PENDIENTE", last_error=detail,
                               next_attempt_at=now + timedelta(seconds=max(wait, retry_after or 0)))

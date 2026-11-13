@@ -213,7 +213,7 @@ cubra la región, con capacidad libre, menor carga y el que hace más tiempo no 
 | Variación temporal controlada | `sources.jitter_pct` (± %) |
 | Límite de solicitudes | cubeta de fichas `rate_limit_per_min` (en memoria; desde v1.1 se reconstruye tras un reinicio) |
 | Reintentos con retroceso exponencial | dentro de una consulta (`max_retries`) y entre consultas fallidas (`backoff_max_s`) |
-| Pausa automática | circuit breaker: tras `umbral_circuito` fallos se abre `enfriamiento_circuito_s`; tras `aperturas_hasta_error` aperturas la fuente pasa a `ERROR` (revisión manual) |
+| Pausa automática | circuit breaker: tras `umbral_circuito` fallos se abre. **v1.4 (modo `adaptable`, por defecto):** la pausa es `max(enfriamiento_min_s, intervalo × enfriamiento_intervalos) × 2^(aperturas−1)`, con tope `enfriamiento_max_s`; al vencer se hace UNA consulta de prueba (`SEMIABIERTO`, marcada en la base antes de consultar); cada éxito resta una apertura (recuperación gradual); el estado vive en la base y sobrevive a reinicios; un 429/`Retry-After` durante la prueba se respeta y no cuenta como fallo. Pasa a `ERROR` solo con `aperturas_hasta_error` aperturas **y** `minutos_sin_exito_hasta_error` sin éxito. Modo `fijo`: comportamiento v1.3 (`enfriamiento_circuito_s`) |
 | Control de concurrencia | semáforo global `concurrencia_maxima`; una fuente nunca en paralelo consigo misma |
 | Suspensión manual | `POST /api/sources/{id}/suspender` |
 | Respeto de limitación del proveedor | HTTP 429/503 → `RateLimited`: no se reintenta y se espera `Retry-After` (o 2× el intervalo). 401/403 → la fuente pasa a `ERROR`, sin reintentos |

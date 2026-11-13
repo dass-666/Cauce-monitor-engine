@@ -44,6 +44,10 @@ class Scheduler:
         self.in_flight: set[int] = set()
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
+        # v1.4 (optimización medida): una consulta que detecta cambios despierta el ciclo para
+        # asignar en seguida, en lugar de esperar al siguiente tick (media de tick/2 = 250 ms).
+        self._wake = asyncio.Event()
+        self.wakeups = 0
         with db.session() as s:
             ttl = lease_ttl_s or float(os.environ.get("MONITOREO_LEASE_S") or get_params(s)["lease_duracion_s"])
         self.lease = Lease(db, holder=holder, ttl_s=ttl)
@@ -61,7 +65,26 @@ class Scheduler:
         self.last_history: dict | None = None
         self.recovery: dict | None = None
         self._history_task: asyncio.Task | None = None
+        self._dispatch_task: asyncio.Task | None = None
         self.started_at = self.clock.now()
+
+    async def _sleep_or_wake(self, delay: float, batch_s: float = 0.03) -> None:
+        """Espera `delay` o hasta que una consulta traiga cambios. Tras despertar espera `batch_s`
+        para agrupar los cambios de varias fuentes en un solo ciclo (evita un ciclo por evento)."""
+        stop, wake = asyncio.ensure_future(self._stop.wait()), asyncio.ensure_future(self._wake.wait())
+        try:
+            done, _ = await asyncio.wait({stop, wake}, timeout=delay, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for t in (stop, wake):
+                if not t.done():
+                    t.cancel()
+        if wake in done and not self._stop.is_set():
+            self.wakeups += 1
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=batch_s)
+            except asyncio.TimeoutError:
+                pass
+        self._wake.clear()
 
     def guard(self) -> bool:
         return self.lease.is_valid(self.clock.now())
@@ -69,8 +92,10 @@ class Scheduler:
     async def _poll(self, sem: asyncio.Semaphore, sid: int) -> None:
         async with sem:
             try:
-                await asyncio.to_thread(poll_source, self.db, sid, self.clock, self.runtime, self.rng,
-                                        None, self.guard)
+                out = await asyncio.to_thread(poll_source, self.db, sid, self.clock, self.runtime, self.rng,
+                                              None, self.guard)
+                if getattr(out, "events", 0):
+                    self._wake.set()
             except Exception as e:
                 self._error(f"fuente {sid}: {e.__class__.__name__}: {e}")
                 log.exception("fallo consultando fuente %s", sid)
@@ -87,6 +112,13 @@ class Scheduler:
             self.last_selfcheck = {k: res[k] for k in ("momento", "estado", "criticos", "avisos")}
         except Exception as e:  # noqa: BLE001
             log.warning("autodiagnóstico falló: %s", e)
+
+    async def _dispatch(self, params: dict) -> None:
+        try:
+            await asyncio.to_thread(alerts_mod.dispatch_pending, self.db, self.clock.now(), params)
+        except Exception as e:
+            self._error(f"envío de alertas: {e}")
+            log.exception("fallo enviando alertas")
 
     async def _history(self) -> None:
         try:
@@ -133,8 +165,10 @@ class Scheduler:
                         if maint_every >= 4 and self.guard():
                             maint_every = 0
                             await asyncio.to_thread(maintenance, self.db, self.clock)
-                        if self.guard():
-                            await asyncio.to_thread(alerts_mod.dispatch_pending, self.db, self.clock.now(), params)
+                        # v1.4: el envío de alertas va en su propia tarea. Antes se esperaba aquí y
+                        # un destino colgado paraba consultas, asignaciones y la renovación del arrendamiento.
+                        if self.guard() and (self._dispatch_task is None or self._dispatch_task.done()):
+                            self._dispatch_task = asyncio.create_task(self._dispatch(params))
                         now_m = time.monotonic()
                         if (now_m - self.last_history_at >= float(params["mantenimiento_historial_cada_s"])
                                 and (self._history_task is None or self._history_task.done())):
@@ -156,14 +190,17 @@ class Scheduler:
                 self.last_cycle_at = self.clock.now()
                 self.last_cycle_ms = (time.perf_counter() - t0) * 1000
                 delay = tick if self.consecutive_cycle_errors == 0 else min(30.0, tick * 2 ** self.consecutive_cycle_errors)
-                try:
-                    await asyncio.wait_for(self._stop.wait(), timeout=delay)
-                except asyncio.TimeoutError:
-                    pass
+                if self.consecutive_cycle_errors == 0:
+                    await self._sleep_or_wake(delay)
+                else:  # con errores se respeta la espera creciente
+                    try:
+                        await asyncio.wait_for(self._stop.wait(), timeout=delay)
+                    except asyncio.TimeoutError:
+                        pass
         finally:
             if polls:
                 await asyncio.gather(*polls, return_exceptions=True)
-            for task in (self._history_task, self._selfcheck_task):
+            for task in (self._history_task, self._selfcheck_task, self._dispatch_task):
                 if task:
                     await asyncio.gather(task, return_exceptions=True)
             try:

@@ -1,7 +1,7 @@
 """Migraciones de esquema (Alembic) con respaldo previo.
 
 Reglas de seguridad:
-- Nunca se borra ni se reemplaza una base existente.
+- Nunca se borra ni se reemplaza una base existente sin respaldarla antes (restaurar guarda la actual).
 - Antes de cambiar el esquema de una base con datos se hace un respaldo:
     SQLite      -> copia consistente con la API de respaldo de SQLite (data/respaldos/*.db)
     PostgreSQL  -> pg_dump en formato custom (data/respaldos/*.dump). Si pg_dump no está
@@ -16,6 +16,7 @@ Uso por consola:
     python -m monitoreo.migrate actualizar
     python -m monitoreo.migrate respaldar
     python -m monitoreo.migrate revertir 0001_v1_0     (hace respaldo antes)
+    python -m monitoreo.migrate restaurar data/respaldos/<archivo>.db   (motor detenido; guarda la actual)
 """
 from __future__ import annotations
 
@@ -148,13 +149,72 @@ def backup(url: str, label: str = "") -> str:
 
 
 def _verify_sqlite_backup(path: Path) -> None:
-    c = sqlite3.connect(path)
     try:
-        ok = c.execute("PRAGMA integrity_check").fetchone()[0]
-    finally:
-        c.close()
+        c = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            ok = c.execute("PRAGMA integrity_check").fetchone()[0]
+        finally:
+            c.close()
+    except sqlite3.DatabaseError as e:
+        ok = str(e)
     if ok != "ok":
         raise MigrationError(f"El respaldo {path} no pasó la verificación de integridad: {ok}")
+
+
+# ---------------------------------------------------------------- restauración
+def restore(url: str, backup_file: str, force_running: bool = False) -> dict:
+    """Restaura un respaldo SQLite de forma segura (v1.4).
+
+    Copiar el archivo encima de `monitoreo.db` (el método que documentaba la v1.3) es inseguro:
+    si quedó un `monitoreo.db-wal` de un cierre brusco, SQLite vuelve a aplicar esas páginas
+    sobre el respaldo y la base "restaurada" ya no es el respaldo (puede incluso dañarse).
+    Aquí la copia se hace con la API de respaldo de SQLite a través de una conexión normal,
+    que tiene en cuenta el WAL, y antes se guarda la base actual.
+    """
+    if not url.startswith("sqlite"):
+        raise MigrationError("Con PostgreSQL usa: pg_restore --clean -d <base> data/respaldos/<archivo>.dump "
+                             "(con el motor detenido). Ver README, apartado Respaldos.")
+    src = Path(backup_file)
+    if not src.is_file():
+        raise MigrationError(f"No existe el respaldo {src}")
+    _verify_sqlite_backup(src)
+    target = make_url(url).database
+    if not target or target == ":memory:":
+        raise MigrationError("No se puede restaurar sobre una base en memoria")
+    if Path(target).resolve() == src.resolve():
+        raise MigrationError("El respaldo y la base de destino son el mismo archivo")
+    report = {"restaurado": str(src), "destino": target, "respaldo_previo": None}
+    if Path(target).exists():
+        c = sqlite3.connect(target, timeout=30)
+        try:
+            row = None
+            try:
+                row = c.execute("SELECT holder, expires_at FROM scheduler_leases "
+                                "WHERE name='planificador'").fetchone()
+            except sqlite3.DatabaseError:
+                pass
+        finally:
+            c.close()
+        if row and not force_running:
+            from .db import utcnow
+            if str(row[1]) > utcnow().isoformat(sep=" "):
+                raise MigrationError(f"El motor parece estar en marcha (planificador de {row[0]}). "
+                                     "Ciérralo y espera 15 s antes de restaurar.")
+        report["respaldo_previo"] = backup(url, label="antes-de-restaurar")
+    dst = sqlite3.connect(target, timeout=60)
+    s = sqlite3.connect(src)
+    try:
+        s.backup(dst)
+        dst.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
+    finally:
+        s.close()
+        dst.close()
+    if ok != "ok":
+        raise MigrationError(f"La base restaurada no pasó la verificación: {ok}. "
+                             f"La anterior está en {report['respaldo_previo']}")
+    report["revision"] = inspect_state(url)["revision_actual"]
+    return report
 
 
 # ---------------------------------------------------------------- actualización / reversión
@@ -221,6 +281,8 @@ def main(argv: list[str]) -> int:
             print(upgrade(url).as_dict())
         elif cmd == "respaldar":
             print(backup(url, "manual"))
+        elif cmd == "restaurar" and len(argv) in (2, 3):
+            print(restore(url, argv[1], force_running="--forzar" in argv[2:]))
         elif cmd == "revertir" and len(argv) == 2:
             print(downgrade(url, argv[1]).as_dict())
         else:

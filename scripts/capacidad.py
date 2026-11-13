@@ -26,6 +26,7 @@ import platform
 import random
 import statistics
 import sys
+import subprocess
 import tempfile
 import threading
 import time
@@ -264,6 +265,7 @@ def run_scenario(key: str, url: str, seconds: int, out: Path) -> dict:
         srv.start()
         servers.append(srv)
     res: dict = {"escenario": sc, "preparacion": prep}
+    prof = None
     try:
         res["arranque_s"] = [s.wait_ready(120) for s in servers]
         tokens = {}
@@ -271,6 +273,12 @@ def run_scenario(key: str, url: str, seconds: int, out: Path) -> dict:
             tokens[s.base] = httpx.post(s.base + "/api/auth/login", json={"username": "admin", "password": PWD},
                                         timeout=30).json()["token"]
         before = counts(url)
+        if os.environ.get("CAPACIDAD_PERFIL"):  # v1.4: perfil del servidor con py-spy (herramienta opcional)
+            pdir = Path(os.environ["CAPACIDAD_PERFIL"])
+            pdir.mkdir(parents=True, exist_ok=True)
+            prof = subprocess.Popen(["py-spy", "record", "-p", str(servers[0].proc.pid), "-d", str(max(5, seconds - 5)),
+                                     "-r", "50", "--format", "raw", "-o", str(pdir / f"{key}.txt"), "--nonblocking"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         sampler = Sampler([s.proc.pid for s in servers])
         sampler.start()
         stop = threading.Event()
@@ -345,6 +353,11 @@ def run_scenario(key: str, url: str, seconds: int, out: Path) -> dict:
         res["medido"]["integridad_en_marcha"] = "correcta" if not problems else problems[:10]
         print(json.dumps(res["medido"]["procesos"], ensure_ascii=False), flush=True)
     finally:
+        if prof is not None:
+            try:
+                prof.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                prof.kill()
         for srv_ in servers:
             srv_.stop()
     if "medido" in res:

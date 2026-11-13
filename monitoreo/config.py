@@ -79,6 +79,7 @@ ENGINE_DEFAULTS: dict = {
     "tipos_que_alertan": ["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO", "CANCELACION", "CAMBIO_HORARIO"],
     "alerta_minimo_aumento": 1,        # unidades mínimas de aumento para alertar
     "reintentos_notificacion": 5,
+    "despacho_presupuesto_s": 10,       # v1.4: tiempo máximo de cada pasada de envío de alertas
     "backoff_notificacion_s": 2,
     # --- v1.1: retención del historial (valores conservadores; 0 = no borrar nunca)
     "retencion_consultas_dias": 14,             # poll_log detallado (ya resumido en agregados)

@@ -112,6 +112,56 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await page.screenshot({ path: `${outDir}/12_recorrido_evento.png` });
   await page.keyboard.press("Escape");
 
+  // v1.4: asignación sin actividad → indicador en Inicio y Solicitudes → recuperación manual
+  const call = (path, method = "GET", body, headers = {}) => page.evaluate(async ([path, method, body, headers]) => {
+    const r = await fetch(path, { method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + sessionStorage.getItem("token"), ...headers },
+      body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  }, [path, method, body, headers]);
+  let v14 = false;
+  const act = (await call("/api/assignments?status=ACTIVA&limit=20")).body || [];
+  const prev = (await call("/api/settings/engine")).body;
+  if (act.length) {
+    const aid = act[0].id;
+    const t1 = await call(`/api/assignments/${aid}/tomar`, "POST", null, { "Idempotency-Key": "e2e-tomar-" + aid });
+    const t2 = await call(`/api/assignments/${aid}/tomar`, "POST", null, { "Idempotency-Key": "e2e-tomar-" + aid });
+    log("tomar dos veces con la misma clave:", t1.status, t2.status, t2.body && t2.body.repetida ? "(repetida, sin efecto)" : "");
+    await call("/api/settings/engine", "PUT", { inactividad_en_proceso_min: 0.05 });
+    let idle = [];
+    for (let i = 0; i < 30 && !idle.length; i++) {
+      await page.waitForTimeout(1000);
+      idle = (await call("/api/assignments?sin_actividad=true")).body || [];
+    }
+    await page.goto(base + "/#inicio");
+    const kpiTxt = await page.locator(".kpi.attention").first().textContent().catch(() => "");
+    log("Inicio · indicador:", kpiTxt.replace(/\s+/g, " "));
+    await page.screenshot({ path: `${outDir}/13_inicio_sin_actividad.png`, fullPage: true });
+    await page.goto(base + "/#solicitudes");
+    await page.waitForSelector("h2:has-text('Asignaciones sin actividad')");
+    await page.screenshot({ path: `${outDir}/14_solicitudes_sin_actividad.png`, fullPage: true });
+    const idleCard = page.locator("#view section", { has: page.locator("h2:has-text('Asignaciones sin actividad')") }).first();
+    await idleCard.locator("button:has-text('Recuperar')").first().click();
+    await page.waitForSelector("#drawer:not(.hidden) >> text=Recuperar asignación");
+    await page.selectOption("#drawer select[name=resultado]", "devolver_a_cola");
+    await page.fill("#drawer input[name=motivo]", "Prueba e2e: el operador ficticio no responde");
+    await page.screenshot({ path: `${outDir}/15_recuperar.png` });
+    await page.check("#drawer input[name=confirmar]");
+    await page.click("#drawer button[type=submit]");
+    await page.waitForFunction(() => document.getElementById("toast").textContent.includes("Devuelta a la cola"));
+    const after = (await call(`/api/requests/${act[0].request_id}`)).body;
+    const audit = ((await call("/api/audit?limit=20")).body || []);
+    const audited = JSON.stringify(audit).includes("asignacion_recuperar");
+    log("tras recuperar: asignación", (after.asignaciones.find((a) => a.id === aid) || {}).status, "· solicitud", after.status, "· auditada:", audited);
+    v14 = t1.status === 200 && t2.status === 200 && idle.length > 0 && /Asignaciones sin actividad/.test(kpiTxt)
+      && (after.asignaciones.find((a) => a.id === aid) || {}).status === "RECHAZADA" && audited;
+  } else log("v1.4: no había asignación ACTIVA para la prueba de inactividad");
+  if (prev) await call("/api/settings/engine", "PUT", { inactividad_en_proceso_min: prev.inactividad_en_proceso_min });
+  await page.goto(base + "/#monitor");
+  await page.waitForSelector("text=Estado de cada fuente");
+  const circ = await page.locator("#view tbody").first().textContent();
+  const circOk = /NORMAL|EN RECUPERACIÓN|PROBANDO/.test(circ);
+  log("v1.4 circuito en lenguaje claro:", circOk, "· inactividad y recuperación:", v14);
+
   // Teléfono
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const p2 = await phone.newPage();
@@ -127,6 +177,8 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await p2.goto(base + "/#solicitudes");
   await p2.waitForSelector("tr.clickable");
   await p2.screenshot({ path: `${outDir}/08_telefono_solicitudes.png` });
+  const overflowSol = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  log("desbordamiento horizontal en Solicitudes (teléfono, px):", overflowSol);
   await p2.goto(base + "/#salud");
   await p2.waitForSelector("text=Estado por fuente");
   const overflowSalud = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -134,5 +186,5 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await p2.screenshot({ path: `${outDir}/11_telefono_salud.png`, fullPage: true });
   log("errores de consola:", errors.length ? errors : "ninguno");
   await browser.close();
-  process.exit(found && diagOk && svcOk && traceOk && overflow <= 0 && overflowSalud <= 0 && !errors.length ? 0 : 1);
+  process.exit(found && diagOk && svcOk && traceOk && v14 && circOk && overflow <= 0 && overflowSalud <= 0 && overflowSol <= 0 && !errors.length ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

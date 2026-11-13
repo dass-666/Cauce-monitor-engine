@@ -146,6 +146,12 @@ def dashboard(request: HttpRequest, user: CurrentUser = Depends(current_user), d
             "fuentes": {st: n for st, n in s.execute(select(Source.status, func.count()).group_by(Source.status))},
             "solicitudes": {st: n for st, n in s.execute(select(Request.status, func.count()).group_by(Request.status))},
             "operadores_activos": s.scalar(select(func.count()).select_from(Operator).where(Operator.active.is_(True))),
+            # v1.4: lo que necesita atención de una persona
+            "fuentes_en_recuperacion": s.scalar(select(func.count()).select_from(Source).where(
+                Source.status == "ACTIVA", Source.circuit_state != "CERRADO")),
+            "asignaciones_sin_actividad": s.scalar(select(func.count()).select_from(Assignment).where(
+                Assignment.status == "EN_PROCESO", Assignment.inactive_alerted_at.is_not(None),
+                *([] if user.is_admin else [Assignment.operator_id == (user.operator_id or -1)]))),
             "operadores": [ser.operator(o) for o in s.scalars(select(Operator).order_by(Operator.id))],
             "ultimas_disponibilidades": [ser.event(e) for e in s.scalars(
                 select(ChangeEvent).where(ChangeEvent.change_type.in_(["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO"]))
@@ -362,6 +368,17 @@ def patch_request(rid: int, body: sc.RequestPatch, user: CurrentUser = Depends(r
 
 @router.post("/requests/{rid}/cancelar")
 def cancel_request(rid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    if not user.is_admin:
+        # v1.4 (auditoría): un operador solo cancela lo que registró él o lo que tiene asignado.
+        # Antes podía cancelar cualquier solicitud, también la que otro operador estaba atendiendo.
+        with db.session() as s:
+            r = s.get(Request, rid) or _404("Solicitud")
+            creator = s.scalar(select(RequestEvent.actor).where(RequestEvent.request_id == rid,
+                                                                RequestEvent.from_status.is_(None))
+                               .order_by(RequestEvent.id).limit(1))
+            mine = r.operator_id is not None and r.operator_id == user.operator_id
+            if creator != user.username and not mine:
+                raise HTTPException(403, "Solo puedes cancelar solicitudes que registraste o que tienes asignadas")
     if not asg.cancel_request(db, rid, utcnow(), user.username):
         raise HTTPException(409, "La solicitud no existe o ya está cerrada")
     with db.session() as s:
@@ -384,11 +401,14 @@ def reactivate_request(rid: int, user: CurrentUser = Depends(require_admin), db:
 # ======================================================================= asignaciones
 @router.get("/assignments")
 def list_assignments(status: str | None = None, mine: bool = False, limit: int = Query(200, ge=1, le=2000),
+                     sin_actividad: bool = False,
                      user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(Assignment).order_by(Assignment.id.desc()).limit(limit)
         if status:
             q = q.where(Assignment.status == status)
+        if sin_actividad:  # v1.4: EN_PROCESO con aviso de inactividad pendiente
+            q = q.where(Assignment.status == "EN_PROCESO", Assignment.inactive_alerted_at.is_not(None))
         if mine or not user.is_admin:  # un operador solo ve sus propias asignaciones
             q = q.where(Assignment.operator_id == (user.operator_id or -1))
         out = []

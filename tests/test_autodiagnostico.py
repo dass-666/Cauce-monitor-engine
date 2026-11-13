@@ -111,7 +111,7 @@ def test_database_down_is_reported_without_crashing(tmp_path):
 
 
 def test_periodic_selfcheck_creates_one_system_alert_per_problem_per_day(db):
-    now = utcnow()
+    now = utcnow().replace(hour=12, minute=0)   # lejos de medianoche: la clave de deduplicación es diaria
     dg.run_and_alert(db, now=now)
     dg.run_and_alert(db, now=now + timedelta(minutes=10))
     with db.session() as s:

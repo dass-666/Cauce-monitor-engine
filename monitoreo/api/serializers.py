@@ -26,6 +26,7 @@ def source(s) -> dict:
             "status": s.status, "interval_s": s.interval_s, "jitter_pct": s.jitter_pct,
             "rate_limit_per_min": s.rate_limit_per_min, "max_retries": s.max_retries,
             "circuit_state": s.circuit_state, "consecutive_failures": s.consecutive_failures,
+            "circuit_open_count": s.circuit_open_count, "circuit_opened_at": iso(s.circuit_opened_at),  # v1.4
             "next_poll_at": iso(s.next_poll_at), "last_polled_at": iso(s.last_polled_at),
             "last_success_at": iso(s.last_success_at), "last_result": s.last_result, "last_error": s.last_error,
             "status_reason": s.status_reason, "last_outcome": s.last_outcome,

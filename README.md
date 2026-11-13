@@ -21,6 +21,9 @@ plataforma externa.
 - **Novedades v1.3** (servicio HTTP de prueba independiente, conector HTTP, escenario operativo
   con métricas de punta a punta, auditoría contra el proveedor): [docs/INFORME_v1.3.md](docs/INFORME_v1.3.md)
   · Contrato del servicio de prueba: [proveedor_prueba/CONTRATO.md](proveedor_prueba/CONTRATO.md)
+- **Novedades v1.4** (recuperación adaptable de fuentes, asignaciones abandonadas, auditoría,
+  restauración segura): [docs/INFORME_v1.4.md](docs/INFORME_v1.4.md) · Guía rápida para Windows:
+  [docs/GUIA_RAPIDA_WINDOWS.md](docs/GUIA_RAPIDA_WINDOWS.md)
 
 ## Instalación en Windows
 
@@ -81,8 +84,12 @@ Si preferiste descomprimir encima de la carpeta anterior, ejecuta `instalar.ps1`
 | Instalación completa anterior | la carpeta anterior | al actualizar lado a lado |
 | Respaldo manual | `.\.venv\Scripts\python -m monitoreo.migrate respaldar` | cuando quieras |
 
-Restaurar SQLite: cierra el motor y copia el respaldo como `data\monitoreo.db` (guarda antes
-la base actual con otro nombre). Restaurar PostgreSQL:
+Restaurar SQLite: cierra el motor y ejecuta
+`.\.venv\Scripts\python -m monitoreo.migrate restaurar data\respaldos\<archivo>.db`. Comprueba el
+respaldo, se niega si el motor sigue en marcha y guarda antes la base actual
+(`...-antes-de-restaurar.db`). **No copies el archivo a mano**: si un cierre brusco dejó
+`monitoreo.db-wal`, SQLite mezclaría ese archivo con el respaldo (defecto encontrado en la v1.4).
+Restaurar PostgreSQL:
 `pg_restore --clean -d monitoreo data\respaldos\<archivo>.dump`. Estos respaldos son locales:
 cópialos también fuera del equipo.
 
@@ -126,6 +133,22 @@ Para ejecutar también las pruebas sobre PostgreSQL:
 10. **Pruebas automatizadas**: `pruebas.bat`.
 11. **(v1.1) Salud** → estado del planificador, de cada región y fuente; pulsa una fuente para ver
     en lenguaje claro **por qué no se actualiza** y qué hacer.
+
+### Dos indicadores que piden atención (v1.4)
+
+- **Asignaciones sin actividad** (Inicio → Solicitudes): un operador tomó una asignación y lleva
+  más de `inactividad_en_proceso_min` (30 min) sin novedades. El motor avisa al operador y al
+  administrador, **pero no la libera solo** (quizá alguien sigue trabajando). El operador pulsa
+  **Sigo con ella** o **Completar**. Si nadie responde, el administrador pulsa **Recuperar…**,
+  elige qué pasó (terminada / devolver a la cola), escribe el motivo y confirma; queda en la
+  auditoría.
+- **Fuentes en recuperación** (Inicio → Monitor, columna *Circuito*): tras varios fallos seguidos
+  la fuente se pausa sola unos segundos (`enfriamiento_intervalos` × su intervalo, al menos
+  `enfriamiento_min_s`) y luego hace **una** consulta de prueba. Si vuelve a fallar, la pausa se
+  duplica hasta `enfriamiento_max_s`. No hay que hacer nada; si sigue así 15 minutos pasa a
+  *ERROR* y el autodiagnóstico dice qué revisar.
+- Si al pulsar *Tomar* se corta la conexión, vuelve a pulsar: el panel reintenta con la misma
+  clave y el motor nunca lo hace dos veces.
 
 En el laboratorio también puedes agotar inventario, cancelar eventos, cambiar horarios, lanzar
 **picos de cambios simultáneos**, poner **varias solicitudes compitiendo** por un mismo recurso y
