@@ -55,6 +55,7 @@ h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 0 0 10px;
 .kpi .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .kpi.attention { border-color: var(--warn); box-shadow: inset 4px 0 0 var(--warn); }
 .kpi.attention .value { color: var(--warn); }
+.warn-text { color: var(--warn); }
 .kpi.clickable { cursor: pointer; }
 .card > p, .card > div > p { overflow-wrap: anywhere; }  /* textos largos sin espacios (JSON, identificadores) */
 .region .name { font-weight: 600; } .region .row { display: flex; justify-content: space-between; padding: 3px 0; }

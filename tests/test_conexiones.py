@@ -265,3 +265,34 @@ def test_restriccion_429_detiene_la_operacion_sin_cambiar_de_conexion(lab, gesto
     assert len(restr) == 1 and restr[0].conexion == "wifi-sim" and "429" in restr[0].detalle["motivo"]
     assert not any(e.evento == "CAMBIO" and e.ts >= restr[0].ts for e in ev)
     assert gestor_simulado.resumen(P)["activa"] == "wifi-sim"
+
+
+def test_diagnostico_de_conectividad_y_cifras_24h_tras_una_restriccion(lab, gestor_simulado):
+    """v2.0 · observabilidad: tras un 429 real del portal, el panel y el autodiagnóstico lo muestran
+    (persistente, 24 h) y aconsejan revisar la cuota; nada se reintentó."""
+    from monitoreo.conexiones import diagnostico as dg
+    from monitoreo.db import utcnow
+    h = lab.ops["op1"]
+    a = con_expediente(lab, h)
+    rid = lab.c.post(f"/api/expedientes/{a['expediente']['id']}/preparar", headers=h).json()["reservacion"]["id"]
+    lab.portal.fallos(modo="limite")
+    try:
+        r = lab.c.post(f"/api/reservaciones/{rid}/enviar-datos", headers=h, json={"revisado": True, "manuales": dict(MANUALES)})
+    finally:
+        lab.portal.fallos(reset=True)
+    assert r.status_code == 409
+    d = lab.c.get("/api/conexiones", headers=lab.h).json()
+    u = d["ultimas_24h"]
+    assert u["eventos"]["RESTRICCION"] == 1 and u["restricciones"][0]["motivo"].startswith("el portal limitó")
+    assert u["peticiones"].get("RESTRICCION") == 1 and u["peticiones_total"] >= 1
+    items = dg.revisar(lab.db, utcnow(), lab.portal.base, profundo=True)
+    por_clave = {x["clave"]: x for x in items if x["clave"]}
+    assert por_clave["red:restriccion"]["estado"] == "AVISO" and "cuota" in por_clave["red:restriccion"]["accion"]
+    assert any(x["titulo"].startswith("2 conexión(es) utilizable(s)") for x in items)
+    assert por_clave["red:sonda:eth-sim"]["estado"] == "AVISO"                 # 192.0.2.123 no existe aquí
+    assert any(x["titulo"] == "wifi-sim: el portal acepta conexiones" for x in items)
+    # sin ninguna interfaz utilizable: crítico, con qué hacer
+    gestor_simulado._descubrir = lambda: []
+    gestor_simulado.actualizar(forzar=True)
+    items = dg.revisar(lab.db, utcnow(), lab.portal.base)
+    assert any(x["clave"] == "red:sin_conexion" and x["estado"] == "CRITICO" for x in items)

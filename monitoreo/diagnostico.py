@@ -409,15 +409,25 @@ def check_reparaciones(out: list[Item], db: Database, now: datetime, ctx: dict) 
                             "Salud › Autodiagnóstico › Reparar (requiere tu confirmación).", f"rep:{r['clave']}"))
 
 
+def check_conexiones(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """v2.0: interfaces de red, destino del portal, restricciones del proveedor y caídas (24 h)."""
+    if entorno.is_production():
+        return                      # en producción no hay portal de reservaciones: nada que revisar
+    from .captura import portal
+    from .conexiones import diagnostico as dg
+    for x in dg.revisar(db, now, portal.url(), profundo=bool(ctx.get("profundo"))):
+        out.append(Item("Conectividad", x["estado"], x["titulo"], x["detalle"], x["accion"], x["clave"]))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
          "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
-         "check_retencion": "Retención", "check_reparaciones": "Reparaciones"}
+         "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
-          check_operaciones, check_expedientes, check_retencion, check_reparaciones]
+          check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

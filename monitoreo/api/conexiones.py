@@ -34,13 +34,16 @@ def estado(user: CurrentUser = Depends(require_admin), db: Database = Depends(ge
     host, puerto = _destino()
     with db.session() as s:
         params = get_params(s)
+        from ..conexiones.diagnostico import ultimas_24h
+        from ..db import utcnow
+        u24 = ultimas_24h(s, utcnow())
         eventos = [{"ts": ser.iso(e.ts), "evento": e.evento, "conexion": e.conexion, "tipo": e.tipo,
                     "operacion": e.operacion, "detalle": e.detalle}
                    for e in s.scalars(select(ConexionEvento).order_by(ConexionEvento.id.desc()).limit(50))]
     return {**conexiones.gestor().resumen(params), "destino": {"host": host, "puerto": puerto, "local": es_local(host)},
             "politica": {k: params[k] for k in ("conexion_orden_tipos", "conexion_deshabilitadas", "conexion_umbral_fallos",
                                                  "conexion_reintento_s", "conexion_estable_s")},
-            "eventos": eventos}
+            "ultimas_24h": u24, "eventos": eventos}
 
 
 @router.post("/sondear")

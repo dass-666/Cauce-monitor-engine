@@ -163,7 +163,7 @@ def run(a) -> dict:
 
     ok, cx, err = fase(node, motor, caps, out, "conexiones", [], usuario="admin", clave=PWD)
     ck("pantalla «Conexiones»: el portal de prueba es local y no se aparenta probar redes físicas",
-       ok and cx.get("local") is True and cx.get("usos", 0) >= 1, err if not ok else cx)
+       ok and cx.get("local") is True and cx.get("usos", 0) >= 1 and cx.get("restricciones_24h") == 0, err if not ok else cx)
     # v2.0 · P2: el operador registra trámites hechos a mano. Folio que el portal de laboratorio SÍ conoce
     # (uno de los seis de arriba) -> VERIFICADA; folio con formato válido que el portal no tiene -> DISCREPANCIA;
     # proveedor sin integración -> SIN_VERIFICACION; sin marcar «folio visto» -> rechazado (no se registra).

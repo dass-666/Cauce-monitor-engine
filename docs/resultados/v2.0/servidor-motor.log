@@ -553,3 +553,281 @@ INFO:     127.0.0.1:56746 - "POST /api/expedientes/9/preparar HTTP/1.1" 200 OK
 2026-11-13 22:31:25,084 INFO httpx: HTTP Request: POST http://127.0.0.1:34397/cita/datos "HTTP/1.1 303 See Other"
 2026-11-13 22:31:25,087 INFO httpx: HTTP Request: GET http://127.0.0.1:34397/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
 INFO:     127.0.0.1:56746 - "POST /api/reservaciones/9/enviar-datos HTTP/1.1" 200 OK
+INFO:     Started server process [4693]
+INFO:     Waiting for application startup.
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.schemas
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.tables
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.types
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.constraints
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.defaults
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.comments
+2026-11-13 22:34:53,590 INFO alembic.runtime.plugins: setup plugin alembic.ext.checkconstraint_byname
+2026-11-13 22:34:53,606 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:34:53,606 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+2026-11-13 22:34:53,612 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:34:53,612 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+2026-11-13 22:34:53,613 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:34:53,613 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+2026-11-13 22:34:53,616 INFO alembic.runtime.migration: Running upgrade  -> 0001_v1_0, esquema v1.0
+2026-11-13 22:34:53,638 INFO alembic.runtime.migration: Running upgrade 0001_v1_0 -> 0002_v1_1, v1.1 estadisticas lease diagnostico
+2026-11-13 22:34:53,646 INFO alembic.runtime.migration: Running upgrade 0002_v1_1 -> 0003_v1_2, v1.2: testigo de reclamo en entregas (evita que un resultado tardío pise uno más nuevo)
+2026-11-13 22:34:53,647 INFO alembic.runtime.migration: Running upgrade 0003_v1_2 -> 0004_v1_3, v1.3: estado persistente del conector y momento de procesamiento de cada evento
+2026-11-13 22:34:53,649 INFO alembic.runtime.migration: Running upgrade 0004_v1_3 -> 0005_v1_4, v1.4: actividad de las asignaciones y resultado persistente de las operaciones
+2026-11-13 22:34:53,653 INFO alembic.runtime.migration: Running upgrade 0005_v1_4 -> 0006_v1_5, v1.5: expedientes, reservaciones de laboratorio y su historial
+2026-11-13 22:34:53,659 INFO alembic.runtime.migration: Running upgrade 0006_v1_5 -> 0007_v1_6, v1.6: reservación por día, estados de expediente, calendario y permisos por sucursal
+2026-11-13 22:34:53,691 INFO alembic.runtime.migration: Running upgrade 0007_v1_6 -> 0008_v1_7, v1.7: centro de operaciones, presencia de operadores, explicación de asignaciones y centro de notificaciones
+2026-11-13 22:34:53,696 INFO alembic.runtime.migration: Running upgrade 0008_v1_7 -> 0009_v2_0, v2.0: atención presencial (modo ventanilla)
+2026-11-13 22:34:53,698 INFO alembic.runtime.migration: Running upgrade 0009_v2_0 -> 0010_v2_0, v2.0: gestor de conexiones
+2026-11-13 22:34:53,700 INFO alembic.runtime.migration: Running upgrade 0010_v2_0 -> 0011_v2_0, v2.0: adaptadores P2 (capturas manuales)
+2026-11-13 22:34:53,709 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:34:53,710 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+2026-11-13 22:34:53,714 WARNING monitoreo: Migración de esquema: actualizada a 0011_v2_0
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:59303 (Press CTRL+C to quit)
+2026-11-13 22:34:53,804 WARNING monitoreo.planificador: Instancia vm:4693:1b3ca1 es LÍDER del planificador
+INFO:     127.0.0.1:38396 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38412 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38412 - "PUT /api/settings/engine HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38412 - "POST /api/sources HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38412 - "POST /api/users HTTP/1.1" 201 Created
+2026-11-13 22:34:54,889 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38426 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38426 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38434 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38436 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/1/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/1/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:00,332 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/dias "HTTP/1.1 200 OK"
+2026-11-13 22:35:00,409 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:00,417 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:00,420 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/1/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:00,636 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/1/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:00,790 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:00,793 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261116-00001R "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/1/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/1/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/2/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/2/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:01,737 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:01,742 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:01,745 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/2/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:01,859 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/2/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:02,005 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:02,007 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261119-00002A "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/2/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/2/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/3/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/3/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:02,753 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:02,760 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:02,763 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/3/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:02,883 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/3/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:03,037 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:03,039 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261119-00003N "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/3/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/3/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/4/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/4/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:03,736 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:03,742 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:03,744 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/4/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:03,850 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/4/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:03,968 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:03,971 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261119-00004R "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/4/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/4/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/5/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/5/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:04,734 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:04,740 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:04,742 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/5/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:04,849 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/5/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:05,001 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:05,004 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261116-00005J "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/5/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/5/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/6 HTTP/1.1" 200 OK
+2026-11-13 22:35:05,428 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/6/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/expedientes/6/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:05,805 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:05,810 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:05,812 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/6/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:05,915 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/6/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:06,020 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:06,022 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261117-00006V "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38428 - "POST /api/reservaciones/6/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/expedientes/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "POST /api/ventanilla/atenciones/6/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38428 - "GET /api/ventanilla/atenciones/6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54814 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54826 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla/atenciones/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "POST /api/ventanilla/atenciones/7/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla/atenciones/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/expedientes/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "POST /api/expedientes/7/preparar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "POST /api/ventanilla/atenciones/7/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54818 - "GET /api/ventanilla/atenciones/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54832 - "GET /api/expedientes?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54832 - "GET /api/expedientes?limit=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54832 - "POST /api/expedientes HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54834 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54856 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54834 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54840 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla/atenciones/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "POST /api/ventanilla/atenciones/8/expediente HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:54838 - "POST /api/ventanilla/atenciones/8/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla/atenciones/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/expedientes/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "POST /api/expedientes/8/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:09,258 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:09,264 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:09,267 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54838 - "POST /api/reservaciones/8/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:35:09,366 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54838 - "POST /api/reservaciones/8/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:35:09,492 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:35:09,495 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/reservaciones/DIA-20261117-00007C "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54838 - "POST /api/reservaciones/8/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla/atenciones/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/expedientes/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "POST /api/ventanilla/atenciones/8/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54838 - "GET /api/ventanilla/atenciones/8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54832 - "GET /api/expedientes?limit=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54770 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54770 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54786 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54792 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54806 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/ventanilla/atenciones/9 HTTP/1.1" 200 OK
+2026-11-13 22:35:10,711 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54806 - "POST /api/ventanilla/atenciones/9/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/ventanilla/atenciones/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "GET /api/expedientes/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54806 - "POST /api/expedientes/9/preparar HTTP/1.1" 200 OK
+2026-11-13 22:35:11,100 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita "HTTP/1.1 200 OK"
+2026-11-13 22:35:11,105 INFO httpx: HTTP Request: POST http://127.0.0.1:59363/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:35:11,107 INFO httpx: HTTP Request: GET http://127.0.0.1:59363/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54806 - "POST /api/reservaciones/9/enviar-datos HTTP/1.1" 200 OK

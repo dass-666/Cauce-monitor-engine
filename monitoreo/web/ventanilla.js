@@ -237,6 +237,7 @@ async function viewConexiones() {
     } catch (e) { res.textContent = e.message; }
   };
   const pol = d.politica;
+  const u24 = d.ultimas_24h;
   return h("div", { id: "conexiones" },
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Conexiones de red"),
       h("div", { class: "muted" }, "Por qué red sale el motor hacia el portal. Solo se cambia de conexión cuando la actual falla (no conecta o se corta). ",
@@ -247,6 +248,13 @@ async function viewConexiones() {
       kpi("Destino", `${d.destino.host}:${d.destino.puerto}`, d.destino.local ? "laboratorio (127.0.0.1)" : "portal configurado"),
       kpi("Preferencia", pol.conexion_orden_tipos.map((t) => TIPO_CONEXION[t] || t).join(" › "),
         `caída tras ${pol.conexion_umbral_fallos} fallos de red · se reintenta a los ${fmtDur(pol.conexion_reintento_s)}`)),
+    h("div", { class: "grid kpis", id: "conexiones-24h" },
+      kpi("Peticiones al portal (24 h)", num(u24.peticiones_total),
+        u24.peticiones_total ? `${num(u24.peticiones.OK || 0)} bien · ${num(u24.peticiones.RED || 0)} de red · ${num(u24.peticiones.PORTAL || 0)} error del portal` : "sin actividad"),
+      kpi("Restricciones del proveedor (24 h)", h("span", { class: u24.eventos.RESTRICCION ? "warn-text" : null, "data-restricciones": u24.eventos.RESTRICCION }, num(u24.eventos.RESTRICCION)),
+        u24.restricciones.length ? `última: ${u24.restricciones[0].motivo} · se detuvo, sin reintentos` : "ninguna"),
+      kpi("Caídas de conexión (24 h)", num(u24.eventos.CAIDA),
+        `${num(u24.eventos.RECUPERADA)} recuperadas · ${num(u24.eventos.CAMBIO)} cambios de conexión`)),
     h("div", { class: "section" }, card("Conexiones del equipo", table([
       { t: "Interfaz", f: (c) => h("div", {}, h("b", {}, c.nombre), c.activa ? h("span", { class: "badge b-ok" }, "EN USO") : null,
         h("div", { class: "muted" }, c.descripcion || c.clasificado_por)) },

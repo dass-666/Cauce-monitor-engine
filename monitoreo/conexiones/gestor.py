@@ -31,7 +31,7 @@ import socket
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from . import descubrimiento as desc
@@ -114,12 +114,19 @@ class Gestor:
     def actualizar(self, forzar: bool = False) -> list[desc.Interfaz]:
         with self._lock:
             if forzar or self._reloj() - self._visto >= self.cache_s:
+                vistas = set()
                 for i in self._descubrir():
+                    vistas.add(i.nombre)
                     e = self._estados.get(i.nombre)
                     if e is None:
                         self._estados[i.nombre] = _Estado(i)
                     else:
                         e.interfaz = i
+                # Una interfaz que desapareció (p. ej. un adaptador USB desconectado) deja de ser
+                # utilizable: se conserva su historial, pero sin dirección ni actividad.
+                for n, e in self._estados.items():
+                    if n not in vistas and (e.interfaz.activa or e.interfaz.ipv4):
+                        e.interfaz = replace(e.interfaz, activa=False, ipv4=[])
                 self._visto = self._reloj()
             return [e.interfaz for e in self._estados.values()]
 

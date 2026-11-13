@@ -185,6 +185,7 @@ let paginaActual = null;
     const txt = await page.textContent("#conexiones");
     res.local = /Este equipo/.test(txt);
     res.usos = (txt.match(/Operación con el portal/g) || []).length;
+    res.restricciones_24h = Number(await page.getAttribute("#conexiones-24h [data-restricciones]", "data-restricciones"));
     await page.click("#btn-medir");
     await page.waitForFunction(() => !/Midiendo/.test(document.getElementById("sondeo").textContent));
     res.sondeo = await page.textContent("#sondeo");
