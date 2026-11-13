@@ -135,6 +135,18 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             response.headers["Cache-Control"] = "no-store"
         return response
 
+    from sqlalchemy.exc import DBAPIError, InvalidatePoolError
+
+    @app.exception_handler(DBAPIError)
+    @app.exception_handler(InvalidatePoolError)
+    async def bd_no_disponible(request: Request, exc: Exception):
+        # v2.0 (resistencia): si la base de datos no responde, contestar 503 explícito en lugar de cortar
+        # la conexión o devolver un 500 genérico. Nada se dio por hecho: el cliente debe reintentar.
+        # Una sola línea en el registro (sin traza ni parámetros SQL, que podrían llevar datos).
+        log.warning("base de datos no disponible en %s: %s", request.url.path, type(getattr(exc, "orig", exc)).__name__)
+        return JSONResponse({"detail": "Base de datos no disponible; no se guardó ningún cambio. Reintenta en unos segundos.",
+                             "codigo": "BD_NO_DISPONIBLE"}, status_code=503, headers={"Retry-After": "5"})
+
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):
         # Nunca devolver trazas internas al cliente (pueden revelar rutas o datos).

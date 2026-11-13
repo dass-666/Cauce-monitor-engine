@@ -229,3 +229,45 @@ def test_lab_competition_assigns_by_priority(app_db):
         assert len(assigned) == 2
         assert all(x["priority"] == 1 for x in assigned)
         assert c.get("/api/metrics", headers=h).json()["integridad"] == []
+
+
+def test_v20_bd_caida_responde_503_explicito_sin_cortar_conexion(app_db, monkeypatch):
+    """Resistencia 2.0: con la base caída, una petición autenticada (POST con cuerpo) debe recibir
+    503 BD_NO_DISPONIBLE. Antes la excepción del driver escapaba del middleware y el cliente veía
+    «Connection reset by peer» sin respuesta (hallado con scripts/resistencia_v20.py contra PG real)."""
+    from sqlalchemy.exc import OperationalError
+
+    from monitoreo import security
+
+    with client(app_db) as c:
+        h = login(c)
+
+        def caida(*a, **k):
+            raise OperationalError("SELECT 1", {}, Exception("connection is bad: socket no existe"))
+
+        monkeypatch.setattr(security, "resolve_token", caida)
+        import monitoreo.api.deps as deps
+        monkeypatch.setattr(deps, "resolve_token", caida)
+        for metodo, ruta in (("GET", "/api/auth/me"), ("POST", "/api/reservaciones/1/confirmar")):
+            r = c.request(metodo, ruta, headers=h, json={"confirmo": True} if metodo == "POST" else None)
+            assert r.status_code == 503, (ruta, r.status_code, r.text)
+            assert r.json()["codigo"] == "BD_NO_DISPONIBLE" and r.headers["Retry-After"] == "5"
+            assert "socket" not in r.text and "SELECT" not in r.text   # sin detalles internos
+
+
+def test_v20_health_da_503_si_la_base_no_responde(app_db, monkeypatch):
+    with client(app_db) as c:
+        assert c.get("/api/health").status_code == 200
+        from sqlalchemy.exc import OperationalError
+        db = c.app.state.db
+
+        class Rota:
+            def __enter__(self):
+                raise OperationalError("SELECT 1", {}, Exception("sin socket"))
+
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr(db, "session", lambda: Rota())
+        r = c.get("/api/health")
+        assert r.status_code == 503 and r.json()["ok"] is False and r.json()["base_de_datos"] == "SIN_CONEXION"

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as HttpRequest
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
@@ -60,9 +61,12 @@ def health(request: HttpRequest):
             s.execute(select(1))
     except Exception:  # noqa: BLE001
         db_ok = False
-    return {"ok": db_ok, "base_de_datos": "OK" if db_ok else "SIN_CONEXION",
-            "motor_activo": bool(sch and sch.running), "rol": sch.role if sch else "SIN_MOTOR",
-            "ciclos": sch.cycles if sch else 0}
+    cuerpo = {"ok": db_ok, "base_de_datos": "OK" if db_ok else "SIN_CONEXION",
+              "motor_activo": bool(sch and sch.running), "rol": sch.role if sch else "SIN_MOTOR",
+              "ciclos": sch.cycles if sch else 0}
+    # v2.0: sin base de datos el servicio NO está sano: 503 para que un monitor externo (que suele mirar
+    # solo el código HTTP) lo detecte. El cuerpo es el mismo de siempre.
+    return cuerpo if db_ok else JSONResponse(cuerpo, status_code=503)
 
 
 @router.post("/auth/login")

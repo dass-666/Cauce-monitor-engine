@@ -28,6 +28,7 @@ Garantías:
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select, update
@@ -43,6 +44,8 @@ from . import portal
 from .formularios import contrato as ct
 from .formularios.navegador import (DatosRechazados, ErrorFormulario, Rechazo, ResultadoIncierto,
                                     RevisionRequerida, SesionCaducada)
+
+log = logging.getLogger("monitoreo.captura")
 
 PREPARADA, DATOS_ENVIADOS, RETENIDA, CONFIRMANDO = "PREPARADA", "DATOS_ENVIADOS", "RETENIDA", "CONFIRMANDO"
 FECHA_ELEGIDA, EN_VERIFICACION = "FECHA_ELEGIDA", "EN_VERIFICACION"
@@ -694,6 +697,10 @@ def recuperar(db: Database, now: datetime) -> dict:
             except ResultadoIncierto:
                 out["sin_portal"] += 1
                 break                               # el portal no responde: se reintenta en la siguiente pasada
+            log.info("recuperación: reservación %s (%s, %.1f s): el portal %s", rid, estado,
+                     (now - desde).total_seconds() if desde else -1,
+                     "la tiene confirmada" if _evidencia_valida(rp, clave) else
+                     ("la tiene en estado " + str(rp.get("estado"))) if rp else "no tiene esa clave")
             if _evidencia_valida(rp, clave):
                 v = _finalizar(db, rid, rp, "recuperacion_por_clave", "motor", now)
                 out["confirmadas" if v["estado"] == CONFIRMADA else "en_verificacion"] += 1
@@ -709,7 +716,10 @@ def recuperar(db: Database, now: datetime) -> dict:
                                              )).rowcount:
                             r = s.get(Reservacion, rid)
                             ex.evento(s, r.expediente_id, "CONFIRMACION_REABIERTA", "motor", now,
-                                      reservacion_id=rid, assignment_id=r.assignment_id)
+                                      reservacion_id=rid, assignment_id=r.assignment_id,
+                                      segundos_desde_confirmacion=round((now - desde).total_seconds(), 1))
+                            log.warning("recuperación: reservación %s reabierta (el portal no tiene su clave; "
+                                        "%.1f s desde que empezó a confirmarse)", rid, (now - desde).total_seconds())
                             out["reabiertas"] += 1
                 elif _cerrar_intento(db, rid, EXPIRADA, "RETENCION_VENCIDA",
                                      "El apartado venció sin confirmación registrada en el portal", "motor", now):

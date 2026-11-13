@@ -26,6 +26,7 @@ import shutil
 import socket
 import sqlite3
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -74,9 +75,13 @@ def engine_running(port: int) -> str | None:
             pass
     try:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # nunca a través de un proxy
-        with opener.open(f"http://127.0.0.1:{port}/api/health", timeout=3) as r:
-            if json.loads(r.read().decode()).get("ok") is not None:
-                return "motor"
+        try:
+            with opener.open(f"http://127.0.0.1:{port}/api/health", timeout=3) as r:
+                cuerpo = r.read()
+        except urllib.error.HTTPError as e:     # v2.0: 503 = el motor responde pero sin base de datos
+            cuerpo = e.read()
+        if json.loads(cuerpo.decode()).get("ok") is not None:
+            return "motor"
     except Exception:  # noqa: BLE001
         pass
     return "otro"
