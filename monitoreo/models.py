@@ -1,9 +1,9 @@
 """Modelo de datos persistente (tablas)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import (JSON, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer,
+from sqlalchemy import (JSON, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer,
                         String, Text, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -404,3 +404,84 @@ class MaintenanceLog(Base):
     holder: Mapped[str] = mapped_column(String(128), default="")
     duration_ms: Mapped[float] = mapped_column(Float, default=0)
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+# ---------------------------------------------------------------- v1.5: captura y reservaciones (laboratorio)
+class Expediente(Base):
+    """Expediente de un titular FICTICIO. Las confirmaciones de teléfono y correo solo existen en
+    la validación de entrada: aquí no se guardan copias. Los datos personales nunca salen en
+    listados sin enmascarar ni en auditoría, alertas o eventos."""
+    __tablename__ = "expedientes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(32), unique=True)
+    id_externo: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    id_registro_previo: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nombre: Mapped[str] = mapped_column(String(128))
+    fecha_nacimiento: Mapped[date] = mapped_column(Date)
+    telefono: Mapped[str] = mapped_column(String(16))
+    correo: Mapped[str] = mapped_column(String(128))
+    region: Mapped[str] = mapped_column(ForeignKey("regions.code"), index=True)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    tipo_tramite: Mapped[str] = mapped_column(String(32))
+    operacion: Mapped[str] = mapped_column(String(16), default="nueva")
+    # PENDIENTE | ASIGNADO | EN_CAPTURA | RESERVANDO | CONFIRMADO | FALLIDO | CANCELADO
+    estado: Mapped[str] = mapped_column(String(16), default="PENDIENTE", index=True)
+    prioridad: Mapped[int] = mapped_column(Integer, default=3)
+    operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("requests.id"), nullable=True, unique=True)
+    # Huella (sha256) de nombre+fecha+trámite normalizados; UNIQUE mientras el expediente está
+    # activo (NULL al cerrarse): impide expedientes duplicados aunque lleguen a la vez.
+    dedup_activo: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    creado_por: Mapped[str] = mapped_column(String(64), default="")
+    ultimo_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ExpedienteEvento(Base):
+    """Historial y trazabilidad de un expediente: modificaciones (solo NOMBRES de campos, nunca
+    valores) y eventos normalizados (DISPONIBILIDAD_DETECTADA, RESERVACION_CONFIRMADA...)."""
+    __tablename__ = "expediente_eventos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    expediente_id: Mapped[int] = mapped_column(ForeignKey("expedientes.id"), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    tipo: Mapped[str] = mapped_column(String(32), index=True)
+    actor: Mapped[str] = mapped_column(String(64), default="motor")
+    assignment_id: Mapped[int | None] = mapped_column(ForeignKey("assignments.id"), nullable=True)
+    reservacion_id: Mapped[int | None] = mapped_column(ForeignKey("reservaciones.id"), nullable=True)
+    change_event_id: Mapped[int | None] = mapped_column(ForeignKey("change_events.id"), nullable=True)
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Reservacion(Base):
+    """Intento de reservación de un expediente en el portal de PRUEBA.
+
+    PREPARADA -> DATOS_ENVIADOS -> RETENIDA -> CONFIRMANDO -> CONFIRMADA
+    y en cualquier punto vivo: RECHAZADA | EXPIRADA | CANCELADA.
+    CONFIRMADA solo se alcanza con evidencia: el folio leído de la API del portal con la misma
+    clave de confirmación. `viva_expediente_id` (UNIQUE) impide dos intentos vivos por expediente."""
+    __tablename__ = "reservaciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    expediente_id: Mapped[int] = mapped_column(ForeignKey("expedientes.id"), index=True)
+    viva_expediente_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+    assignment_id: Mapped[int | None] = mapped_column(ForeignKey("assignments.id"), nullable=True)
+    operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
+    estado: Mapped[str] = mapped_column(String(16), default="PREPARADA", index=True)
+    contrato: Mapped[str] = mapped_column(String(64), default="portal_laboratorio")
+    sesion_portal: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    horario_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fecha: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    hora: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    clave: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    folio: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
+    vence_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    confirmando_desde: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    evidencia: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_codigo: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    intentos_confirmacion: Mapped[int] = mapped_column(Integer, default=0)
+    confirmada_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

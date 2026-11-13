@@ -98,4 +98,7 @@ ENGINE_DEFAULTS: dict = {
     # --- v1.4
     "inactividad_en_proceso_min": 30,           # aviso si una asignación EN_PROCESO no tiene actividad (0 = no)
     "retencion_operaciones_dias": 7,            # resultados guardados de operaciones con clave
+    # --- v1.5: captura y reservaciones de laboratorio
+    "captura_gracia_confirmando_s": 30,         # tras perder la respuesta, espera antes de reabrir el intento
+    "captura_timeout_portal_s": 10,             # tiempo máximo de cada petición al portal de prueba
 }

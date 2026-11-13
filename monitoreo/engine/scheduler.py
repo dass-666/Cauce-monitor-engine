@@ -66,6 +66,11 @@ class Scheduler:
         self.recovery: dict | None = None
         self._history_task: asyncio.Task | None = None
         self._dispatch_task: asyncio.Task | None = None
+        # v1.5: seguimiento de expedientes y recuperación de reservaciones (tarea propia: habla con
+        # el portal de prueba y un portal lento no debe frenar el ciclo del motor).
+        self._captura_task: asyncio.Task | None = None
+        self.last_captura_at = 0.0
+        self.last_captura: dict | None = None
         self.started_at = self.clock.now()
 
     async def _sleep_or_wake(self, delay: float, batch_s: float = 0.03) -> None:
@@ -120,6 +125,14 @@ class Scheduler:
             self._error(f"envío de alertas: {e}")
             log.exception("fallo enviando alertas")
 
+    async def _captura(self) -> None:
+        try:
+            from ..captura.seguimiento import mantenimiento as captura_mant
+            self.last_captura = await asyncio.to_thread(captura_mant, self.db, self.clock.now())
+        except Exception as e:
+            self._error(f"captura: {e}")
+            log.exception("fallo en el seguimiento de expedientes")
+
     async def _history(self) -> None:
         try:
             self.last_history = await asyncio.to_thread(run_history_maintenance, self.db, self.clock.now(),
@@ -170,6 +183,10 @@ class Scheduler:
                         if self.guard() and (self._dispatch_task is None or self._dispatch_task.done()):
                             self._dispatch_task = asyncio.create_task(self._dispatch(params))
                         now_m = time.monotonic()
+                        if (now_m - self.last_captura_at >= 2 and self.guard()
+                                and (self._captura_task is None or self._captura_task.done())):
+                            self.last_captura_at = now_m
+                            self._captura_task = asyncio.create_task(self._captura())
                         if (now_m - self.last_history_at >= float(params["mantenimiento_historial_cada_s"])
                                 and (self._history_task is None or self._history_task.done())):
                             self.last_history_at = now_m
@@ -200,7 +217,7 @@ class Scheduler:
         finally:
             if polls:
                 await asyncio.gather(*polls, return_exceptions=True)
-            for task in (self._history_task, self._selfcheck_task, self._dispatch_task):
+            for task in (self._history_task, self._selfcheck_task, self._dispatch_task, self._captura_task):
                 if task:
                     await asyncio.gather(task, return_exceptions=True)
             try:

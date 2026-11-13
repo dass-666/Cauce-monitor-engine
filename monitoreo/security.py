@@ -89,7 +89,9 @@ def audit(s: Session, username: str, action: str, target: str = "", detail: dict
     s.add(AuditLog(username=username, action=action, target=str(target)[:128], detail=_redact(detail or {}), ip=ip))
 
 
-SENSITIVE = ("password", "secret", "token", "clave", "contrasena", "contraseña")
+SENSITIVE = ("password", "secret", "token", "clave", "contrasena", "contraseña",
+             # v1.5: datos personales de expedientes (defensa adicional: el código no los envía)
+             "telefono", "correo", "nacimiento")
 
 
 def _redact(d):

@@ -20,7 +20,7 @@ from .security import hash_password
 
 log = logging.getLogger("monitoreo")
 WEB_DIR = Path(__file__).parent / "web"
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 
 BOOTSTRAP_LOCK_ID = 727275  # candado consultivo de PostgreSQL para la siembra inicial
@@ -60,6 +60,8 @@ def _seed_and_admin(db: Database, seed_demo: bool, production: bool) -> str | No
     if seed_demo and not production:  # en producción nunca se crean datos de demostración
         import os
         do_seed_demo(db, port=int(os.environ.get("MONITOREO_PUERTO", "8000")))
+        from .simulator.seed import seed_captura
+        seed_captura(db)        # v1.5: también al actualizar una base de demostración anterior
     generated = None
     with db.session() as s:
         if not s.scalar(select(User.id).where(User.role == "admin").limit(1)):
@@ -148,6 +150,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         from .api.test_api import router as test_router
         from .emuladores.telegram import router as telegram_emulator
         app.include_router(lab_router)
+        # v1.5: captura y reservaciones de LABORATORIO (portal de prueba propio): nunca en producción
+        from .api.captura import router as captura_router
+        app.include_router(captura_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

@@ -31,6 +31,7 @@ def put(text: str, key: str, value: str) -> str:
 t = (root / ".env.ejemplo").read_text(encoding="utf-8")
 t = put(t, "MONITOREO_ADMIN_PASSWORD", pwd)
 t = put(t, "MONITOREO_SECRET_KEY", secrets.token_urlsafe(48 if prod else 32))
+t = put(t, "MONITOREO_PORTAL_TOKEN", secrets.token_urlsafe(24))   # v1.5: token de PRUEBA del portal local
 if prod:
     t = put(t, "MONITOREO_ENTORNO", "produccion")
     t = put(t, "MONITOREO_DATOS_DEMO", "0")

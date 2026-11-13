@@ -84,7 +84,11 @@ def test_production_hides_lab_test_routes_docs_and_demo_data(prod_env, monkeypat
         paths = [getattr(r, "path", "") for r in c.app.routes]
         assert not [x for x in paths if x.startswith(("/api/lab", "/api-prueba", "/api/docs", "/api/openapi"))]
         info = c.get("/api/info", headers=h).json()
-        assert info == {**info, "entorno": "produccion", "laboratorio": False, "version": "1.4.0"}
+        from monitoreo.app import VERSION
+        assert info == {**info, "entorno": "produccion", "laboratorio": False, "version": VERSION}
+        # v1.5: la captura de laboratorio no existe en producción
+        assert c.get("/api/expedientes", headers=h).status_code == 404
+        assert c.post("/api/expedientes", headers=h, json={}).status_code == 404
         with c.app.state.db.session() as s:
             assert s.scalar(select(func.count()).select_from(Source)) == 0
             types = {ch.type for ch in s.scalars(select(Channel))}

@@ -7,12 +7,13 @@ from ..config import settings
 from .base import Connector, ConnectorError
 from .files import CsvFileConnector, JsonFileConnector
 from .http_api import HttpApiConnector
+from .portal_reservas import PortalReservasConnector
 from .proveedor_prueba import ProveedorPruebaConnector
 from .simulation import SimulationConnector
 
 REGISTRY: dict[str, type[Connector]] = {
     c.type_name: c for c in (SimulationConnector, JsonFileConnector, CsvFileConnector, HttpApiConnector,
-                                ProveedorPruebaConnector)
+                                ProveedorPruebaConnector, PortalReservasConnector)
 }
 
 

@@ -37,9 +37,14 @@ async function api(path, opts = {}) {
   try { data = await res.json(); } catch (_) { /* sin cuerpo */ }
   if (!res.ok) {
     let msg = data && data.detail;
+    let extra = null;
     if (Array.isArray(msg)) msg = msg.map((d) => `${(d.loc || []).slice(-1)[0]}: ${d.msg}`).join("; ");
-    throw new Error(msg || `Error ${res.status}`);
+    else if (msg && typeof msg === "object") { extra = msg; msg = msg.mensaje || JSON.stringify(msg); }  // v1.5: detalle con campos
+    const err = new Error(msg || `Error ${res.status}`);
+    err.status = res.status; err.detalle = extra;
+    throw err;
   }
+  if (opts.withStatus) return { status: res.status, data };
   return data;
 }
 
@@ -177,6 +182,7 @@ const VIEWS = {
   monitor: { t: "Monitor", f: viewMonitor },
   salud: { t: "Salud", f: viewHealth },
   solicitudes: { t: "Solicitudes", f: viewRequests },
+  captura: { t: "Captura", f: () => viewCaptura(), lab: true },   // v1.5: laboratorio (captura.js); no existe en producción
   alertas: { t: "Alertas", f: viewAlerts },
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
   config: { t: "Configuración", f: viewConfig, admin: true },

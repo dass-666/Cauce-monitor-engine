@@ -20,6 +20,7 @@ LIMITS = {
     "retencion_lote": (1, 100000), "retencion_lotes_por_pasada": (1, 100000), "retencion_pausa_lote_s": (0, 10),
     "mantenimiento_historial_cada_s": (10, 7 * 86400), "lease_duracion_s": (3, 3600),
     "entrega_reclamo_vence_s": (10, 86400), "inactividad_en_proceso_min": (0, 7 * 24 * 60),
+    "captura_gracia_confirmando_s": (1, 3600), "captura_timeout_portal_s": (1, 120),
 }
 
 

@@ -1,4 +1,4 @@
-"""v1.4: actualización desde bases reales de la v1.1, v1.2 y v1.3.
+"""v1.4: actualización desde bases reales de la v1.1, v1.2 y v1.3 (v1.5: y v1.4).
 
 Las bases de `tests/fixtures/bd_v1_X.sqlite` las creó el código de cada versión (ramas fase-1.X)
 con datos ficticios: 70 solicitudes, consultas, eventos, alertas y asignaciones ACTIVA y
@@ -24,7 +24,7 @@ from monitoreo.engine.pipeline import flag_inactive_assignments
 from monitoreo.models import Assignment
 
 FIX = Path(__file__).parent / "fixtures"
-VERSIONS = {"1.1": "0002_v1_1", "1.2": "0003_v1_2", "1.3": "0004_v1_3"}
+VERSIONS = {"1.1": "0002_v1_1", "1.2": "0003_v1_2", "1.3": "0004_v1_3", "1.4": "0005_v1_4"}
 
 
 def _digest(path):

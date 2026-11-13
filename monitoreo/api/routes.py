@@ -426,6 +426,16 @@ def list_assignments(status: str | None = None, mine: bool = False, limit: int =
         return out
 
 
+def _es_de_expediente(db: Database, aid: int) -> bool:
+    """v1.5: la asignación de un expediente solo se completa al confirmar su reservación con
+    evidencia del portal (captura/reservaciones.py). Completarla a mano dejaría la solicitud
+    COMPLETADA sin folio verificado."""
+    from ..models import Expediente
+    with db.session() as s:
+        a = s.get(Assignment, aid)
+        return a is not None and s.scalar(select(Expediente.id).where(Expediente.request_id == a.request_id)) is not None
+
+
 def _op_scope(user: CurrentUser) -> int | None:
     """El administrador puede actuar sobre cualquier asignación; el operador solo sobre las suyas."""
     if user.is_admin:
@@ -499,6 +509,9 @@ def assignment_recover(aid: int, body: sc.RecoverIn, user: CurrentUser = Depends
         params = get_params(s)
         before = {"tomada_por": a.taken_by, "tomada": ser.iso(a.taken_at), "actividad": ser.iso(a.last_activity_at)}
     actor = f"{user.username} (recuperación manual)"
+    if body.resultado == "completada" and _es_de_expediente(db, aid):
+        raise HTTPException(409, "Esta asignación es de un expediente: se completa al confirmar la reservación "
+                                 "(Reservaciones). Si ya se reservó, la recuperación del motor la detecta por su clave.")
     if body.resultado == "completada":
         ok = asg.complete_assignment(db, aid, None, now, actor)
     else:
@@ -525,6 +538,8 @@ def assignment_action(aid: int, action: str, http: HttpRequest, user: CurrentUse
         raise HTTPException(404, "Acción desconocida")
     now = utcnow()
     scope = _op_scope(user)
+    if action == "completar" and _es_de_expediente(db, aid):
+        raise HTTPException(409, "Esta asignación es de un expediente: se completa al confirmar la reservación")
     key = _op_key(http)
     if key:
         stored = _stored_operation(db, user.username, key)
