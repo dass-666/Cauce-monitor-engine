@@ -165,9 +165,11 @@ def dashboard(request: HttpRequest, user: CurrentUser = Depends(current_user), d
             "ultimas_disponibilidades": [ser.event(e) for e in s.scalars(
                 select(ChangeEvent).where(ChangeEvent.change_type.in_(["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO"]))
                 .order_by(ChangeEvent.id.desc()).limit(10))],
-            "alertas_recientes": [ser.alert(a) for a in s.scalars(select(Alert).order_by(Alert.id.desc()).limit(10))],
-            "alertas_sin_confirmar": s.scalar(select(func.count()).select_from(Alert)
-                                              .where(Alert.acknowledged_at.is_(None))),
+            # v1.7: un operador no ve en Inicio las alertas de asignaciones de otros operadores
+            "alertas_recientes": [ser.alert(a) for a in s.scalars(select(Alert).where(
+                *([] if user.is_admin else [alertas_visibles(user)])).order_by(Alert.id.desc()).limit(10))],
+            "alertas_sin_confirmar": s.scalar(select(func.count()).select_from(Alert).where(
+                Alert.acknowledged_at.is_(None), *([] if user.is_admin else [alertas_visibles(user)]))),
             "errores_recientes": [ser.poll(p) for p in s.scalars(
                 select(PollLog).where(PollLog.outcome != "OK").order_by(PollLog.id.desc()).limit(10))],
             "ultima_hora": {

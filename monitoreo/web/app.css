@@ -205,3 +205,4 @@ body.is-offline .view .kpi .value::after { content: " ·"; color: var(--bad); }
   .chips .chip { flex: 1 1 100%; }
   .table-wrap { overflow-x: auto; }
 }
+.aviso-mes { padding: 8px 10px; border-radius: 8px; background: var(--info-soft); }

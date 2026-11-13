@@ -205,6 +205,22 @@ def _filtros_dia(exp: Expediente, permitidas: list[str], sucursal: str | None, m
     return f
 
 
+def _calendario_con_libres(nav, filtros: dict, mes_pedido: str | None) -> dict:
+    """v1.7: el portal muestra un MES. Si el operador no pidió un mes concreto y el mes en curso no
+    tiene ningún día disponible (p. ej. a fin de mes), se muestra el siguiente con un aviso, en vez de
+    un calendario vacío que obliga a buscar con «Mes siguiente». Solo un salto: no se recorre el año."""
+    cal = nav.calendario_dia(filtros)
+    if mes_pedido or any(x["estado"] == "DISPONIBLE" for x in cal.get("dias", [])) or not cal.get("mes"):
+        return cal
+    y, m = (int(x) for x in cal["mes"].split("-"))
+    sig = f"{y + m // 12:04d}-{m % 12 + 1:02d}"
+    cal2 = nav.calendario_dia({**filtros, "sucursal": cal.get("sucursal") or filtros.get("sucursal"), "mes": sig})
+    if any(x["estado"] == "DISPONIBLE" for x in cal2.get("dias", [])):
+        cal2["aviso"] = f"El mes {cal['mes']} no tiene días disponibles en esta sucursal: se muestra {sig}."
+        return cal2
+    return cal
+
+
 def _guardar_error(db: Database, res_id: int, e: ErrorFormulario, now: datetime, estado: str | None = None) -> None:
     with db.session() as s:
         res = s.get(Reservacion, res_id)
@@ -233,7 +249,7 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
         nav.enviar_datos({**auto, **limpios})
         del limpios, manuales                           # los manuales no sobreviven a esta llamada
         if d["modo"] == "POR_DIA":
-            cal = nav.calendario_dia(filtros)
+            cal = _calendario_con_libres(nav, filtros, mes)
             nav.verificar_solo_lectura(cal, exp)
         else:
             cal = nav.calendario(filtros)
@@ -268,7 +284,7 @@ def calendario(db: Database, res_id: int, user, now: datetime, region: str | Non
     nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db), modo=d["modo"])
     try:
         if d["modo"] == "POR_DIA":
-            cal = nav.calendario_dia(_filtros_dia(exp, d["permitidas"], sucursal, mes))
+            cal = _calendario_con_libres(nav, _filtros_dia(exp, d["permitidas"], sucursal, mes), mes)
             nav.verificar_solo_lectura(cal, exp)
             return {"calendario": cal, "permitidas": d["permitidas"]}
         return {"calendario": nav.calendario(_filtros(exp, region, sucursal))}

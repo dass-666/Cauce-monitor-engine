@@ -377,6 +377,7 @@ function mostrarCalendarioDia(box, e, res, cal, permitidas, aviso) {
       h("button", { class: "btn small", onclick: () => recargar(cal.sucursal, mesAnt()) }, "◀ Mes anterior"),
       h("b", { "data-mes": cal.mes }, cal.mes),
       h("button", { class: "btn small", onclick: () => recargar(cal.sucursal, mesSig()) }, "Mes siguiente ▶")),
+    cal.aviso ? h("p", { class: "aviso-mes", id: "aviso-mes", role: "status" }, cal.aviso) : null,
     h("p", { class: "muted" }, `${disp} días disponibles en ${cal.sucursal}. Pulsa un día disponible para elegirlo (no se aparta: se gana al confirmar).`),
     leyendaDias(), errs, mesGrid(cal, elegir)));
 }

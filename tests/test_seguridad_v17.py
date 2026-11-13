@@ -38,6 +38,8 @@ def test_operador_no_ve_alertas_de_asignaciones_ajenas(app_db):
         assert any(a["assignment_id"] == aid for a in c.get("/api/alerts", headers=ho).json())
         assert c.get(f"/api/alerts/{alerta}", headers=ho).status_code == 200
         assert any(a["assignment_id"] == aid for a in c.get("/api/alerts", headers=h).json())
+        assert all(a["assignment_id"] != aid for a in c.get("/api/dashboard", headers=hy).json()["alertas_recientes"])
+        assert any(a["assignment_id"] == aid for a in c.get("/api/dashboard", headers=ho).json()["alertas_recientes"])
         n = c.get("/api/notificaciones", headers=hy).json()
         assert all(a["assignment_id"] != aid for a in n["items"])
 

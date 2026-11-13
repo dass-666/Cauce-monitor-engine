@@ -157,6 +157,90 @@ def resumen(user: CurrentUser = Depends(current_user), db: Database = Depends(ge
     return out
 
 
+# ======================================================================= v1.7: mi trabajo (consola del operador)
+# Paso del recorrido de 12 del operador en el que está cada expediente, con la acción que toca.
+PASOS = {
+    "preparar": (6, "preparar el formulario (revisa datos y validaciones)", True),
+    "manuales": (7, "completar los campos manuales y enviar los datos", True),
+    "disponibilidad": (8, "consultar disponibilidad y elegir el día", True),
+    "confirmar": (10, "confirmar la reservación", True),
+    "verificacion": (11, "esperar la verificación del folio (lo hace el motor)", False),
+    "confirmado": (11, "reservación confirmada: consulta el folio", False),
+    "revision": (5, "requiere revisión del administrador", False),
+}
+
+
+def _paso(exp: Expediente, viva: Reservacion | None) -> str:
+    if exp.estado == ex.REVISION:
+        return "revision"
+    if exp.estado == ex.RES_CONFIRMADA:
+        return "confirmado"
+    if viva is None or viva.estado == rs.PREPARADA:
+        return "preparar" if viva is None else "manuales"
+    if viva.estado == rs.DATOS_ENVIADOS:
+        return "disponibilidad"
+    if viva.estado in rs.LISTAS_PARA_CONFIRMAR:
+        return "confirmar"
+    return "verificacion"
+
+
+@router.get("/captura/mi-trabajo")
+def mi_trabajo(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """Lo que el operador tiene que hacer, ordenado por urgencia y con el siguiente paso. Solo sus
+    expedientes y SIN datos personales (código, trámite, sucursal, prioridad): la ficha completa se ve
+    al abrir el expediente (auditado). Para un administrador: los que tiene asignados a su operador."""
+    from ..models import Assignment
+    from ..captura import zona
+    now = utcnow()
+    oid = user.operator_id if user.operator_id is not None else -1
+    hoy_utc = now - (zona.a_local(now) - zona.a_local(now).replace(hour=0, minute=0, second=0, microsecond=0))
+    with db.session() as s:
+        exps = list(s.scalars(select(Expediente).where(
+            Expediente.operator_id == oid, Expediente.estado.in_(list(ex.OPERACION_ACTIVA) + [ex.REVISION]))))
+        vivas = {r.viva_expediente_id: r for r in s.scalars(select(Reservacion).where(
+            Reservacion.viva_expediente_id.in_([e.id for e in exps] or [-1])))}
+        asgs = {a.request_id: a for a in s.scalars(select(Assignment).where(
+            Assignment.request_id.in_([e.request_id for e in exps if e.request_id] or [-1]),
+            Assignment.status.in_(["ACTIVA", "EN_PROCESO"])))}
+        items = []
+        for e in exps:
+            v = vivas.get(e.id)
+            a = asgs.get(e.request_id)
+            clave = _paso(e, v)
+            n, texto, accion = PASOS[clave]
+            avisos = []
+            vence = None
+            if v is not None and v.vence_en and v.estado in rs.LISTAS_PARA_CONFIRMAR:
+                vence = v.vence_en
+                avisos.append(f"El horario apartado vence en {max(0, int((v.vence_en - now).total_seconds() // 60))} min")
+            elif a is not None and a.status == "ACTIVA":
+                vence = a.expires_at
+                avisos.append(f"La asignación vence en {max(0, int((a.expires_at - now).total_seconds() // 60))} min "
+                              "si no empiezas")
+            if v is not None and v.error_codigo:
+                avisos.append(f"Último aviso del portal: {v.error_codigo}")
+            urgente = e.prioridad <= 1 or (vence is not None and (vence - now).total_seconds() < 600)
+            items.append({
+                "id": e.id, "codigo": e.codigo, "estado": e.estado, "prioridad": e.prioridad,
+                "tipo_tramite": e.tipo_tramite, "sucursal": e.sucursal, "modo": e.modo,
+                "faltan": ex.faltantes(e) if e.estado in ex.PREPARACION else [],
+                "paso": {"clave": clave, "n": n, "texto": texto, "accion": accion},
+                "interrumpido": v is not None and v.estado in (rs.PREPARADA, rs.DATOS_ENVIADOS, *rs.LISTAS_PARA_CONFIRMAR),
+                "urgente": urgente, "avisos": avisos,
+                "reservacion": {"id": v.id, "estado": v.estado} if v is not None else None,
+                "asignacion": {"id": a.id, "estado": a.status} if a is not None else None,
+                "_orden": (0 if accion else 1, not urgente, e.prioridad, -(1 if v is not None else 0), e.updated_at or now),
+            })
+        items.sort(key=lambda x: x.pop("_orden"))
+        confirmados_hoy = s.scalar(select(func.count()).select_from(Reservacion).where(
+            Reservacion.operator_id == oid, Reservacion.estado == rs.CONFIRMADA, Reservacion.updated_at >= hoy_utc)) or 0
+    return {"items": items, "resumen": {
+        "por_empezar": sum(1 for x in items if x["paso"]["clave"] == "preparar"),
+        "a_medias": sum(1 for x in items if x["interrumpido"]),
+        "en_verificacion": sum(1 for x in items if x["paso"]["clave"] == "verificacion"),
+        "confirmados_hoy": confirmados_hoy}}
+
+
 # ======================================================================= expedientes
 @router.get("/expedientes")
 def listar(estado: str | None = Query(None, max_length=24), grupo: str | None = Query(None, max_length=16),

@@ -11,7 +11,7 @@ import threading
 import time
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from monitoreo.captura import expedientes as ex
 from monitoreo.captura import seguimiento
@@ -506,3 +506,59 @@ def test_v17_notificaciones_de_expediente_sin_datos_personales(lab):
     vis = lambda hh: {a["id"] for a in lab.c.get("/api/notificaciones", headers=hh).json()["items"]}  # noqa: E731
     assert conf.id in vis(h) and conf.id not in vis(lab.ops[otro])
     assert al["EXPEDIENTE_INCOMPLETO"].id not in vis(h) and al["EXPEDIENTE_INCOMPLETO"].id in vis(lab.h)
+
+
+def test_v17_mi_trabajo_siguiente_paso_y_retomar(lab):
+    n = siguiente_registro()
+    d = lab.datos_expediente(n=n)
+    eid, u, h = asignado(lab, n=n)
+    otro = lab.ops[next(x for x in lab.ops if x != u)]
+
+    def mio():
+        r = lab.c.get("/api/captura/mi-trabajo", headers=h)
+        assert r.status_code == 200, r.text
+        return next(x for x in r.json()["items"] if x["id"] == eid), r.json()
+    x, todo = mio()
+    assert x["paso"]["clave"] == "preparar" and x["paso"]["n"] == 6 and x["asignacion"]["estado"] == "ACTIVA"
+    assert not x["interrumpido"] and todo["resumen"]["por_empezar"] >= 1
+    blob = json.dumps(todo, ensure_ascii=False)
+    for v in (d["nombre"], d["telefono"], d["correo"], d["fecha_nacimiento"]):
+        assert v not in blob, v                                           # sin datos personales en la lista
+    assert all(i["id"] != eid for i in lab.c.get("/api/captura/mi-trabajo", headers=otro).json()["items"])
+    rid = lab.c.post(f"/api/expedientes/{eid}/preparar", headers=h).json()["reservacion"]["id"]
+    x, _ = mio()
+    assert x["paso"]["clave"] == "manuales" and x["interrumpido"]        # p. ej. se cortó la conexión aquí
+    r = lab.c.post(f"/api/reservaciones/{rid}/enviar-datos", headers=h, json={"revisado": True, "manuales": dict(MANUALES)})
+    assert r.status_code == 200, r.text
+    x, todo = mio()
+    assert x["paso"]["clave"] == "disponibilidad" and todo["resumen"]["a_medias"] >= 1
+    # retomar: volver a preparar devuelve el MISMO intento (no se duplica trabajo)
+    assert lab.c.post(f"/api/expedientes/{eid}/preparar", headers=h).status_code in (200, 409)
+    with lab.db.session() as s:
+        from monitoreo.models import Reservacion
+        assert s.scalar(select(func.count()).select_from(Reservacion).where(Reservacion.viva_expediente_id == eid)) == 1
+
+
+def test_v17_calendario_salta_al_mes_siguiente_si_el_actual_no_tiene_dias(lab):
+    """Defecto de la v1.6 (visto el 13/11/2026 en la línea base): con los días del mes en curso
+    agotados, el calendario llegaba vacío aunque el mes siguiente tuviera días. Ahora se muestra el
+    siguiente con un aviso. Se fuerza agotando en el portal todos los días del mes en curso."""
+    eid, u, h = asignado(lab)
+    rid = lab.c.post(f"/api/expedientes/{eid}/preparar", headers=h).json()["reservacion"]["id"]
+    r = lab.c.post(f"/api/reservaciones/{rid}/enviar-datos", headers=h, json={"revisado": True, "manuales": dict(MANUALES)})
+    cal = r.json()["calendario"]
+    mes = cal["mes"] if not cal.get("aviso") else None
+    if mes is None:                                      # el mes en curso ya no tenía días: el salto ya ocurrió
+        assert any(d["estado"] == "DISPONIBLE" for d in cal["dias"])
+        return
+    for d in cal["dias"]:
+        if d["estado"] == "DISPONIBLE":
+            lab.portal.ctl("POST", "/control/dias/agotar", sucursal=cal["sucursal"], fecha=d["fecha"],
+                           tramite=cal["solo_lectura"]["tramite_ficha"])
+    r = lab.c.get(f"/api/reservaciones/{rid}/calendario", headers=h, params={"sucursal": cal["sucursal"]})
+    assert r.status_code == 200, r.text
+    c2 = r.json()["calendario"]
+    assert c2["mes"] != mes and "aviso" in c2 and any(d["estado"] == "DISPONIBLE" for d in c2["dias"])
+    # si el operador pide un mes concreto se respeta (aunque esté vacío)
+    c3 = lab.c.get(f"/api/reservaciones/{rid}/calendario", headers=h, params={"sucursal": cal["sucursal"], "mes": mes}).json()
+    assert c3["calendario"]["mes"] == mes and not any(d["estado"] == "DISPONIBLE" for d in c3["calendario"]["dias"])

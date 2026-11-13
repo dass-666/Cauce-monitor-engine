@@ -44,7 +44,7 @@ async function abrirExpediente(page) {
     const page = await nuevo(1366, 900);
     await login(page, opUser, opPass);
     await page.goto(base + "/#captura");
-    await page.waitForSelector("[data-tab=resumen][aria-selected=true]");
+    await page.waitForSelector("[role=tab][aria-selected=true]");   // v1.7: el operador entra en «Mi trabajo»
     await page.waitForTimeout(500);
     await shot(page, "01_resumen_operador.png");
     await abrirExpediente(page);
