@@ -7,12 +7,12 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
 
 - Python **3.13** instalado desde https://www.python.org/downloads/ con la casilla
   *Add python.exe to PATH* marcada. (3.11, 3.12 y 3.14 también sirven.)
-- Una carpeta **fuera de OneDrive**, por ejemplo `C:\monitoreo-1.4`. El Escritorio y Documentos
+- Una carpeta **fuera de OneDrive**: lo más sencillo es `C:\`. El Escritorio y Documentos
   suelen estar sincronizados y pueden dañar la base de datos.
 
 ## A. Instalación nueva
 
-1. Descomprime `motor-monitoreo-v1.4.zip` en `C:\monitoreo-1.4`.
+1. Descomprime `motor-monitoreo-v1.4.zip` en `C:\`: se crea la carpeta `C:\motor-monitoreo-v1.4`.
 2. Abre esa carpeta, haz **Shift + clic derecho** en un espacio vacío → *Abrir ventana de
    PowerShell aquí* (o *Abrir en Terminal*) y escribe:
    ```powershell
@@ -26,10 +26,11 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
 ## B. Actualizar desde v1.0, v1.1, v1.2 o v1.3
 
 1. Cierra el motor anterior (`Ctrl + C`).
-2. Descomprime la v1.4 en una carpeta **nueva** (`C:\monitoreo-1.4`). No la pongas encima.
-3. En PowerShell dentro de la carpeta nueva (cambia la ruta por la de tu instalación anterior):
+2. Descomprime la v1.4 en `C:\` (crea la carpeta nueva `C:\motor-monitoreo-v1.4`). No la pongas encima
+   de la anterior.
+3. En PowerShell dentro de la carpeta nueva (cambia la ruta por la carpeta de tu versión anterior):
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\monitoreo
+   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\motor-monitoreo-v1.3
    ```
    Copia (no mueve) tus datos y tu `.env`, hace un respaldo antes de migrar y comprueba todo.
    La carpeta anterior queda intacta: para volver atrás basta con su `iniciar.bat`.

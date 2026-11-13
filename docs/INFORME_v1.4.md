@@ -235,7 +235,7 @@ Inicio, Solicitudes y Salud, sin errores de consola.
 
 ## 10. Qué probar en casa (MSI), en este orden
 
-1. Instalar en `C:\monitoreo-1.4` siguiendo `docs/GUIA_RAPIDA_WINDOWS.md` (parte B si quieres
+1. Instalar en `C:\motor-monitoreo-v1.4` siguiendo `docs/GUIA_RAPIDA_WINDOWS.md` (parte B si quieres
    conservar los datos de tu versión anterior). Anota si el autodiagnóstico dice OK/AVISO/CRÍTICO.
 2. `iniciar.bat` → entra con admin → Inicio: deben verse 5 regiones y los indicadores nuevos en 0.
 3. Laboratorio → libera una unidad → en unos segundos la solicitud pasa a ASIGNADO.
