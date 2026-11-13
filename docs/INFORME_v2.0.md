@@ -86,6 +86,7 @@ Encontrados por la demostración con navegador real (cada uno con su prueba):
 | `test_conexiones.py` | 12 pruebas (descubrimiento Linux/Windows con datos fijos, elección, respaldo, restricción, sesión fija, sondeo, integración real con el portal de prueba) | — |
 | Demo en navegador real (Chromium) SQLite | **27/27** (MEDIDO) | `docs/resultados/v2.0/demo_v20.json` |
 | Demo en navegador real PostgreSQL | 26/26 dos veces seguidas (antes de añadir la comprobación de la pantalla Conexiones) | `docs/resultados/v2.0/postgresql/` |
+| CI de GitHub (Windows y Linux) | **22/22** en verde, con la demo en Windows ×3 y Linux ×2 | corrida 43400570380 |
 
 La demo hace: 6 atenciones seguidas hasta el folio (meta cumplida), 1 sin disponibilidad, 1
 duplicado recuperado hasta su folio, 1 a medias con **kill del motor** y retomada hasta el folio, 1
@@ -161,9 +162,13 @@ pocas consultas por atención (ESTIMADO). La demo completa (10 atenciones, reini
 
 ## 10. Cambios pendientes de validar en Windows
 
-Todo lo de la 2.0: la demo `demo_v20.py` está en el CI de Windows (Python 3.11-3.13) y de Linux
-(SQLite y PostgreSQL); su resultado se añadirá aquí cuando termine. **Nada de la 2.0 está probado
-en el MSI.** No hay todavía script `.bat` para la ventanilla ni guía de uso para Windows.
+**CI de GitHub, corrida 43400570380 (commit `5c28b6f`): 22 de 22 trabajos en verde** (MEDIDO):
+pruebas completas en Windows y Linux con Python 3.11, 3.12 y 3.13 (incluye `test_ventanilla.py` y
+`test_conexiones.py`, con el descubrimiento real de interfaces en Windows); la demo `demo_v20.py`
+con navegador real en Windows ×3 y en Linux con SQLite y PostgreSQL; migraciones 0009 y 0010 en la
+actualización desde v1.1-v1.6 con PowerShell 5.1.
+**Nada de la 2.0 está probado en el MSI** (PENDIENTE): en particular, la clasificación de su Wi-Fi,
+cable o teléfono por USB reales. No hay todavía script `.bat` para la ventanilla ni guía de uso.
 
 ## 11. Rama y commit final
 
