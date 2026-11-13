@@ -16,6 +16,7 @@ from ..connectors.base import ConnectorError
 from ..connectors.registry import REGISTRY, build_connector
 from ..db import Database, utcnow
 from ..engine import alerts as al
+from .centro import alertas_visibles
 from ..engine import assignment as asg
 from ..engine.clock import RealClock
 from ..engine.integrity import check as integrity_check
@@ -309,12 +310,23 @@ def list_slots(region: str | None = None, only_free: bool = False, user: Current
 
 
 # ======================================================================= solicitudes
+def _solicitudes_visibles(user: CurrentUser):
+    """v1.7 (auditoría): antes cualquier operador listaba TODAS las solicitudes con el nombre del
+    titular y podía abrir cualquiera por su id. Ahora: las que tiene asignadas o las que registró."""
+    registradas = select(RequestEvent.request_id).where(RequestEvent.actor == user.username,
+                                                        RequestEvent.from_status.is_(None))
+    return or_(Request.operator_id == (user.operator_id if user.operator_id is not None else -1),
+               Request.id.in_(registradas))
+
+
 @router.get("/requests")
 def list_requests(region: str | None = None, status: str | None = None, q: str | None = Query(None, max_length=64),
                   limit: int = Query(200, ge=1, le=2000), offset: int = Query(0, ge=0),
                   user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         query = select(Request)
+        if not user.is_admin:   # v1.7: un operador solo ve las suyas (asignadas o registradas por él)
+            query = query.where(_solicitudes_visibles(user))
         if region:
             query = query.where(Request.region == region)
         if status:
@@ -355,6 +367,8 @@ def create_request(body: sc.RequestIn, user: CurrentUser = Depends(current_user)
 def get_request(rid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         r = s.get(Request, rid) or _404("Solicitud")
+        if not user.is_admin and not s.scalar(select(Request.id).where(Request.id == rid, _solicitudes_visibles(user))):
+            _404("Solicitud")      # 404 y no 403: no revela que existe
         op = s.get(Operator, r.operator_id) if r.operator_id else None
         hist = [{"ts": ser.iso(e.ts), "from": e.from_status, "to": e.to_status, "actor": e.actor, "note": e.note}
                 for e in s.scalars(select(RequestEvent).where(RequestEvent.request_id == rid).order_by(RequestEvent.id))]
@@ -585,6 +599,8 @@ def list_alerts(region: str | None = None, status: str | None = None, unacked: b
                 user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(Alert).order_by(Alert.id.desc()).limit(limit)
+        if not user.is_admin:   # v1.7: no las de asignaciones de otros operadores
+            q = q.where(alertas_visibles(user))
         if region:
             q = q.where(Alert.region == region)
         if status:
@@ -600,6 +616,8 @@ def list_alerts(region: str | None = None, status: str | None = None, unacked: b
 def get_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         a = s.get(Alert, aid) or _404("Alerta")
+        if not user.is_admin and not s.scalar(select(Alert.id).where(Alert.id == aid, alertas_visibles(user))):
+            _404("Alerta")
         deliveries = []
         for d in s.scalars(select(Delivery).where(Delivery.alert_id == aid)):
             ch = s.get(Channel, d.channel_id)
@@ -614,6 +632,10 @@ def get_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database 
 
 @router.post("/alerts/{aid}/confirmar")
 def ack_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    if not user.is_admin:
+        with db.session() as s:
+            if not s.scalar(select(Alert.id).where(Alert.id == aid, alertas_visibles(user))):
+                _404("Alerta")
     ok = al.acknowledge(db, aid, user.username, utcnow())
     with db.session() as s:
         if s.get(Alert, aid) is None:

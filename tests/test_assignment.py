@@ -240,3 +240,70 @@ def test_rebalance_no_usa_datos_de_una_fuente_que_esta_fallando(db):
     with db.session() as s:
         s.get(Source, s.get(SlotState, slot).source_id).consecutive_failures = 0   # vuelve a responder
     assert len(asg.rebalance(db, datetime(2026, 6, 1), P)) == 1
+
+
+# ----------------------------------------------------------------- v1.7: colas inteligentes
+def test_v17_reparto_equitativo_dia_vs_menor_carga(db):
+    """menor_carga (predeterminado, igual que v1.6) elige al de menos carga actual; equitativo_dia
+    elige a quien recibió menos asignaciones en las últimas 24 h aunque tenga algo de carga."""
+    now = datetime(2026, 6, 1, 12)
+    slot = _slot(db, available=1)
+    a = make_operator(db, "Muy ocupado hoy", regions=["NORTE"])
+    b = make_operator(db, "Poco hoy", regions=["NORTE"])
+    rid = make_request(db, "EQ-1")
+    with db.session() as s:
+        s.get(Operator, b).current_load = 1
+        for i in range(3):   # A completó 3 hoy (carga actual 0)
+            r = Request(code=f"HIST-{i}", holder="Ficticio", region="NORTE", resource_type="entrada", priority=3,
+                        quantity=1, status="COMPLETADO", conditions={}, created_at=now - timedelta(hours=3))
+            s.add(r)
+            s.flush()
+            s.add(Assignment(request_id=r.id, slot_id=slot, operator_id=a, status="COMPLETADA",
+                             created_at=now - timedelta(hours=2), expires_at=now))
+    with db.session() as s:
+        st, req = s.get(SlotState, slot), s.get(Request, rid)
+        ops, ex1 = asg.elegir_operadores(s, st, req, now, P, set())
+        assert [o.id for o in ops] == [a, b] and ex1["reparto_modo"] == "menor_carga"
+        ops, ex2 = asg.elegir_operadores(s, st, req, now, {**P, "reparto_modo": "equitativo_dia"}, set())
+        assert [o.id for o in ops] == [b, a]
+        assert {c["operador"]: c["asignaciones_24h"] for c in ex2["candidatos"]} == {"Muy ocupado hoy": 3, "Poco hoy": 0}
+    created = asg.allocate_slot(db, slot, now, {**P, "reparto_modo": "equitativo_dia"})
+    with db.session() as s:
+        x = s.get(Assignment, created[0])
+        assert x.operator_id == b and x.explicacion["elegido"] == "Poco hoy"
+        assert "últimas 24 h" in x.explicacion["resumen"]
+
+
+def test_v17_operador_ausente_se_salta_solo_si_se_configura(db):
+    from monitoreo.models import User
+    now = datetime(2026, 6, 1, 12)
+    slot = _slot(db, available=1)
+    with db.session() as s:
+        u = User(username="ausente", password_hash="x", role="operador")
+        s.add(u)
+        s.flush()
+        uid = u.id
+    aus = make_operator(db, "Ausente", regions=["NORTE"])
+    pres = make_operator(db, "Presente", regions=["NORTE"])
+    with db.session() as s:
+        s.get(Operator, aus).user_id = uid
+        s.get(Operator, aus).visto_en = now - timedelta(hours=1)
+        s.get(Operator, pres).current_load = 2                       # el ausente tiene menos carga
+    rid = make_request(db, "AUS-1")
+    with db.session() as s:
+        ops, _ = asg.elegir_operadores(s, s.get(SlotState, slot), s.get(Request, rid), now, P, set())
+        assert ops[0].id == aus                                       # apagado (0): comportamiento v1.6
+        ops, ex = asg.elegir_operadores(s, s.get(SlotState, slot), s.get(Request, rid), now,
+                                        {**P, "operador_ausente_s": 600}, set())
+        assert [o.id for o in ops] == [pres]
+        assert ex["descartados"] == [{"operador": "Ausente", "motivo": "ausente: sin actividad en el panel hace 60 min"}]
+
+
+def test_v17_explicacion_no_lleva_datos_del_titular(db):
+    slot = _slot(db, available=1)
+    make_operator(db, "N1", regions=["NORTE"])
+    make_request(db, "PRIV-1")                                       # titular "Titular Ficticio"
+    created = asg.allocate_slot(db, slot, datetime(2026, 6, 1), P)
+    with db.session() as s:
+        e = s.get(Assignment, created[0]).explicacion
+    assert "Titular" not in repr(e) and e["solicitud"]["codigo"] == "PRIV-1"

@@ -81,6 +81,41 @@ def evento(s: Session, exp_id: int, tipo: str, actor: str, now: datetime, assign
     """Registra un evento del expediente. `detalle` nunca debe llevar datos personales."""
     s.add(ExpedienteEvento(expediente_id=exp_id, ts=now, tipo=tipo, actor=actor[:64], assignment_id=assignment_id,
                            reservacion_id=reservacion_id, change_event_id=change_event_id, detalle=detalle))
+    _aviso(s, exp_id, tipo, now, assignment_id, detalle)
+
+
+# v1.7: eventos del expediente que generan una notificación (categoría del centro de notificaciones).
+AVISOS_ESTADO = {INCOMPLETO: ("EXPEDIENTE_INCOMPLETO", "le faltan datos"),
+                 REVISION: ("REQUIERE_INTERVENCION", "requiere revisión de un administrador"),
+                 RES_CONFIRMADA: ("RESERVACION_CONFIRMADA", "reservación confirmada")}
+AVISOS_TIPO = {"CONFIRMACION_EN_VERIFICACION": ("CONFIRMACION_PENDIENTE",
+                                                "confirmación incierta: el motor la verifica con el portal")}
+
+
+def _aviso(s: Session, exp_id: int, tipo: str, now: datetime, assignment_id: int | None, detalle: dict) -> None:
+    """Crea la alerta del evento. Solo lleva el CÓDIGO del expediente, la región y la sucursal: nunca
+    nombre, teléfono, correo, fecha de nacimiento ni datos tecleados."""
+    if tipo == "ESTADO":
+        cat = AVISOS_ESTADO.get(detalle.get("despues"))
+    else:
+        cat = AVISOS_TIPO.get(tipo)
+    if cat is None:
+        return
+    from ..engine import alerts as al
+    exp = s.get(Expediente, exp_id)
+    if exp is None:
+        return
+    categoria, texto = cat
+    if assignment_id is None and exp.request_id is not None:
+        assignment_id = s.scalar(select(Assignment.id).where(Assignment.request_id == exp.request_id)
+                                 .order_by(Assignment.id.desc()).limit(1))
+    al.create_alert(s, dedup_key=f"exp:{exp_id}:{categoria}:{now.isoformat()}"[:96], kind="CAPTURA",
+                    title=f"{exp.codigo}: {texto}", source_code="captura", region=exp.region,
+                    resource=exp.sucursal or "-", now=now, assignment_id=assignment_id, request_id=exp.request_id,
+                    priority=exp.prioridad, categoria=categoria,
+                    payload={"categoria": categoria, "expediente": exp.codigo, "sucursal": exp.sucursal,
+                             "estado": exp.estado if tipo != "ESTADO" else detalle.get("despues"),
+                             **({"motivo": str(detalle.get("motivo"))[:64]} if detalle.get("motivo") else {})})
 
 
 def cambiar_estado(s: Session, exp: Expediente, nuevo: str, actor: str, now: datetime, **detalle) -> None:

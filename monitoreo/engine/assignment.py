@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -149,6 +149,78 @@ def candidate_operators(session: Session, region: str, sucursal: str | None = No
     return sorted(ops, key=lambda o: (o.current_load, o.last_assigned_at or datetime.min, o.id))
 
 
+def elegir_operadores(session: Session, slot: SlotState, req: Request, now: datetime, params: dict,
+                      vetados: set[int]) -> tuple[list[Operator], dict]:
+    """v1.7: candidatos ordenados según `reparto_modo` y una EXPLICACIÓN legible de la decisión:
+    quién podía recibirla, por qué cada descartado no, y con qué criterio se ordenó.
+
+    Reglas (las de v1.0-v1.6 se conservan; lo nuevo es opcional y está apagado por defecto):
+    - activo, con capacidad, de la región y con la sucursal permitida (v1.6);
+    - no quien ya rechazó o declinó esta solicitud (v1.6);
+    - `operador_ausente_s` > 0: no quien tiene usuario y no usa el panel hace más de N s;
+    - `reparto_modo`: menor_carga (carga actual, luego quien lleva más sin recibir) o
+      equitativo_dia (menos asignaciones en las últimas 24 h, luego carga)."""
+    sucursal = (slot.attributes or {}).get("sucursal")
+    ausente_s = float(params.get("operador_ausente_s") or 0)
+    modo = params.get("reparto_modo") or "menor_carga"
+    ok, descartados = [], []
+    for o in session.scalars(select(Operator).order_by(Operator.id)):
+        motivo = None
+        if not o.active:
+            motivo = "desactivado"
+        elif o.regions and slot.region not in o.regions:
+            motivo = f"no atiende la región {slot.region}"
+        elif sucursal and (o.sucursales or []) and sucursal not in o.sucursales:
+            motivo = f"no tiene permitida la sucursal {sucursal}"
+        elif o.current_load >= o.max_concurrent:
+            motivo = f"sin capacidad ({o.current_load}/{o.max_concurrent})"
+        elif o.id in vetados:
+            motivo = "ya rechazó o declinó esta solicitud"
+        elif ausente_s > 0 and o.user_id is not None and (
+                o.visto_en is None or (now - o.visto_en).total_seconds() > ausente_s):
+            motivo = ("ausente: nunca ha entrado al panel" if o.visto_en is None else
+                      f"ausente: sin actividad en el panel hace {int((now - o.visto_en).total_seconds() // 60)} min")
+        if motivo:
+            descartados.append({"operador": o.name, "motivo": motivo})
+        else:
+            ok.append(o)
+    hoy: dict[int, int] = {}
+    if ok and modo == "equitativo_dia":
+        hoy = dict(session.execute(select(Assignment.operator_id, func.count()).where(
+            Assignment.operator_id.in_([o.id for o in ok]), Assignment.created_at >= now - timedelta(hours=24))
+            .group_by(Assignment.operator_id)).all())
+        ok.sort(key=lambda o: (hoy.get(o.id, 0), o.current_load, o.last_assigned_at or datetime.min, o.id))
+    else:
+        ok.sort(key=lambda o: (o.current_load, o.last_assigned_at or datetime.min, o.id))
+    criterio = ("menos asignaciones en las últimas 24 h, luego menor carga" if modo == "equitativo_dia"
+                else "menor carga actual, luego quien lleva más tiempo sin recibir")
+    explic = {
+        "criterio": criterio, "reparto_modo": modo, "region": slot.region, "sucursal": sucursal,
+        "solicitud": {"codigo": req.code, "prioridad": req.priority,
+                      "antiguedad_min": int((now - req.created_at).total_seconds() // 60) if req.created_at else None},
+        "candidatos": [{"operador": o.name, "carga": f"{o.current_load}/{o.max_concurrent}",
+                        **({"asignaciones_24h": hoy.get(o.id, 0)} if modo == "equitativo_dia" else {})} for o in ok],
+        "descartados": descartados,
+    }
+    return ok, explic
+
+
+def resumen_explicacion(explic: dict, elegido: str) -> str:
+    """Texto legible para el administrador."""
+    sol = explic.get("solicitud") or {}
+    partes = [f"Se eligió a {elegido} para {sol.get('codigo')} (prioridad {sol.get('prioridad')}, "
+              f"en cola hace {sol.get('antiguedad_min')} min) en {explic.get('region')}"
+              + (f" / {explic['sucursal']}" if explic.get("sucursal") else "") + ".",
+              f"Criterio: {explic.get('criterio')}."]
+    cands = explic.get("candidatos") or []
+    if len(cands) > 1:
+        partes.append("Otros candidatos: " + ", ".join(f"{c['operador']} ({c['carga']})" for c in cands
+                                                      if c["operador"] != elegido) + ".")
+    if explic.get("descartados"):
+        partes.append("Descartados: " + "; ".join(f"{d['operador']} — {d['motivo']}" for d in explic["descartados"]) + ".")
+    return " ".join(partes)
+
+
 @dataclass
 class AssignOutcome:
     assignment_id: int | None
@@ -156,7 +228,8 @@ class AssignOutcome:
 
 
 def try_assign(db: Database, slot_id: int, request_id: int, operator_id: int, now: datetime, ttl_s: float,
-               change_event_id: int | None = None, actor: str = "motor") -> AssignOutcome:
+               change_event_id: int | None = None, actor: str = "motor",
+               explicacion: dict | None = None) -> AssignOutcome:
     """Intento atómico de asignación. Devuelve assignment_id o el motivo del rechazo."""
     try:
         with db.session() as s:
@@ -185,7 +258,7 @@ def try_assign(db: Database, slot_id: int, request_id: int, operator_id: int, no
                 raise _Abort("operador sin capacidad")
             a = Assignment(request_id=request_id, slot_id=slot_id, operator_id=operator_id, quantity=q,
                            change_event_id=change_event_id, status="ACTIVA", live_request_id=request_id,
-                           created_at=now, expires_at=now + timedelta(seconds=ttl_s))
+                           created_at=now, expires_at=now + timedelta(seconds=ttl_s), explicacion=explicacion)
             s.add(a)
             s.add(RequestEvent(request_id=request_id, ts=now, from_status=prev_status, to_status=ASIGNADO,
                                actor=actor, note=f"slot={slot_id} operador={operator_id}"))
@@ -219,20 +292,24 @@ def allocate_slot(db: Database, slot_id: int, now: datetime, params: dict, chang
             if not cands:
                 break
             req = cands[0]
-            ops = candidate_operators(s, slot.region, (slot.attributes or {}).get("sucursal"))
             # v1.6: quien ya rechazó o declinó esta solicitud no la vuelve a recibir
             vetados = set(s.scalars(select(Assignment.operator_id).where(
                 Assignment.request_id == req.id, Assignment.status.in_(["RECHAZADA", "DECLINADA"]))))
-            hay_operadores = bool(ops)
-            ops = [o for o in ops if o.id not in vetados]
+            # v1.7: misma regla de compatibilidad + ausencias + reparto configurable, con explicación
+            ops, explic = elegir_operadores(s, slot, req, now, params, vetados)
+            hay_operadores = bool(ops) or any(d["motivo"] == "ya rechazó o declinó esta solicitud"
+                                              for d in explic["descartados"])
+            op_info = [(o.id, o.name) for o in ops]
             req_id, region = req.id, slot.region
         tried.add(req_id)
         if not hay_operadores:
             break  # nadie disponible: los recursos quedan libres y se reevalúan después
         if not ops:
             continue  # solo la rechazaron los disponibles: se prueba la siguiente solicitud
-        for op in ops:
-            out = try_assign(db, slot_id, req_id, op.id, now, params["ttl_asignacion_s"], change_event_id)
+        for op_id, op_name in op_info:
+            e = {**explic, "elegido": op_name, "resumen": resumen_explicacion(explic, op_name)}
+            out = try_assign(db, slot_id, req_id, op_id, now, params["ttl_asignacion_s"], change_event_id,
+                             explicacion=e)
             if out.assignment_id:
                 created.append(out.assignment_id)
                 break

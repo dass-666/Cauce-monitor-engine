@@ -143,8 +143,10 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
 
     from .api.routes import lab_router, router
     from .api.observability import router as obs_router
+    from .api.centro import router as centro_router
     app.include_router(router)
     app.include_router(obs_router)
+    app.include_router(centro_router)
     if not production:
         # Laboratorio, rutas de prueba y emulador de Telegram: solo fuera de producción.
         from .api.test_api import router as test_router

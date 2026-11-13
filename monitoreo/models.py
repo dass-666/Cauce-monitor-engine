@@ -177,6 +177,7 @@ class Operator(Base):
     max_concurrent: Mapped[int] = mapped_column(Integer, default=3)
     current_load: Mapped[int] = mapped_column(Integer, default=0)
     last_assigned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    visto_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # v1.7: presencia en el panel
 
 
 class Request(Base):
@@ -236,6 +237,7 @@ class Assignment(Base):
     taken_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     inactive_alerted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    explicacion: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # v1.7: por qué este operador
 
 
 class Operation(Base):
@@ -285,6 +287,12 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     acknowledged_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # v1.7: centro de notificaciones
+    categoria: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    nivel: Mapped[str | None] = mapped_column(String(8), nullable=True)          # CRITICA | ALTA | MEDIA | BAJA
+    grupo: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    repeticiones: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    ultima_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Delivery(Base):

@@ -332,7 +332,7 @@ def _assignment_alert(s, assignment_id: int, now):
         s, dedup_key=f"asg:{a.id}", kind="ASIGNACION", title=f"{req.code} asignada a {op.name}: {slot.name}",
         source_code=src.code, region=slot.region, resource=slot.name, now=now, change_event_id=a.change_event_id,
         assignment_id=a.id, request_id=req.id, priority=req.priority, operator_name=op.name,
-        payload={"solicitud": req.code, "titular": req.holder, "cantidad": a.quantity,
+        payload={"solicitud": req.code, "titular": alerts_mod.enmascarar_nombre(req.holder), "cantidad": a.quantity,
                  "inicio": slot.starts_at.isoformat() if slot.starts_at else None,
                  "vence_asignacion": a.expires_at.isoformat() + "Z", "estado_solicitud": req.status})
 

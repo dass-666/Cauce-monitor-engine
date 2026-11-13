@@ -8,7 +8,8 @@ from ..models import Setting
 
 
 CHOICES = {"enfriamiento_modo": ["adaptable", "fijo"], "captura_modo": ["POR_DIA", "POR_HORARIO"],
-           "retencion_accion": ["ANONIMIZAR", "BORRAR"]}
+           "retencion_accion": ["ANONIMIZAR", "BORRAR"],
+           "reparto_modo": ["menor_carga", "equitativo_dia"]}
 
 # v1.4 (auditoría): límites de los parámetros cuyo valor extremo deja el motor inservible o
 # consume la CPU (p. ej. tick_segundos = 0 hacía girar el planificador sin pausa).
@@ -16,7 +17,8 @@ LIMITS = {
     "tick_segundos": (0.05, 60), "concurrencia_maxima": (1, 200), "umbral_circuito": (1, 100),
     "aperturas_hasta_error": (1, 1000), "enfriamiento_circuito_s": (1, 86400), "enfriamiento_intervalos": (1, 1000),
     "enfriamiento_min_s": (1, 86400), "enfriamiento_max_s": (1, 86400), "minutos_sin_exito_hasta_error": (0, 100000),
-    "backoff_max_s": (1, 86400), "ausencias_para_cancelar": (1, 1000), "ttl_asignacion_s": (10, 7 * 86400),
+    "backoff_max_s": (1, 86400), "ausencias_para_cancelar": (1, 1000), "ttl_asignacion_s": (10, 7 * 86400), "operador_ausente_s": (0, 7 * 86400),
+    "operador_conexion_perdida_s": (10, 86400), "operador_inactivo_s": (30, 7 * 86400), "alertas_agrupar_s": (0, 86400),
     "max_intentos_solicitud": (1, 1000), "reintentos_notificacion": (0, 100), "despacho_presupuesto_s": (0.5, 600), "backoff_notificacion_s": (0.1, 3600),
     "retencion_lote": (1, 100000), "retencion_lotes_por_pasada": (1, 100000), "retencion_pausa_lote_s": (0, 10),
     "mantenimiento_historial_cada_s": (10, 7 * 86400), "lease_duracion_s": (3, 3600),
@@ -46,6 +48,13 @@ def set_params(session: Session, changes: dict) -> dict:
         if isinstance(default, list):
             if not isinstance(v, list):
                 raise ValueError(f"{k} debe ser una lista")
+            if k == "alertas_silenciadas":
+                from .alerts import SILENCIABLES
+                malas = [c for c in v if c not in SILENCIABLES]
+                if malas:
+                    raise ValueError(f"alertas_silenciadas: {malas} no existen o son críticas (no se pueden "
+                                     f"silenciar). Permitidas: {list(SILENCIABLES)}")
+                v = sorted(set(v))
         elif k in CHOICES:
             if v not in CHOICES[k]:
                 raise ValueError(f"{k} debe ser uno de {CHOICES[k]}")

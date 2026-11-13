@@ -68,11 +68,17 @@ def assignment(a, slot=None, req=None, op=None) -> dict:
 
 
 def alert(a) -> dict:
+    from ..engine.alerts import CATEGORIAS, clasificar, nivel_de
+    cat = a.categoria or clasificar(a.kind, a.payload)
     return {"id": a.id, "kind": a.kind, "title": a.title, "source_code": a.source_code, "region": a.region,
             "resource": a.resource, "priority": a.priority, "operator_name": a.operator_name,
             "request_id": a.request_id, "change_event_id": a.change_event_id, "status": a.status,
             "payload": a.payload, "created_at": iso(a.created_at),
-            "acknowledged_at": iso(a.acknowledged_at), "acknowledged_by": a.acknowledged_by}
+            "acknowledged_at": iso(a.acknowledged_at), "acknowledged_by": a.acknowledged_by,
+            # v1.7 (alertas anteriores sin categoría: se clasifican al leerlas, sin modificar la fila)
+            "assignment_id": a.assignment_id, "categoria": cat, "nivel": a.nivel or nivel_de(cat),
+            "categoria_nombre": CATEGORIAS.get(cat, (cat, ""))[0],
+            "repeticiones": a.repeticiones or 1, "ultima_en": iso(a.ultima_en or a.created_at)}
 
 
 def operator(o) -> dict:

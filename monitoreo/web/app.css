@@ -176,3 +176,32 @@ details > summary { cursor: pointer; color: var(--muted); }
   .mes .dia { min-height: 38px; font-size: 12px; }
   .recorrido li { font-size: 12px; padding: 3px 8px; }
 }
+
+/* v1.7 · conexión perdida, centro, notificaciones, supervisión, mi trabajo */
+.offline-banner { position: sticky; top: 0; z-index: 50; background: var(--bad); color: #fff; padding: 10px 16px;
+  font-weight: 600; text-align: center; }
+body.is-offline .view { opacity: .72; }
+body.is-offline .view .kpi .value::after { content: " ·"; color: var(--bad); }
+.centro-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.check { display: inline-flex; align-items: center; gap: 6px; margin: 4px 12px 4px 0; cursor: pointer; }
+.check input { width: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.chips .chip { background: var(--panel); color: var(--text); cursor: pointer; padding: 6px 10px; font-size: 13px; text-align: left; }
+.chips .chip.active { border-color: var(--accent); background: var(--accent-soft); }
+.chips .chip.muted { opacity: .65; }
+.alert-item.nivel-critica { border-left: 4px solid var(--bad); }
+.alert-item.nivel-alta { border-left: 4px solid var(--warn); }
+.trabajo { display: grid; gap: 10px; }
+.trabajo-item { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.trabajo-item.urgente { border-left: 4px solid var(--bad); }
+.trabajo-item.interrumpido { border-left: 4px solid var(--warn); }
+.trabajo-item .prio { font-size: 18px; font-weight: 700; min-width: 34px; text-align: center; }
+.trabajo-item .paso { font-weight: 600; }
+.siguiente { margin-top: 12px; padding: 10px; border-radius: 8px; background: var(--ok-soft); }
+@media (max-width: 720px) {
+  .trabajo-item { grid-template-columns: auto 1fr; }
+  .trabajo-item .actions { grid-column: 1 / -1; }
+  .chips .chip { flex: 1 1 100%; }
+  .table-wrap { overflow-x: auto; }
+}

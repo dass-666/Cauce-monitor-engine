@@ -145,7 +145,21 @@ class LabDia(Lab):
         assert r.status_code == 200, r.text
         cal = r.json()["calendario"]
         libres = [d for d in cal["dias"] if d["estado"] == "DISPONIBLE"]
-        assert libres, "el calendario debería tener días disponibles"
+        # v1.7: el calendario muestra un MES. Cerca de fin de mes (o con los días del mes ya ocupados por
+        # pruebas anteriores) los libres están en el mes siguiente: el operador pulsa «Mes siguiente».
+        # Antes esta ayuda daba por hecho que el mes en curso siempre tenía días: fallaba según la fecha.
+        mes = cal.get("mes")
+        for _ in range(2):
+            if libres or not mes:
+                break
+            y, m = (int(x) for x in mes.split("-"))
+            mes = f"{y + m // 12:04d}-{m % 12 + 1:02d}"
+            r = self.c.get(f"/api/reservaciones/{rid}/calendario", headers=h,
+                           params={"mes": mes, **({"sucursal": cal["sucursal"]} if cal.get("sucursal") else {})})
+            assert r.status_code == 200, r.text
+            cal = r.json()["calendario"] if "calendario" in r.json() else r.json()
+            libres = [d for d in cal["dias"] if d["estado"] == "DISPONIBLE"]
+        assert libres, ("el calendario debería tener días disponibles", cal.get("mes"))
         dia = elegir(libres) if elegir else libres[0]
         r = self.c.post(f"/api/reservaciones/{rid}/seleccionar-dia", headers=h,
                         json={"fecha": dia["fecha"], "sucursal": cal["sucursal"]})

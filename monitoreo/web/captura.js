@@ -20,7 +20,7 @@ const ESTADO_DIA = { DISPONIBLE: "Disponible", AGOTADO: "Agotado", DESHABILITADO
   DESCONOCIDO: "Desconocido (sin comunicación)" };
 const TRAMITES = { alta: "Alta de registro (ficticio)", renovacion: "Renovación (ficticia)", constancia: "Constancia (ficticia)" };
 const TABS = {
-  resumen: "Resumen", expedientes: "Expedientes", dias: "Calendario por día", preparacion: "Preparación de formularios",
+  trabajo: "Mi trabajo", resumen: "Resumen", expedientes: "Expedientes", dias: "Calendario por día", preparacion: "Preparación de formularios",
   calendario: "Calendario por horario", reservaciones: "Reservaciones", confirmaciones: "Confirmaciones", historial: "Historial",
 };
 const RECORRIDO = [["Preparación", ["NUEVO", "INCOMPLETO", "EN_VALIDACION"]], ["Listo", ["LISTO"]], ["Asignado", ["ASIGNADO"]],
@@ -31,11 +31,12 @@ const hace = (seg) => seg === null || seg === undefined ? "nunca" : seg < 60 ? `
   seg < 3600 ? `hace ${Math.round(seg / 60)} min` : `hace ${Math.round(seg / 3600)} h`;
 
 async function viewCaptura() {
-  const f = S.filters.captura || (S.filters.captura = { tab: "resumen", grupo: "", region: "" });
+  // v1.7: el operador entra directo a «Mi trabajo» (antes: Resumen y luego la pestaña Expedientes)
+  const f = S.filters.captura || (S.filters.captura = { tab: isAdmin() ? "resumen" : "trabajo", grupo: "", region: "" });
   const tabs = h("div", { class: "tabs", role: "tablist" }, Object.entries(TABS).map(([k, t]) =>
     h("button", { class: "btn small" + (f.tab === k ? " primary" : ""), role: "tab", "aria-selected": f.tab === k ? "true" : "false",
       "data-tab": k, onclick: () => { f.tab = k; refresh(true); } }, t)));
-  const body = await ({ resumen: tabResumen, dias: tabDias, expedientes: tabExpedientes, preparacion: tabPreparacion, calendario: tabCalendario,
+  const body = await ({ trabajo: tabTrabajo, resumen: tabResumen, dias: tabDias, expedientes: tabExpedientes, preparacion: tabPreparacion, calendario: tabCalendario,
     reservaciones: tabReservaciones, confirmaciones: tabConfirmaciones, historial: tabHistorial }[f.tab] || tabExpedientes)(f);
   return h("div", {},
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Captura y reservaciones"),
@@ -413,7 +414,8 @@ function mostrarConfirmacion(box, e, res, resumen) {
     try {
       const out = await api(`/api/reservaciones/${res.id}/confirmar`, { method: "POST", body: { confirmo: true }, withStatus: true });
       toast(out.status === 200 ? `Reservación confirmada: folio ${out.data.reservacion.folio}` : "Confirmación enviada; el motor está verificando el resultado", 5000);
-      showExpediente(e.id);
+      await showExpediente(e.id);
+      ofrecerSiguiente(e.id);          // v1.7: paso 12, continuar con el siguiente sin volver a la lista
     } catch (err) {
       if (porDia && err.detalle && err.detalle.calendario) {    // el día se agotó: calendario al día, elige otro
         mostrarCalendarioDia(box, e, err.detalle.reservacion || res, err.detalle.calendario, null, err.message); return;
@@ -437,6 +439,49 @@ function mostrarConfirmacion(box, e, res, resumen) {
       h("button", { class: "btn ghost danger", onclick: async () => {
         await act(() => api(`/api/reservaciones/${res.id}/cancelar`, { method: "POST" }), "Intento descartado"); showExpediente(e.id); } }, "Descartar")),
     errs));
+}
+
+
+// ------------------------------------------------------------------ v1.7: MI TRABAJO (consola del operador)
+// Una sola lista con lo que el operador tiene que hacer, ordenada por urgencia, con el SIGUIENTE PASO
+// de cada expediente. «Continuar» abre el expediente en ese paso (si toca preparar, lo prepara).
+// Todo sale del servidor: si se perdió la conexión o se cerró el navegador, al volver se retoma
+// donde quedó (el estado vive en la base de datos, no en la pantalla).
+async function tabTrabajo() {
+  const d = await api("/api/captura/mi-trabajo");
+  const r = d.resumen;
+  const item = (x) => h("div", { class: "trabajo-item" + (x.urgente ? " urgente" : "") + (x.interrumpido ? " interrumpido" : ""),
+    "data-trabajo": x.id },
+    h("div", { class: "prio", title: "Prioridad (1 = más alta)" }, "P" + x.prioridad),
+    h("div", {},
+      h("div", {}, h("b", {}, x.codigo), " · ", TRAMITES[x.tipo_tramite] || x.tipo_tramite, x.sucursal ? " · " + x.sucursal : "", " ", badge(x.estado)),
+      h("div", { class: "paso", "data-paso": x.paso.clave }, `Paso ${x.paso.n} de 12: ${x.paso.texto}`),
+      x.faltan.length ? h("div", { class: "error" }, "Faltan datos: " + x.faltan.join(", ")) : null,
+      x.interrumpido ? h("div", { class: "muted" }, "Operación a medias: se retoma en el paso guardado.") : null,
+      x.avisos.map((a) => h("div", { class: "muted" }, a))),
+    h("div", { class: "actions" }, x.paso.accion ? h("button", { class: "btn primary", "data-continuar": x.id,
+      onclick: () => showExpediente(x.id, x.paso.clave === "preparar" ? "preparar" : undefined) }, x.interrumpido ? "Retomar" : "Continuar")
+      : h("button", { class: "btn small", onclick: () => showExpediente(x.id) }, "Ver")));
+  return h("div", {},
+    h("div", { class: "grid kpis" },
+      kpi("Por empezar", num(r.por_empezar), "asignados a ti"), kpi("A medias", num(r.a_medias), "se retoman donde quedaron"),
+      kpi("En verificación", num(r.en_verificacion), "el motor comprueba el folio"), kpi("Confirmados hoy", num(r.confirmados_hoy))),
+    d.items.length ? h("div", { class: "trabajo section", id: "mi-trabajo" }, d.items.map(item))
+      : h("div", { class: "empty section" }, "No tienes expedientes asignados. Cuando el motor te asigne uno aparecerá aquí."),
+    h("p", { class: "muted" }, "Solo ves tus expedientes. Los datos personales se muestran al abrir cada uno y esa consulta queda registrada."));
+}
+
+async function ofrecerSiguiente(actual) {
+  try {
+    const d = await api("/api/captura/mi-trabajo");
+    const sig = d.items.find((x) => x.id !== actual && x.paso.accion);
+    const box = $("flujo");
+    if (!box) return;
+    box.append(h("div", { class: "siguiente", id: "siguiente" }, sig ? [
+      h("p", {}, `Siguiente: ${sig.codigo} (P${sig.prioridad}) · paso ${sig.paso.n}: ${sig.paso.texto}`),
+      h("button", { class: "btn primary", id: "btn-siguiente", onclick: () => showExpediente(sig.id, sig.paso.clave === "preparar" ? "preparar" : undefined) },
+        "Siguiente expediente")] : h("p", {}, "No te quedan expedientes pendientes.")));
+  } catch (_) { /* sin conexión: la lista de «Mi trabajo» lo mostrará al volver */ }
 }
 
 // ------------------------------------------------------------------ Otras pestañas

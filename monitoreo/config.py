@@ -75,6 +75,13 @@ ENGINE_DEFAULTS: dict = {
     "backoff_max_s": 600,              # tope del retroceso exponencial entre consultas
     "ausencias_para_cancelar": 2,      # consultas completas sin ver un recurso -> CANCELACION
     "ttl_asignacion_s": 900,           # tiempo para que el operador tome una asignación
+    # v1.7: reparto entre operadores compatibles
+    "reparto_modo": "menor_carga",     # menor_carga (v1.0-v1.6) | equitativo_dia (menos asignaciones hoy)
+    "operador_ausente_s": 0,           # >0: no se asigna a quien no usa el panel hace más de N s (0 = no se mira)
+    "operador_conexion_perdida_s": 90, # sin señal del panel más de N s: "conexión perdida" (supervisión)
+    "operador_inactivo_s": 900,        # sin actividad más de N s: "inactivo" (supervisión)
+    "alertas_silenciadas": [],         # categorías NO críticas sin envío; quedan en el historial
+    "alertas_agrupar_s": 300,          # avisos iguales dentro de N s se agrupan en uno (repeticiones)
     "max_intentos_solicitud": 3,       # reasignaciones antes de marcar la solicitud EXPIRADO
     "tipos_que_alertan": ["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO", "CANCELACION", "CAMBIO_HORARIO"],
     "alerta_minimo_aumento": 1,        # unidades mínimas de aumento para alertar

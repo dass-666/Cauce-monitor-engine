@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -172,26 +172,115 @@ _register_telegram()
 
 
 # ---------------------------------------------------------------- creación
+# ---------------------------------------------------------------- v1.7: centro de notificaciones
+# Diez categorías con un nivel por defecto. CRITICA nunca se puede silenciar.
+CATEGORIAS = {
+    "NUEVA_DISPONIBILIDAD": ("Nueva disponibilidad", "MEDIA"),
+    "DISPONIBILIDAD_AGOTADA": ("Disponibilidad agotada", "BAJA"),
+    "EXPEDIENTE_ASIGNADO": ("Expediente asignado", "ALTA"),
+    "EXPEDIENTE_INCOMPLETO": ("Expediente incompleto", "MEDIA"),
+    "OPERACION_ABANDONADA": ("Operación abandonada", "ALTA"),
+    "CONFIRMACION_PENDIENTE": ("Confirmación pendiente", "ALTA"),
+    "RESERVACION_CONFIRMADA": ("Reservación confirmada", "BAJA"),
+    "ERROR_COMUNICACION": ("Error de comunicación", "ALTA"),
+    "PROBLEMA_MOTOR": ("Problema del motor", "CRITICA"),
+    "REQUIERE_INTERVENCION": ("Requiere intervención", "CRITICA"),
+}
+NIVELES = ("CRITICA", "ALTA", "MEDIA", "BAJA")
+SILENCIABLES = tuple(k for k, (_, n) in CATEGORIAS.items() if n != "CRITICA")
+# Solo se agrupan los avisos que se repiten por la misma causa (una fuente que falla una y otra vez);
+# cada disponibilidad o asignación es trabajo distinto y se notifica por separado.
+AGRUPABLES = ("ERROR_COMUNICACION", "PROBLEMA_MOTOR")
+_AGOTA = ("AGOTADO", "REDUCCION", "CANCELACION", "DESAPARECIDO")
+
+
+def enmascarar_nombre(nombre: str | None) -> str | None:
+    """v1.7: las alertas salen a canales externos (webhook, Telegram) y se guardan en el historial:
+    nunca llevan el nombre completo del titular. Se conserva la clave `titular` (compatibilidad con
+    receptores existentes) con solo las iniciales: "Ana López" -> "A. L."."""
+    if not nombre:
+        return nombre
+    return " ".join(p[0].upper() + "." for p in str(nombre).split() if p[:1].isalpha())[:16] or "—"
+
+
+def clasificar(kind: str, payload: dict | None) -> str:
+    """Categoría de una alerta a partir de su tipo y su contenido. Sirve también para las alertas
+    anteriores a la v1.7 (sin categoría guardada)."""
+    p = payload or {}
+    if kind == "DISPONIBILIDAD":
+        return "DISPONIBILIDAD_AGOTADA" if p.get("cambio") in _AGOTA else "NUEVA_DISPONIBILIDAD"
+    if kind == "ASIGNACION":
+        return "EXPEDIENTE_ASIGNADO"
+    if kind == "CAPTURA" and p.get("categoria") in CATEGORIAS:
+        return p["categoria"]
+    ev = p.get("evento_sistema")
+    if ev == "asignacion_inactiva":
+        return "OPERACION_ABANDONADA"
+    if ev in ("error", "circuito", "acceso", "calendario_desconectado"):
+        return "ERROR_COMUNICACION"
+    return "PROBLEMA_MOTOR"
+
+
+def nivel_de(categoria: str) -> str:
+    return CATEGORIAS.get(categoria, ("", "ALTA"))[1]
+
+
+def grupo_de(categoria: str, source_code: str, payload: dict | None) -> str | None:
+    ev = (payload or {}).get("evento_sistema")
+    if categoria not in AGRUPABLES or not ev:      # solo avisos del motor con causa identificada
+        return None
+    return f"{categoria}:{source_code}:{ev}"[:128]
+
+
 def create_alert(s: Session, *, dedup_key: str, kind: str, title: str, source_code: str, region: str,
                  resource: str, now: datetime, change_event_id: int | None = None, assignment_id: int | None = None,
                  request_id: int | None = None, priority: int | None = None, operator_name: str | None = None,
-                 payload: dict | None = None) -> Alert | None:
-    """Crea la alerta si no existe ya (deduplicación). Devuelve None si era duplicada."""
+                 payload: dict | None = None, categoria: str | None = None) -> Alert | None:
+    """Crea la alerta si no existe ya (deduplicación). Devuelve None si era duplicada o si se sumó a
+    un grupo abierto (v1.7: misma causa repetida dentro de `alertas_agrupar_s`).
+
+    v1.7: cada alerta lleva categoría y nivel. Si su categoría está silenciada (y no es CRITICA)
+    se guarda con estado SILENCIADA y SIN entregas: queda en el historial del panel pero no se
+    envía a ningún canal."""
     if s.scalar(select(Alert.id).where(Alert.dedup_key == dedup_key)) is not None:
         return None
+    from .params import get_params
+    params = get_params(s)
+    categoria = categoria if categoria in CATEGORIAS else clasificar(kind, payload)
+    nivel = nivel_de(categoria)
+    grupo = grupo_de(categoria, source_code, payload)
+    ventana = float(params.get("alertas_agrupar_s") or 0)
+    if grupo and ventana > 0:
+        abierto = s.scalar(select(Alert).where(Alert.grupo == grupo, Alert.acknowledged_at.is_(None),
+                                                func.coalesce(Alert.ultima_en, Alert.created_at)
+                                                >= now - timedelta(seconds=ventana)).order_by(Alert.id.desc()).limit(1))
+        if abierto is not None:
+            # UPDATE atómico: dos procesos que agrupan a la vez suman los dos
+            s.execute(update(Alert).where(Alert.id == abierto.id).values(
+                repeticiones=Alert.repeticiones + 1, ultima_en=now))
+            return None
+    silenciada = categoria in {c for c in (params.get("alertas_silenciadas") or []) if c in SILENCIABLES}
     alert = Alert(dedup_key=dedup_key, kind=kind, title=title, source_code=source_code, region=region,
                   resource=resource, change_event_id=change_event_id, assignment_id=assignment_id,
-                  request_id=request_id, priority=priority, operator_name=operator_name, status="PENDIENTE",
-                  payload=payload or {}, created_at=now)
+                  request_id=request_id, priority=priority, operator_name=operator_name,
+                  status="SILENCIADA" if silenciada else "PENDIENTE",
+                  payload=payload or {}, created_at=now, categoria=categoria, nivel=nivel, grupo=grupo,
+                  repeticiones=1, ultima_en=now)
     try:
         with s.begin_nested():  # savepoint: si otra transacción ganó la carrera, solo se descarta esta alerta
             s.add(alert)
             s.flush()
     except IntegrityError:
         return None
+    if silenciada:
+        return alert
     for ch in s.scalars(select(Channel).where(Channel.enabled.is_(True))):
-        kinds = (ch.config or {}).get("tipos")  # v1.1: un canal puede limitarse a ciertos tipos de alerta
+        cfg = ch.config or {}
+        kinds = cfg.get("tipos")  # v1.1: un canal puede limitarse a ciertos tipos de alerta
         if kinds and kind not in kinds:
+            continue
+        cats = cfg.get("categorias")  # v1.7: o a ciertas categorías
+        if cats and categoria not in cats:
             continue
         s.add(Delivery(alert_id=alert.id, channel_id=ch.id, status="PENDIENTE", next_attempt_at=now))
     return alert
@@ -201,7 +290,9 @@ def alert_payload(a: Alert) -> dict:
     return {"id": a.id, "dedup_key": a.dedup_key, "tipo": a.kind, "titulo": a.title, "fuente": a.source_code,
             "region": a.region, "recurso": a.resource, "fecha_hora": a.created_at.isoformat() + "Z",
             "solicitud_id": a.request_id, "prioridad": a.priority, "operador": a.operator_name,
-            "estado": a.status, **(a.payload or {})}
+            "estado": a.status, **(a.payload or {}),
+            "categoria": a.categoria or clasificar(a.kind, a.payload), "nivel": a.nivel or nivel_de(
+                a.categoria or clasificar(a.kind, a.payload)), "repeticiones": a.repeticiones or 1}
 
 
 # ---------------------------------------------------------------- despacho

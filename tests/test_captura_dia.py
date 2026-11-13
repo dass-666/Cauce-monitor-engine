@@ -481,3 +481,28 @@ def test_reasignacion_entre_dos_pasadas_sigue_a_la_asignacion_viva(lab):
     with lab.db.session() as s:
         assert [x.tipo for x in s.scalars(select(ExpedienteEvento).where(
             ExpedienteEvento.expediente_id == eid, ExpedienteEvento.tipo == "ASIGNACION_CAMBIADA"))] == ["ASIGNACION_CAMBIADA"]
+
+
+# ---------------------------------------------------------------- v1.7: notificaciones de expedientes
+def test_v17_notificaciones_de_expediente_sin_datos_personales(lab):
+    n = siguiente_registro()
+    d = lab.datos_expediente(n=n)
+    inc = lab.crear(n=n, operacion="reprogramar")                    # sin folio anterior: INCOMPLETO
+    assert inc["estado"] == "INCOMPLETO"
+    lab.c.post(f"/api/expedientes/{inc['id']}/cancelar", headers=lab.h)
+    eid, u, h = asignado(lab)
+    rid, _ = lab.hasta_fecha(eid, h)
+    assert lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True}).status_code == 200
+    with lab.db.session() as s:
+        al = {a.categoria: a for a in s.scalars(select(Alert).where(Alert.kind == "CAPTURA"))}
+        assert {"EXPEDIENTE_INCOMPLETO", "RESERVACION_CONFIRMADA"} <= set(al)
+        conf = al["RESERVACION_CONFIRMADA"]
+        assert conf.assignment_id is not None and conf.title.startswith("EXP-")
+        blob = "\n".join(json.dumps(a.payload, ensure_ascii=False) + a.title for a in al.values())
+    for v in (d["nombre"], d["telefono"], d["correo"], d["fecha_nacimiento"], MANUALES["clave_identidad"]):
+        assert v not in blob, v
+    # el operador dueño ve la de su reservación; el otro operador no; el incompleto es del administrador
+    otro = next(x for x in lab.ops if x != u)
+    vis = lambda hh: {a["id"] for a in lab.c.get("/api/notificaciones", headers=hh).json()["items"]}  # noqa: E731
+    assert conf.id in vis(h) and conf.id not in vis(lab.ops[otro])
+    assert al["EXPEDIENTE_INCOMPLETO"].id not in vis(h) and al["EXPEDIENTE_INCOMPLETO"].id in vis(lab.h)
