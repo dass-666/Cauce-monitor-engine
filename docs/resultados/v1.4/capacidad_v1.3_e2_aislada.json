@@ -1,0 +1,157 @@
+{
+  "motor": "sqlite",
+  "sistema": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "cpus": 4,
+  "memoria_total_gb": 15.7,
+  "segundos_por_escenario": 40,
+  "escenarios": {
+    "e2": {
+      "escenario": {
+        "titulo": "10 regiones · 100 fuentes · 2.000 solicitudes · 10 operadores",
+        "regiones": 10,
+        "fuentes": 100,
+        "pendientes": 2000,
+        "historicas": 0,
+        "clientes": 10,
+        "instancias": 1
+      },
+      "preparacion": {
+        "preparacion_s": 0.08,
+        "regiones": [
+          "NORTE",
+          "SUR",
+          "ESTE",
+          "OESTE",
+          "CENTRO",
+          "REG06",
+          "REG07",
+          "REG08",
+          "REG09",
+          "REG10"
+        ]
+      },
+      "arranque_s": [
+        1.15
+      ],
+      "duracion_s": 40.5,
+      "medido": {
+        "procesos": {
+          "e2-inst1": {
+            "memoria_mb_media": 136.6,
+            "memoria_mb_max": 149.7,
+            "cpu_pct_media": 68.0,
+            "cpu_pct_p95": 95.0
+          }
+        },
+        "latencia_api_ms": {
+          "GET /api/alerts": {
+            "n": 162,
+            "p50": 22.1,
+            "p95": 440.7,
+            "max": 1446.8
+          },
+          "GET /api/dashboard": {
+            "n": 384,
+            "p50": 38.3,
+            "p95": 213.3,
+            "max": 1388.0
+          },
+          "GET /api/requests": {
+            "n": 183,
+            "p50": 29.9,
+            "p95": 552.7,
+            "max": 1611.4
+          },
+          "POST /api/requests": {
+            "n": 78,
+            "p50": 15.6,
+            "p95": 439.2,
+            "max": 842.7
+          }
+        },
+        "peticiones_api_por_s": 19.9,
+        "errores_api": 0,
+        "ejemplos_error": [],
+        "consultas_fuentes_por_min": 593.5,
+        "consultas_esperadas_por_min": 600.0,
+        "eventos_detectados": 1014,
+        "asignaciones": 120,
+        "alertas": 299,
+        "ciclos_planificador": [
+          41
+        ],
+        "errores_ciclo_seguidos": 0,
+        "latencia_deteccion_ms_por_region": {
+          "Región Centro (ficticia)": {
+            "n": 115,
+            "p50": 2186.5,
+            "p95": 6461.7
+          },
+          "Región Este (ficticia)": {
+            "n": 101,
+            "p50": 2142.6,
+            "p95": 6490.4
+          },
+          "Región Norte (ficticia)": {
+            "n": 109,
+            "p50": 2352.6,
+            "p95": 6682.1
+          },
+          "Región Oeste (ficticia)": {
+            "n": 110,
+            "p50": 2395.8,
+            "p95": 7952.2
+          },
+          "Región 06 (ficticia)": {
+            "n": 105,
+            "p50": 2198.1,
+            "p95": 8352.4
+          },
+          "Región 07 (ficticia)": {
+            "n": 100,
+            "p50": 2210.0,
+            "p95": 6409.2
+          },
+          "Región 08 (ficticia)": {
+            "n": 109,
+            "p50": 2334.8,
+            "p95": 8286.3
+          },
+          "Región 09 (ficticia)": {
+            "n": 108,
+            "p50": 2233.6,
+            "p95": 7112.6
+          },
+          "Región 10 (ficticia)": {
+            "n": 105,
+            "p50": 2243.4,
+            "p95": 7896.0
+          },
+          "Región Sur (ficticia)": {
+            "n": 108,
+            "p50": 2266.0,
+            "p95": 7165.3
+          }
+        },
+        "integridad_en_marcha": "correcta",
+        "integridad_tras_parada": "correcta",
+        "base_bytes_inicio": 1048576,
+        "base_bytes_fin": 2756608,
+        "crecimiento_bytes_por_hora": 151825067
+      },
+      "simulado": {
+        "cambios_de_disponibilidad": 756,
+        "error_simulador": null,
+        "clientes_operador": 10
+      },
+      "estimado": {
+        "consultas_por_dia": 854640,
+        "bytes_por_consulta_aprox": 4259,
+        "crecimiento_dia_mb": 3471.6,
+        "techo_con_retencion_14d_mb": 48603.0,
+        "nota": "Extrapolación lineal de lo medido en la prueba; incluye eventos y asignaciones. La retención borra consultas de más de 14 días (ya resumidas en agregados)."
+      }
+    }
+  }
+}

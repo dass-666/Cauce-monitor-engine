@@ -377,6 +377,12 @@ jobs:
           } else {
             New-Item -ItemType Directory -Force C:\inst\anterior\data | Out-Null
             Copy-Item tests\fixtures\bd_v1_1.sqlite C:\inst\anterior\data\monitoreo.db
+            # Archivos de las fuentes JSON/CSV de demostración que acompañan a esa base en una instalación real
+            New-Item -ItemType Directory -Force C:\inst\anterior\data\feeds | Out-Null
+            '{"complete": true, "items": [{"resource_key": "CJ-1", "name": "Agenda Ficticia", "resource_type": "turno", "available": 0, "capacity": 3}]}' |
+              Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\centro_calendario.json
+            "clave,nombre,tipo,disponibles,capacidad,estado`nNC-1,Lote Ficticio A,unidad,0,5,ACTIVO" |
+              Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\norte_inventario.csv
             "MONITOREO_ADMIN_PASSWORD=Version-Anterior-123`nMONITOREO_SECRET_KEY=$([guid]::NewGuid())$([guid]::NewGuid())" |
               Set-Content -Encoding utf8 C:\inst\anterior\.env
           }
@@ -401,7 +407,8 @@ jobs:
           .\.venv\Scripts\python.exe scripts\comprobar_actualizacion.py verificar data\monitoreo.db "$antes"
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::datos, esquema o integridad distintos tras actualizar"; exit 1 }
           cmd /c diagnostico.bat --motor-detenido
-          if ($LASTEXITCODE -gt 1) { exit 1 }
+          if ($LASTEXITCODE -gt 1) { Write-Host "::error::el autodiagnóstico encontró problemas críticos"; exit 1 }
+          exit 0   # 1 = solo avisos (p. ej. una fuente de demostración sin conexión): aceptable
       - name: Arranque real de la versión nueva con los datos actualizados
         run: |
           Set-Location C:\inst\nueva

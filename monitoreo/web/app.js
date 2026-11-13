@@ -585,9 +585,9 @@ function showRecover(a) {
       "si no, devuélvela a la cola para que otro la atienda. El recurso retenido se libera en ambos casos."),
     field("¿Qué pasó?", h("select", { name: "resultado" },
       h("option", { value: "devolver_a_cola" }, "No se terminó: devolver a la cola"),
-      h("option", { value: "completada" }, "Se terminó: marcar como completada"))),
+      h("option", { value: "completada" }, "Se terminó: marcar como completada")), "full"),
     field("Motivo (queda en la auditoría)", h("input", { name: "motivo", required: true, minlength: 3, maxlength: 300,
-      placeholder: "Ej.: el operador confirma que no pudo terminarla" })),
+      placeholder: "Ej.: el operador confirma que no pudo terminarla" }), "full"),
     h("label", { class: "check full" }, h("input", { type: "checkbox", name: "confirmar", required: true }),
       " Confirmo que he comprobado la situación con el operador"),
     h("button", { class: "btn primary", type: "submit" }, "Aplicar"));
