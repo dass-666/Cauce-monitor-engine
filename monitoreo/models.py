@@ -457,6 +457,38 @@ class Expediente(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class Atencion(Base):
+    """v2.0 · Atención PRESENCIAL (modo ventanilla): una persona frente al operador, de principio a fin.
+
+    PENDIENTE (iniciada, sin expediente) -> EN_PROCESO (expediente tomado) -> CONFIRMADA | SIN_DISPONIBILIDAD
+    | ERROR | CANCELADA. Si al cerrar hay una confirmación sin resultado claro, queda PENDIENTE con
+    `resultado = VERIFICACION` y el motor la resuelve contra el portal. CONFIRMADA solo si la
+    reservación vinculada está CONFIRMADA (con evidencia del portal): nunca por una solicitud o simulación.
+    - `clave` (única por usuario) hace idempotente el inicio: repetir la petición devuelve la misma atención.
+    - `viva_expediente_id` (UNIQUE) impide dos atenciones abiertas sobre el mismo expediente.
+    No guarda datos personales: solo identificadores, estados y tiempos."""
+    __tablename__ = "atenciones"
+    __table_args__ = (UniqueConstraint("username", "clave", name="uq_atenciones_usuario_clave"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(32), unique=True)
+    clave: Mapped[str] = mapped_column(String(64))
+    username: Mapped[str] = mapped_column(String(64))
+    operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
+    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expedientes.id"), nullable=True, index=True)
+    viva_expediente_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+    reservacion_id: Mapped[int | None] = mapped_column(ForeignKey("reservaciones.id"), nullable=True)
+    estado: Mapped[str] = mapped_column(String(20), default="PENDIENTE", index=True)
+    resultado: Mapped[str | None] = mapped_column(String(32), nullable=True)      # motivo del cierre
+    folio: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    conexion: Mapped[str | None] = mapped_column(String(64), nullable=True)       # v2.0 P1: red usada
+    pasos: Mapped[int] = mapped_column(Integer, default=0)
+    iniciada_en: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    cerrada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class ExpedienteEvento(Base):
     """Historial y trazabilidad de un expediente: modificaciones (solo NOMBRES de campos, nunca
     valores) y eventos normalizados (DISPONIBILIDAD_DETECTADA, RESERVACION_CONFIRMADA...)."""

@@ -155,6 +155,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v1.5: captura y reservaciones de LABORATORIO (portal de prueba propio): nunca en producción
         from .api.captura import router as captura_router
         app.include_router(captura_router)
+        # v2.0: modo ventanilla (atención presencial) sobre la captura de laboratorio
+        from .api.ventanilla import router as ventanilla_router
+        app.include_router(ventanilla_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

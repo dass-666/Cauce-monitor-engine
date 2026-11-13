@@ -53,6 +53,8 @@ def sincronizar(db: Database, now: datetime) -> dict:
                       & Request.status.not_in(list(asg.TERMINAL))))).all()
         for exp, req_status in filas:
             if exp.estado not in (ex.LISTO, *ex.OPERACION_ACTIVA):
+                if req_status == asg.EN_VENTANILLA and exp.estado == ex.RES_CONFIRMADA:
+                    continue      # v2.0: la completa ventanilla.completar_solicitudes (no es "cancelada")
                 if req_status not in asg.TERMINAL and not rs.viva_bloquea(s, exp.id):
                     cerrar_req.append(exp.request_id)
                 continue
@@ -178,6 +180,12 @@ def mantenimiento(db: Database, now: datetime) -> dict:
         log.warning("recuperación de reservaciones falló: %s", e)
         res["recuperacion_error"] = str(e)[:200]
     res["sincronizacion"] = sincronizar(db, now)
+    try:
+        from . import ventanilla
+        res["ventanilla"] = {**ventanilla.resolver_pendientes(db, now),
+                             "solicitudes_completadas": ventanilla.completar_solicitudes(db, now)}
+    except Exception as e:  # noqa: BLE001 - no debe parar al motor
+        log.warning("seguimiento de ventanilla falló: %s", e)
     try:
         with db.session() as s:
             cada = float(get_params(s)["retencion_expedientes_cada_s"])

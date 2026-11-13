@@ -203,6 +203,7 @@ const VIEWS = {
   monitor: { t: "Monitor", f: viewMonitor },
   salud: { t: "Salud", f: viewHealth },
   solicitudes: { t: "Solicitudes", f: viewRequests },
+  ventanilla: { t: "Ventanilla", f: () => viewVentanilla(), lab: true, noAuto: true },   // v2.0: atención presencial (ventanilla.js)
   captura: { t: "Captura", f: () => viewCaptura(), lab: true },   // v1.5: laboratorio (captura.js); no existe en producción
   alertas: { t: "Notificaciones", f: viewNotificaciones },
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
@@ -216,7 +217,7 @@ function renderNav() {
 window.addEventListener("hashchange", () => { go(location.hash.slice(1)); });
 function go(v) {
   if (!VIEWS[v] || (VIEWS[v].admin && !isAdmin()) || (VIEWS[v].lab && !labOn())) v = "inicio";
-  S.view = v; S.dirty = false; renderNav(); refresh(true, true);
+  S.view = v; S.dirty = false; S.flujoHook = null; renderNav(); refresh(true, true);
 }
 
 let rendering = false;
@@ -230,6 +231,7 @@ async function refresh(force, scrollTop) {
   // No repintar mientras el usuario escribe en un formulario de la vista.
   const a = document.activeElement;
   if (!force && S.dirty) return;
+  if (!force && VIEWS[S.view].noAuto) return;    // v2.0: la ventanilla solo se repinta cuando el operador actúa
   if (!force && a && $("view").contains(a) && ["INPUT", "SELECT", "TEXTAREA"].includes(a.tagName)) return;
   rendering = true;
   try {
@@ -580,7 +582,7 @@ async function viewRequests() {
     field("Desde (opcional)", h("input", { name: "desde", type: "datetime-local" })),
     field("Hasta (opcional)", h("input", { name: "hasta", type: "datetime-local" })),
     h("button", { class: "btn primary", type: "submit" }, "Registrar solicitud"));
-  const statuses = ["PENDIENTE", "ELEGIBLE", "ASIGNADO", "EN_PROCESO", "COMPLETADO", "REINTENTO", "EXPIRADO", "CANCELADO", "ERROR"];
+  const statuses = ["PENDIENTE", "ELEGIBLE", "ASIGNADO", "EN_PROCESO", "COMPLETADO", "REINTENTO", "EN_VENTANILLA", "EXPIRADO", "CANCELADO", "ERROR"];
   const counts = {};
   return h("div", {},
     h("div", { class: "page-head" }, h("h1", {}, "Solicitudes"), h("div", { class: "muted" }, `${reqs.total} expedientes ficticios`)),

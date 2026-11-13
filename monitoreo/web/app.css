@@ -206,3 +206,15 @@ body.is-offline .view .kpi .value::after { content: " ·"; color: var(--bad); }
   .table-wrap { overflow-x: auto; }
 }
 .aviso-mes { padding: 8px 10px; border-radius: 8px; background: var(--info-soft); }
+
+/* v2.0 · Ventanilla */
+.trabajo-item.vt { grid-template-columns: 1fr auto; }
+.btn.big { font-size: 1.05rem; padding: 12px 20px; }
+.meta-dia .meta-cifras { font-size: 1.1rem; margin-bottom: 8px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.meta-dia .meta-cifras b { font-size: 1.8rem; }
+.meta-dia .bar { height: 12px; }
+.atencion-cab { margin-top: 16px; }
+.siguiente-paso { font-size: 1.05rem; font-weight: 600; margin: 10px 0; }
+.resultado.con-cita { border-left: 6px solid var(--ok); }
+.resultado.sin-cita { border-left: 6px solid var(--muted, #888); }
+.resultado.con-cita h2 { color: var(--ok); }

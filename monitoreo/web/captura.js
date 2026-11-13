@@ -153,6 +153,9 @@ async function showExpediente(id, paso) {
   await pintarFlujo(flujo, e, viva, conf, paso);
 }
 
+// v2.0: la ventanilla pinta el mismo flujo dentro de su pantalla; tras cada acción se vuelve a pintar ahí.
+function reabrirExp(id, p) { return S.flujoHook ? S.flujoHook(id, p) : showExpediente(id, p); }
+
 function paso(n, titulo, ...cuerpo) {
   return h("div", { class: "section" }, h("h2", {}, `${n}. ${titulo}`), ...cuerpo);
 }
@@ -175,7 +178,7 @@ function rechazoForm(e, reabrir) {
 }
 
 async function pintarFlujo(box, e, viva, conf, pasoPrevio) {
-  const reabrir = (p) => showExpediente(e.id, p);
+  const reabrir = (p) => reabrirExp(e.id, p);
   const cancelarExp = () => h("button", { class: "btn small danger", onclick: async () => {
     await act(() => api(`/api/expedientes/${e.id}/cancelar`, { method: "POST" }), "Expediente cancelado"); reabrir(); } }, "Cancelar expediente");
   const revalidar = () => h("button", { class: "btn small", id: "btn-revalidar", onclick: async () => {
@@ -415,13 +418,14 @@ function mostrarConfirmacion(box, e, res, resumen) {
     try {
       const out = await api(`/api/reservaciones/${res.id}/confirmar`, { method: "POST", body: { confirmo: true }, withStatus: true });
       toast(out.status === 200 ? `Reservación confirmada: folio ${out.data.reservacion.folio}` : "Confirmación enviada; el motor está verificando el resultado", 5000);
+      if (S.flujoHook) { S.flujoHook(e.id); return; }     // v2.0: en ventanilla sigue el cierre de la atención
       await showExpediente(e.id);
       ofrecerSiguiente(e.id);          // v1.7: paso 12, continuar con el siguiente sin volver a la lista
     } catch (err) {
       if (porDia && err.detalle && err.detalle.calendario) {    // el día se agotó: calendario al día, elige otro
         mostrarCalendarioDia(box, e, err.detalle.reservacion || res, err.detalle.calendario, null, err.message); return;
       }
-      toast("⚠ " + err.message, 6000); showExpediente(e.id);
+      toast("⚠ " + err.message, 6000); reabrirExp(e.id);
     }
   });
   const porDia = res.modo === "POR_DIA";
@@ -438,7 +442,7 @@ function mostrarConfirmacion(box, e, res, resumen) {
           if (porDia) mostrarCalendarioDia(box, e, res, r.calendario, r.permitidas); else mostrarCalendario(box, e, res, r.calendario);
         } catch (err) { errs.textContent = err.message; } } }, porDia ? "Elegir otro día" : "Elegir otro horario"),
       h("button", { class: "btn ghost danger", onclick: async () => {
-        await act(() => api(`/api/reservaciones/${res.id}/cancelar`, { method: "POST" }), "Intento descartado"); showExpediente(e.id); } }, "Descartar")),
+        await act(() => api(`/api/reservaciones/${res.id}/cancelar`, { method: "POST" }), "Intento descartado"); reabrirExp(e.id); } }, "Descartar")),
     errs));
 }
 
