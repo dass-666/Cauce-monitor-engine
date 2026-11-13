@@ -272,6 +272,10 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
     @app.middleware("http")
     async def inyectar(request: Request, call_next):
         p = request.url.path
+        if p.startswith("/api/") and fallos.pantallas and "api" in fallos.pantallas \
+                and fallos.activo("api", {"limite"}):
+            # v2.0 · P2: límite también en la API (solo si se pide expresamente con pantallas=["api"])
+            return JSONResponse({"detail": "Demasiadas solicitudes"}, status_code=429, headers={"Retry-After": "600"})
         if p.startswith(("/reservar", "/cita")):
             pantalla = p.split("/")[2] if p.count("/") >= 2 else "datos"
             if fallos.latencia_ms:

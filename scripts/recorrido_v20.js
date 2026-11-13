@@ -191,6 +191,29 @@ let paginaActual = null;
     await shot("64_conexiones.png");
   }
 
+  if (fase === "manual") {                              // v2.0 · P2: trámites hechos a mano (captura manual)
+    await page.goto(base + "/#tramites");
+    await page.waitForSelector("#form-captura-manual");
+    res.capturas = [];
+    for (const x of personas) {                          // aquí cada elemento es {adaptador, folio, fecha}
+      await page.selectOption("#form-captura-manual select[name=adaptador]", x.adaptador);
+      await page.fill("#form-captura-manual input[name=folio]", x.folio);
+      await page.fill("#form-captura-manual input[name=fecha]", x.fecha);
+      if (x.marcar !== false) await page.check("#form-captura-manual input[name=folio_visto]");
+      await page.click("#form-captura-manual button.btn.primary");
+      await page.waitForFunction(() => document.getElementById("captura-resultado").textContent.trim() !== "");
+      const est = await page.$eval("#captura-resultado", (el) => {
+        const b = el.querySelector("[data-estado-captura]");
+        return b ? b.getAttribute("data-estado-captura") : "ERROR: " + el.textContent.trim();
+      });
+      res.capturas.push(est);
+      await page.waitForTimeout(900);                     // la pantalla se refresca sola tras registrar
+      await page.waitForSelector("#form-captura-manual");
+    }
+    res.filas = await page.$$eval("#tramites-manuales [data-estado-captura]", (els) => els.map((e) => e.getAttribute("data-estado-captura")));
+    await shot("65_tramites_a_mano.png");
+  }
+
   res.errores_js = errores;
   res.http_errores = http;
   res.http_mensajes = detalle;

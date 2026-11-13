@@ -164,6 +164,21 @@ def run(a) -> dict:
     ok, cx, err = fase(node, motor, caps, out, "conexiones", [], usuario="admin", clave=PWD)
     ck("pantalla «Conexiones»: el portal de prueba es local y no se aparenta probar redes físicas",
        ok and cx.get("local") is True and cx.get("usos", 0) >= 1, err if not ok else cx)
+    # v2.0 · P2: el operador registra trámites hechos a mano. Folio que el portal de laboratorio SÍ conoce
+    # (uno de los seis de arriba) -> VERIFICADA; folio con formato válido que el portal no tiene -> DISCREPANCIA;
+    # proveedor sin integración -> SIN_VERIFICACION; sin marcar «folio visto» -> rechazado (no se registra).
+    manual = []
+    if ats:
+        r0 = httpx.get(portal.base + f"/api/reservaciones/{ats[0]['folio']}",
+                       headers={"Authorization": f"Bearer {portal.token}"}, trust_env=False).json()
+        manual = [{"adaptador": "laboratorio", "folio": ats[0]["folio"], "fecha": r0["fecha"]},
+                  {"adaptador": "laboratorio", "folio": "DIA-20991231-99999Z", "fecha": "2099-12-31"},
+                  {"adaptador": "oficial_manual", "folio": "OFI-2026-000123", "fecha": r0["fecha"]},
+                  {"adaptador": "oficial_manual", "folio": "OFI-2026-000124", "fecha": r0["fecha"], "marcar": False}]
+    ok, mn, err = fase(node, motor, caps, out, "manual", manual)
+    ck("«Trámites a mano»: verificado solo si el portal lo confirma; discrepancia y sin verificación quedan a la vista",
+       ok and mn.get("capturas", [])[:3] == ["VERIFICADA", "DISCREPANCIA", "SIN_VERIFICACION"]
+       and str(mn.get("capturas", [None] * 4)[3]).startswith("ERROR"), err if not ok else mn.get("capturas"))
     c = login(motor.base, "admin", PWD)
     with httpx.Client(base_url=motor.base, timeout=30, trust_env=False) as co:
         co.headers["Authorization"] = "Bearer " + co.post("/api/auth/login", json={"username": "operador1", "password": OP_PWD}).json()["token"]
@@ -172,13 +187,17 @@ def run(a) -> dict:
        and not dia["abiertas"], (dia["mias"]["con_cita"], dia["mias"]["sin_cita"], len(dia["abiertas"])))
     integ = c.get("/api/captura/coherencia").json()
     ck("coherencia del motor (sin estados contradictorios)", not integ.get("problemas"), (integ.get("problemas") or [])[:3])
-    errores = sum((x.get("errores_js", []) for x in (seis, sc, du, me, rt, mv, cx)), [])
+    errores = sum((x.get("errores_js", []) for x in (seis, sc, du, me, rt, mv, cx, mn)), [])
     ck("sin errores de JavaScript en el panel", not errores, errores[:5])
     http_err = {k: x.get("http_errores", []) for k, x in (("seis", seis), ("sin_cita", sc), ("duplicado", du), ("medias", me),
-                                                           ("retomar", rt), ("movil", mv))}
+                                                           ("retomar", rt), ("movil", mv), ("manual", mn))}
     esperados = [e for e in http_err["duplicado"] if e.startswith("409 POST /api/ventanilla/atenciones/") and e.endswith("/expediente")]
-    otros = [e for k, v in http_err.items() for e in v if not (k == "duplicado" and e in esperados)]
-    ck("respuestas HTTP de error: solo UN 409, el esperado del duplicado (sin envíos dobles)", len(esperados) == 1 and not otros,
+    # «Trámites a mano»: el registro sin «folio visto» devuelve 422 a propósito (uno, el esperado)
+    esperados_manual = [e for e in http_err["manual"] if e == "422 POST /api/capturas-manuales"]
+    otros = [e for k, v in http_err.items() for e in v
+             if not (k == "duplicado" and e in esperados) and not (k == "manual" and e in esperados_manual)]
+    ck("respuestas HTTP de error: solo las esperadas (un 409 del duplicado, un 422 del registro sin folio visto)",
+       len(esperados) == 1 and len(esperados_manual) == 1 and not otros,
        {k: x.get("http_mensajes", []) for k, x in (("duplicado", du),)} if otros or len(esperados) != 1 else http_err["duplicado"])
     motor.stop()
     portal.detener()

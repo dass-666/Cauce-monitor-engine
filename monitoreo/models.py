@@ -614,3 +614,29 @@ class CalendarioFuente(Base):
     resincronizaciones: Mapped[int] = mapped_column(Integer, default=0)
     reconexiones: Mapped[int] = mapped_column(Integer, default=0)
     zona_horaria: Mapped[str | None] = mapped_column(String(64), nullable=True)   # la que declara el portal
+
+
+class CapturaManual(Base):
+    """v2.0 · P2 · Resultado de un trámite que el operador hizo A MANO en el flujo oficial del proveedor
+    (sin integración del motor) y que después REGISTRA aquí. Nunca es una «cita confirmada por el motor»:
+
+    DECLARADA     el operador la registró (folio, fecha, sucursal); nadie la ha comprobado
+    VERIFICADA    el adaptador la comprobó con una integración AUTORIZADA (coinciden folio y fecha)
+    DISCREPANCIA  el adaptador la consultó y no coincide (o no existe): la revisa una persona
+    SIN_VERIFICACION  el adaptador no tiene forma autorizada de comprobarla (queda como declarada)
+    Sin datos personales: solo folio, fecha, sucursal y referencias internas."""
+    __tablename__ = "capturas_manuales"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    creada: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    adaptador: Mapped[str] = mapped_column(String(32))
+    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expedientes.id"), nullable=True, index=True)
+    atencion_id: Mapped[int | None] = mapped_column(ForeignKey("atenciones.id"), nullable=True)
+    operador: Mapped[str] = mapped_column(String(64))
+    folio: Mapped[str] = mapped_column(String(64))
+    fecha: Mapped[str] = mapped_column(String(10))                 # ISO AAAA-MM-DD (normalizada)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    transaccion_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    estado: Mapped[str] = mapped_column(String(20), default="DECLARADA", index=True)
+    verificada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
+    __table_args__ = (UniqueConstraint("adaptador", "folio", name="uq_captura_manual_folio"),)

@@ -173,6 +173,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v2.0: gestor de conexiones (por qué red sale el motor hacia el portal de prueba)
         from .api.conexiones import router as conexiones_router
         app.include_router(conexiones_router)
+        # v2.0 · P2: adaptadores de proveedor y captura manual (sin conectar portales externos)
+        from .api.adaptadores import router as adaptadores_router
+        app.include_router(adaptadores_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

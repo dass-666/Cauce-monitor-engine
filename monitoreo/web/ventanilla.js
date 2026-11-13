@@ -263,3 +263,60 @@ async function viewConexiones() {
       { t: "Detalle", f: (e) => e.detalle.motivo || (e.detalle.peticiones ? Object.entries(e.detalle.peticiones).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(", ") : "") }],
       d.eventos))));
 }
+
+// ------------------------------------------------------------------ v2.0 · P2: trámites hechos a mano
+// El operador completa el trámite en el flujo OFICIAL (fuera del motor) y aquí registra el folio.
+// Queda DECLARADO; solo se marca VERIFICADO si el adaptador tiene una vía autorizada que lo confirme.
+const ESTADO_CAPTURA = {
+  DECLARADA: ["", "Declarada por el operador"], VERIFICADA: ["b-ok", "Verificada con el proveedor"],
+  DISCREPANCIA: ["b-bad", "No coincide con el proveedor"], SIN_VERIFICACION: ["b-info", "Sin vía de verificación"],
+};
+const capturaBadge = (s) => h("span", { class: "badge " + (ESTADO_CAPTURA[s] || ["", s])[0], "data-estado-captura": s },
+  (ESTADO_CAPTURA[s] || ["", s])[1]);
+
+async function viewTramitesManuales() {
+  const [ads, lista] = await Promise.all([api("/api/adaptadores"), api("/api/capturas-manuales")]);
+  const usables = ads.adaptadores.filter((a) => a.captura_manual);
+  const res = h("div", { id: "captura-resultado" });
+  const form = h("form", { class: "form", id: "form-captura-manual", onsubmit: async (ev) => {
+    ev.preventDefault(); res.textContent = "";
+    const body = formData(ev.target);
+    try {
+      const c = await api("/api/capturas-manuales", { method: "POST", body });
+      res.replaceChildren(h("div", {}, "Registrado ", h("b", {}, c.folio), " · ", capturaBadge(c.estado),
+        c.detalle.verificacion && c.detalle.verificacion.motivo ? h("div", { class: "muted" }, c.detalle.verificacion.motivo) : null));
+      ev.target.reset();
+      setTimeout(() => refresh(true), 600);
+    } catch (err) { res.replaceChildren(h("div", { class: "error" }, err.message)); }
+  } },
+    field("Proveedor", h("select", { name: "adaptador" }, usables.map((a) => h("option", { value: a.nombre }, a.descripcion))), "full"),
+    field("Folio que mostró el sitio oficial", h("input", { name: "folio", required: true, maxlength: 64, autocomplete: "off" })),
+    field("Fecha de la cita", h("input", { name: "fecha", type: "date", required: true })),
+    field("Sucursal (opcional)", h("input", { name: "sucursal", maxlength: 32, autocomplete: "off" })),
+    field("Expediente (opcional, número interno)", h("input", { name: "expediente_id", type: "number", min: 1 })),
+    h("label", { class: "full check" }, h("input", { type: "checkbox", name: "folio_visto" }),
+      " El sitio oficial mostró este folio al terminar el trámite (sin folio no hay cita)"),
+    h("button", { class: "btn primary" }, "Registrar"));
+  const reverificar = async (c) => {
+    try { await api(`/api/capturas-manuales/${c.id}/verificar`, { method: "POST" }); refresh(true); }
+    catch (err) { toast("⚠ " + err.message, 4000); }
+  };
+  return h("div", { id: "tramites-manuales" },
+    h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Trámites hechos a mano"),
+      h("div", { class: "muted" }, "Para proveedores sin integración autorizada: haz el trámite en el sitio oficial con la persona presente y registra aquí el folio. ",
+        h("b", {}, "Un registro manual nunca cuenta como cita confirmada por el motor"), "; solo pasa a «verificada» si el proveedor lo confirma por una vía autorizada."))),
+    h("div", { class: "section" }, card("Registrar resultado", form, res)),
+    h("div", { class: "section" }, card("Registros", table([
+      { t: "Cuándo", f: (c) => fmtTime(c.creada) }, { t: "Proveedor", f: (c) => c.adaptador },
+      { t: "Folio", f: (c) => h("b", {}, c.folio) }, { t: "Fecha", f: (c) => c.fecha }, { t: "Sucursal", f: (c) => c.sucursal || "—" },
+      { t: "Estado", f: (c) => capturaBadge(c.estado) },
+      { t: "Detalle", f: (c) => {
+        const v = c.detalle.verificacion || {};
+        if (v.motivo) return v.motivo;
+        if (v.existe_en_proveedor === false) return "el proveedor no tiene ese folio";
+        if (v.fecha_proveedor && v.fecha_proveedor !== c.fecha) return "el proveedor tiene otra fecha: " + v.fecha_proveedor;
+        return "";
+      } },
+      { t: "", f: (c) => c.estado === "DECLARADA" ? h("button", { class: "btn", "data-reverificar": c.id, onclick: (ev) => { ev.stopPropagation(); reverificar(c); } }, "Verificar de nuevo") : null }],
+      lista.capturas))));
+}
