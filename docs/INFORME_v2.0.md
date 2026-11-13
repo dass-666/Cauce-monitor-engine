@@ -141,7 +141,7 @@ reintentar, y el diagnóstico solo aconseja revisarlo con el proveedor.
 | Resistencia con PostgreSQL real (A, B, C) | **26/26** (MEDIDO), dos corridas limpias seguidas | `docs/resultados/v2.0/resistencia/` |
 | Demo en navegador real (Chromium), SQLite | **28/28** (MEDIDO) | `docs/resultados/v2.0/demo_v20.json` |
 | Demo en navegador real, PostgreSQL | **28/28** (MEDIDO) | `docs/resultados/v2.0/postgresql/` |
-| GitHub Actions | **CI_RESULTADO** | CI_ENLACE |
+| GitHub Actions (commit `6874862`) | **22/22 trabajos en verde** (MEDIDO), incluida la resistencia con el contenedor de PostgreSQL detenido y matado de verdad (Linux) y `demo_ventanilla.bat` desde la carpeta instalada (Windows, PowerShell 7) | corrida 43522562620 |
 
 `tests/test_adaptadores.py` tiene 10 pruebas; las que usan base de datos se ejecutan en SQLite y en PG:
 - contrato, una vez por cada uno de los 3 adaptadores;
