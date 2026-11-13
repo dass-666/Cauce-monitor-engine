@@ -973,6 +973,7 @@ async function viewSupervision() {
       { t: "Completadas (hoy)", num: true, f: (o) => `${o.completadas} (${o.completadas_hoy})` },
       { t: "Sin atención", num: true, f: (o) => o.sin_atencion ? h("span", { class: "badge b-warn" }, o.sin_atencion) : "0" },
       { t: "Rechazos", num: true, f: (o) => o.rechazos }, { t: "Reasign.", num: true, f: (o) => o.reasignaciones ?? "—" },
+      { t: "Ventanilla", num: true, f: (o) => o.ventanilla_abiertas ? h("span", { class: "badge b-info" }, `${o.ventanilla_abiertas} abierta${o.ventanilla_abiertas > 1 ? "s" : ""}`) : (o.ventanilla_abiertas ?? "—") },
       { t: "Errores", num: true, f: (o) => o.errores ?? "—" },
       { t: "Última actividad", f: (o) => o.ultima_actividad_hace_s === null ? "—" : fmtDurTxt(o.ultima_actividad_hace_s) },
       { t: "", f: (o) => (o.asignadas || o.en_proceso) ? h("button", { class: "btn small", "data-redistribuir": o.id,
@@ -993,7 +994,7 @@ function showRedistribuir(o, p) {
       const r = await api(`/api/supervision/operadores/${o.id}/redistribuir`, { method: "POST",
         body: { confirmo: !!d.confirmo, motivo: d.motivo || "", incluir_en_proceso: !!d.incluir_en_proceso, desactivar: !!d.desactivar } });
       out.replaceChildren(h("p", {}, `Liberadas: ${r.liberadas.length}. No liberadas: ${r.no_liberadas.length}.`),
-        r.no_liberadas.length ? h("ul", {}, r.no_liberadas.map((x) => h("li", {}, `#${x.asignacion}: ${x.motivo}`))) : null);
+        r.no_liberadas.length ? h("ul", {}, r.no_liberadas.map((x) => h("li", {}, `${x.codigo || "#" + x.asignacion}: ${x.motivo}`))) : null);
       toast(`Redistribución: ${r.liberadas.length} devueltas a la cola`); refresh(true);
     } catch (err) { out.replaceChildren(h("p", { class: "error" }, err.message)); }
   } },

@@ -299,8 +299,12 @@ def supervision(request: HttpRequest, user: CurrentUser = Depends(require_admin)
         exp_por: dict[int, dict] = {}
         reas_por: dict[int, int] = {}
         err_por: dict[int, int] = {}
+        vt_por: dict[int, int] = {}
         if cap:
-            from ..models import Expediente, ExpedienteEvento, Reservacion
+            from ..models import Atencion, Expediente, ExpedienteEvento, Reservacion
+            # v2.0: atenciones presenciales abiertas (la persona puede estar delante del operador)
+            vt_por = dict(s.execute(select(Atencion.operator_id, func.count()).where(
+                Atencion.cerrada_en.is_(None), Atencion.operator_id.is_not(None)).group_by(Atencion.operator_id)).all())
             for oid, st, n in s.execute(select(Expediente.operator_id, Expediente.estado, func.count())
                                         .where(Expediente.operator_id.is_not(None))
                                         .group_by(Expediente.operator_id, Expediente.estado)):
@@ -331,6 +335,7 @@ def supervision(request: HttpRequest, user: CurrentUser = Depends(require_admin)
                 fila["expedientes"] = exp_por.get(o.id, {})
                 fila["reasignaciones"] = reas_por.get(o.id, 0)
                 fila["errores"] = err_por.get(o.id, 0)
+                fila["ventanilla_abiertas"] = vt_por.get(o.id, 0)
             out.append(fila)
         acciones = [{"ts": ser.iso(a.ts), "actor": a.username, "accion": a.action, "objetivo": a.target,
                      "detalle": a.detail} for a in s.scalars(
@@ -399,6 +404,15 @@ def redistribuir(oid: int, body: RedistribuirIn, request: HttpRequest, user: Cur
                                    only_status=(st,), status="DECLINADA")
         (liberadas if ok else no_liberadas).append(
             {"asignacion": aid} if ok else {"asignacion": aid, "motivo": "cambió de estado mientras tanto"})
+    if cap:
+        # v2.0: la atención presencial NO se redistribuye: la persona está con ese operador. Se informa
+        # para que se cierre desde Ventanilla (o la retome otro administrador); su expediente sigue suyo.
+        from ..models import Atencion
+        with db.session() as s:
+            for at_id, codigo in s.execute(select(Atencion.id, Atencion.codigo).where(
+                    Atencion.operator_id == oid, Atencion.cerrada_en.is_(None))):
+                no_liberadas.append({"atencion": at_id, "codigo": codigo,
+                                     "motivo": "atención presencial abierta: se cierra desde Ventanilla, no se redistribuye"})
     if cap and liberadas:
         from ..captura import seguimiento
         seguimiento.sincronizar(db, now)          # los expedientes vuelven a LISTO sin esperar al ciclo

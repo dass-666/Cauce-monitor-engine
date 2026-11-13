@@ -381,3 +381,33 @@ def test_meta_configurable(lab):
     assert r.status_code == 200, r.text
     assert lab.c.get("/api/ventanilla", headers=lab.ops["op1"]).json()["meta_citas_dia"] == 10
     assert lab.c.put("/api/settings/engine", headers=lab.h, json={"meta_citas_dia": 0}).status_code == 422
+
+
+def test_supervision_ve_la_ventanilla_y_la_redistribucion_no_la_toca(lab):
+    """v2.0 + supervisión agrupada (1.7): una atención presencial abierta (solicitud EN_VENTANILLA,
+    expediente ASIGNADO, sin asignación del motor) aparece en la supervisión del operador y la
+    redistribución NO la libera: la persona está delante de ese operador."""
+    h = lab.ops["op1"]
+    a = con_expediente(lab, h)
+    eid = a["expediente"]["id"]
+    with lab.db.session() as s:
+        oid = s.get(Expediente, eid).operator_id
+    otro = lab.crear()
+    lab.ciclo()                                           # el motor asigna OTRO expediente (puede ser a op1)
+    sup = {o["id"]: o for o in lab.c.get("/api/supervision", headers=lab.h).json()["operadores"]}
+    assert sup[oid]["ventanilla_abiertas"] == 1
+    assert sup[oid]["expedientes"].get("ASIGNADO", 0) >= 1
+    r = lab.c.post(f"/api/supervision/operadores/{oid}/redistribuir", headers=lab.h,
+                   json={"confirmo": True, "motivo": "prueba ventanilla", "incluir_en_proceso": True}).json()
+    assert any(x.get("atencion") == a["id"] and "Ventanilla" in x["motivo"] for x in r["no_liberadas"])
+    assert solicitud(lab, eid) == ("EN_VENTANILLA", "ASIGNADO", oid)
+    lab.ciclo()
+    assert solicitud(lab, eid) == ("EN_VENTANILLA", "ASIGNADO", oid)      # el seguimiento tampoco la toca
+    # la atención sigue y llega a su folio
+    rid, _ = lab.hasta_fecha(eid, h)
+    assert lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True}).status_code == 200
+    v = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/cerrar", headers=h, json={}).json()
+    assert v["estado"] == "CONFIRMADA" and v["folio"]
+    sup = {o["id"]: o for o in lab.c.get("/api/supervision", headers=lab.h).json()["operadores"]}
+    assert sup[oid]["ventanilla_abiertas"] == 0
+    assert otro["id"] != eid
