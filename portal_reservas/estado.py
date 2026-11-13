@@ -452,6 +452,22 @@ class Portal:
                     "dias_disponibles": sum(1 for k in self.d["dias"] if self.dias.publico(k)["estado"] == "DISPONIBLE"),
                     "seq_dias": self.d["seq_dias"], "reloj": self.dias.reloj.estado()}
 
+    def ampliar_registros(self, total: int, semilla: int = 99) -> int:
+        """Laboratorio (v1.6): asegura al menos `total` registros previos SINTÉTICOS (REG000301...).
+        Deterministas por semilla. Devuelve cuántos hay ahora."""
+        rng = random.Random(semilla)
+        with self.lock:
+            regs = self.d["registros"]
+            i = len(regs)
+            while len(regs) < total:
+                i += 1
+                ident = f"REG{i:06d}"
+                if ident not in regs:
+                    nac = date(1960, 1, 1) + timedelta(days=rng.randint(0, 15000))
+                    regs[ident] = {"fecha_nacimiento": nac.isoformat(), "tramite": rng.choice(sorted(TRAMITES))}
+            self._guardar()
+            return len(regs)
+
     def registro_ejemplo(self, n: int = 0) -> tuple[str, dict]:
         k = sorted(self.d["registros"])[n % len(self.d["registros"])]
         return k, self.d["registros"][k]

@@ -173,7 +173,7 @@ class InventarioDias:
         x["version"] += 1
         self.d["seq_dias"] += 1
         ev = {"seq": self.d["seq_dias"], "ts": self.ahora().isoformat().replace("+00:00", "Z"), "causa": causa,
-              **self.publico(k)}
+              "ts_real": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), **self.publico(k)}
         evs = self.eventos
         evs.append(ev)
         if len(evs) > MAX_EVENTOS:

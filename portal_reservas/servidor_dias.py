@@ -369,6 +369,15 @@ def montar(app, portal, fallos, auth, control, css: str) -> None:
             return {"dias": {k: {**x, **inv.publico(k)} for k, x in portal.d["dias"].items()},
                     "secuencia": portal.d["seq_dias"], "hoy": inv.hoy().isoformat()}
 
+    @app.get("/control/eventos-dias")
+    def ctl_eventos(desde: int = 0, x_control_token: str | None = Header(None)):
+        """Laboratorio: eventos en memoria (con `ts_real`, la hora real del cambio) para medir
+        cuánto tarda el motor en enterarse. Se pierden si el portal se reinicia."""
+        control(x_control_token)
+        with portal.lock:
+            evs, hueco = inv.eventos_desde(desde)
+            return {"eventos": evs, "hueco": hueco, "secuencia": portal.d["seq_dias"]}
+
     @app.post("/control/reloj")
     async def ctl_reloj(request: Request, x_control_token: str | None = Header(None)):
         control(x_control_token)

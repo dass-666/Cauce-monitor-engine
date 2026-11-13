@@ -224,6 +224,67 @@ mantenimiento): nunca queda una asignación viva sin que el operador se entere.
 - **Solo laboratorio.** Las rutas de captura no se montan en modo producción (prueba automática).
   El navegador solo acepta hosts de `MONITOREO_WEBHOOK_HOSTS` (por defecto 127.0.0.1).
 
+## Decisiones de la versión 1.6 (reservación por día)
+
+**Unidad de disponibilidad.** En modo `POR_DIA` la unidad es *región + sucursal + trámite + fecha*,
+sin hora. Cada día del portal llega con `estado`, `libres`, `capacidad`, `version` y, si aplica,
+`disponible_hasta`. El motor la guarda en `calendario_dias` y lo resume por (sucursal, trámite)
+para su núcleo de siempre: **el motor de asignación no cambió**, solo recibe un recurso nuevo
+(`cita_dia`). El modo `POR_HORARIO` de la v1.5 sigue igual; el modo de cada expediente se fija al
+crearlo (`captura_modo`).
+
+**Dos mecanismos para enterarse de los cambios, comparables:**
+
+```
+           Portal de PRUEBA (127.0.0.1)
+      ┌──────────────┴──────────────┐
+  A: eventos del servidor        B: consulta periódica
+  (flujo con secuencia,          (lista completa cada N s)
+   reanudable, latido)
+      └──────────────┬──────────────┘
+         calendario_dias.aplicar()  ← compara por VERSIÓN, nunca por hora
+                     │
+     calendario_cambios (tipo, antes, después, versión, detectado_en)
+                     │
+     resumen por sucursal y trámite → núcleo del motor → asignación
+```
+
+- A se reanuda desde la última secuencia; si el portal ya no la tiene, pide **resincronizar** con
+  una lectura completa. Un evento con versión menor o igual se descarta (`FUERA_DE_ORDEN`).
+- Con A activo, si el flujo cae, la sesión caduca o falta el latido, el motor **vuelve a B** hasta
+  reconectar.
+- **Un fallo de comunicación nunca se traduce en "agotado"**: los días quedan `DESCONOCIDO`, el
+  panel muestra lo almacenado con la hora de la **última verificación real**. Ningún paso de la
+  reservación (enviar datos, elegir día, confirmar) se hace con datos guardados: cada uno vuelve a
+  leer el portal en vivo y, si no responde, se detiene con "sin comunicación". *No verificado:* que
+  el núcleo nunca cree una asignación nueva a partir del último resumen guardado durante una caída
+  (la consulta fallida no actualiza el recurso, y el núcleo conserva su último estado).
+- **Zona horaria.** "Hoy" se calcula en la zona que **declara el portal** en cada respuesta
+  (`calendario_fuentes.zona_horaria`), no en la del servidor del motor. Defecto real encontrado
+  en esta fase: con el motor en UTC y el portal en Ciudad de México, el día de "mañana" aparecía
+  como no habilitado.
+
+**Expediente con 10 estados.** `NUEVO → EN_VALIDACION → LISTO | INCOMPLETO | REQUIERE_REVISION →
+ASIGNADO → CAPTURA_EN_PROCESO → RESERVACION_PENDIENTE → RESERVACION_CONFIRMADA`, y `CERRADO` con
+motivo. Solo `cambiar_estado()` cambia el estado: valida la transición y deja rastro. La solicitud
+del motor se crea **solo en LISTO**, así un incompleto no puede asignarse ni por error. Tres
+identificadores separados: registro previo, código interno (`EXP-000123`, ronda `-R2`) y folio.
+
+**Confirmación segura.** `CONFIRMADA` solo con evidencia del portal (folio y clave). Si la respuesta
+se pierde, el servidor falla o el folio choca con otro, la reservación queda **EN_VERIFICACION** y
+la recuperación pregunta al portal por la clave (idempotente). Solo si el portal responde "no
+existe" pasado un margen, el intento se reabre. Nunca se reintenta a ciegas.
+
+**Campos de captura manual.** El contrato del formulario marca campos `MANUAL_REQUIRED` (p. ej. la
+clave de identidad que el portal no deja pegar). El motor los valida y los manda al portal solo en
+memoria: **no se guardan ni se registran**; el historial guarda únicamente sus nombres.
+
+**Retención.** `captura/retencion.py`: anonimiza (o borra, si nunca llegó al portal) expedientes
+confirmados, cerrados o incompletos pasado su plazo; **nunca** toca uno con operación activa ni con
+reservación apartada o en verificación. Respaldos con permisos solo del dueño (POSIX) y purga que
+siempre conserva los 3 últimos. Exportación de expedientes enmascarada por defecto; la completa
+exige motivo y queda auditada.
+
 ## Máquina de estados de solicitudes
 
 ```

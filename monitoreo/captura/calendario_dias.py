@@ -266,7 +266,8 @@ def cambios_desde(s: Session, desde_id: int = 0, limite: int = 200, ultimos: boo
     if ultimos:
         filas.reverse()
     return [{"id": c.id, "tipo": c.tipo, "clave": c.clave, "sucursal": c.sucursal, "tramite": c.tramite,
-             "fecha": c.fecha, "antes": c.antes, "despues": c.despues, "libres": c.libres, "mecanismo": c.mecanismo,
+             "fecha": c.fecha, "antes": c.antes, "despues": c.despues, "libres": c.libres, "version": c.version_portal,
+             "mecanismo": c.mecanismo,
              "ts_portal": iso(c.ts_portal), "detectado_en": iso(c.detectado_en), "detalle": c.detalle}
             for c in filas]
 

@@ -490,6 +490,13 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
         ident, reg = portal.registro_ejemplo(n)
         return {"identificador": ident, **reg}
 
+    @app.post("/control/registros")
+    def ctl_registros(total: int = 300, x_control_token: str | None = Header(None)):
+        control(x_control_token)
+        if not 1 <= total <= 20000:
+            raise HTTPException(422, "total entre 1 y 20000")
+        return {"registros": portal.ampliar_registros(total)}
+
     @app.get("/control/historial")
     def ctl_historial(desde: int = 0, x_control_token: str | None = Header(None)):
         control(x_control_token)

@@ -242,8 +242,13 @@ def allocate_slot(db: Database, slot_id: int, now: datetime, params: dict, chang
 
 
 def free_slots(session: Session) -> list[int]:
-    return list(session.scalars(select(SlotState.id).where(SlotState.status == "ACTIVO",
-                                                           SlotState.available > SlotState.held)))
+    """Recursos con unidades libres SEGÚN DATOS VIGENTES (v1.6): si la última consulta de su fuente
+    falló, lo guardado puede estar desactualizado y no se usa para crear asignaciones nuevas
+    ("no inventar disponibilidad que no se puede verificar"). Vuelve a contar al primer éxito."""
+    from ..models import Source
+    return list(session.scalars(
+        select(SlotState.id).join(Source, Source.id == SlotState.source_id)
+        .where(SlotState.status == "ACTIVO", SlotState.available > SlotState.held, Source.consecutive_failures == 0)))
 
 
 def rebalance(db: Database, now: datetime, params: dict) -> list[int]:

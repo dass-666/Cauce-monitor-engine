@@ -1,4 +1,4 @@
-# Guía rápida para Windows (v1.5)
+# Guía rápida para Windows (v1.6)
 
 Para el equipo MSI o cualquier Windows 10/11. Tiempo aproximado: 10 minutos.
 Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
@@ -12,7 +12,7 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
 
 ## A. Instalación nueva
 
-1. Descomprime `motor-monitoreo-v1.5.zip` en `C:\`: se crea la carpeta `C:\motor-monitoreo-v1.5`.
+1. Descomprime `motor-monitoreo-v1.6.zip` en `C:\`: se crea la carpeta `C:\motor-monitoreo-v1.6`.
 2. Abre esa carpeta, haz **Shift + clic derecho** en un espacio vacío → *Abrir ventana de
    PowerShell aquí* (o *Abrir en Terminal*) y escribe:
    ```powershell
@@ -26,18 +26,32 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
    equipo. Si no lo quieres, crea la variable `MONITOREO_SIN_PORTAL=1` o ciérralo.
 4. Para detenerlo: `Ctrl + C` en la ventana negra y cierra también la del portal.
 
-## B. Actualizar desde v1.0 a v1.4
+## B. Actualizar desde una versión anterior (v1.0 a v1.5)
 
 1. Cierra el motor anterior (`Ctrl + C`).
-2. Descomprime la v1.5 en `C:\` (crea la carpeta nueva `C:\motor-monitoreo-v1.5`). No la pongas encima
+2. Descomprime la v1.6 en `C:\` (crea la carpeta nueva `C:\motor-monitoreo-v1.6`). No la pongas encima
    de la anterior.
 3. En PowerShell dentro de la carpeta nueva (cambia la ruta por la carpeta de tu versión anterior):
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\motor-monitoreo-v1.4
+   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\motor-monitoreo-v1.5
    ```
    Copia (no mueve) tus datos y tu `.env`, hace un respaldo antes de migrar y comprueba todo.
    La carpeta anterior queda intacta: para volver atrás basta con su `iniciar.bat`.
 4. Inicia la nueva con su `iniciar.bat`. Tu contraseña de `admin` es la de antes.
+
+**Qué cambia al pasar de la v1.5 a la v1.6** (lo hace solo `actualizar.ps1`, con respaldo previo):
+
+- La base recibe la migración **0007**: no borra nada. Tus expedientes de la v1.5 siguen siendo
+  *por horario* y sus estados se traducen a los nuevos (por ejemplo, `CONFIRMADO` pasa a
+  `RESERVACION_CONFIRMADA`).
+- Los expedientes **nuevos** serán *por día* (parámetro `captura_modo` en *Configuración*; puedes
+  volver a `POR_HORARIO`).
+- Recomendado: añade a tu `.env` la línea `MONITOREO_ZONA_HORARIA=America/Mexico_City` (si falta,
+  se usa la zona de Windows, que normalmente es la misma).
+- Entra la **política de retención**: los expedientes con folio se anonimizan a los 90 días sin
+  cambios, los cerrados a los 30 y los incompletos a los 60. Los plazos se cambian en
+  *Configuración* (de 1 a 3650 días); antes de aplicarla a mano verás una vista previa.
+- Los operadores pueden limitarse a sucursales concretas (*Configuración → Usuarios*).
 
 ## C. Probar la captura y las reservaciones (v1.5, 5 minutos)
 
@@ -52,6 +66,20 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
    *He revisado* → **Enviar** → elige un horario → marca *Confirmo* → **Confirmar**. Verás el folio.
 
 Nada de esto sale de tu equipo: el portal es un programa local con datos ficticios.
+
+## D. Probar la reservación por día (v1.6, 5 minutos)
+
+1. Con `iniciar.bat` en marcha, entra como `admin` → **Captura** → *Resumen*: verás los
+   indicadores y el calendario de cada sucursal.
+2. Crea un expediente ficticio como en el paso C (deja *Modo* en **Por día**). Si te falta algún
+   dato, queda **INCOMPLETO** y el motor no lo asigna hasta que lo completes.
+3. Entra como el operador → abre el expediente → **Preparar formulario**. Teclea a mano la
+   **clave de identidad** que te dicte el solicitante (el sistema no la guarda ni deja pegarla) y
+   marca el aviso de privacidad solo si acepta → *He revisado* → **Enviar**.
+4. Elige un **día** verde en el calendario del mes (no hay horas) → marca *Confirmo* →
+   **Confirmar**. Verás el folio y la fecha.
+5. Si el calendario muestra un aviso naranja de **sin comunicación**, los días aparecen como
+   *desconocidos*: no significa que no haya lugar, solo que no se pudo comprobar.
 
 ## Si algo falla
 

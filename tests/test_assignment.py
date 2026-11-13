@@ -224,3 +224,19 @@ def test_same_request_two_slots_concurrently(db):
     assert sum(1 for r in res if r) == 1
     with db.session() as s:
         assert s.scalar(select(func.sum(SlotState.held))) == 1
+
+
+def test_rebalance_no_usa_datos_de_una_fuente_que_esta_fallando(db):
+    """v1.6: si la última consulta de la fuente falló, lo almacenado puede estar desactualizado:
+    la reevaluación periódica NO crea asignaciones nuevas con eso. Al primer éxito vuelve a asignar."""
+    from monitoreo.models import Source
+    slot = _slot(db, available=2)
+    make_operator(db)
+    make_request(db, "ESPERA")
+    with db.session() as s:
+        src = s.get(Source, s.get(SlotState, slot).source_id)
+        src.consecutive_failures = 1                       # la fuente acaba de fallar (p. ej. portal caído)
+    assert asg.rebalance(db, datetime(2026, 6, 1), P) == []
+    with db.session() as s:
+        s.get(Source, s.get(SlotState, slot).source_id).consecutive_failures = 0   # vuelve a responder
+    assert len(asg.rebalance(db, datetime(2026, 6, 1), P)) == 1

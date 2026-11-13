@@ -7,6 +7,7 @@ Reglas (parámetros del motor, editables por el administrador):
   retencion_incompletos_dias   NUEVO / INCOMPLETO / REQUIERE_REVISION sin cambios hace N días ->
                                se cierra (motivo RETENCION) y se anonimiza
   retencion_respaldos_dias     respaldos más viejos se borran (siempre se conservan los 3 últimos)
+Cada plazo va de 1 a 3650 días: la política se puede alargar, pero no apagar (decisión de privacidad).
 
 Nunca se toca un expediente con OPERACIÓN ACTIVA (ASIGNADO, CAPTURA_EN_PROCESO,
 RESERVACION_PENDIENTE) ni uno con una reservación apartada o en verificación. LISTO tampoco: está
@@ -53,7 +54,7 @@ def candidatos(s, now: datetime, params: dict) -> list[dict]:
     out = []
     for estados, dias, accion in reglas:
         if dias <= 0:
-            continue                                   # 0 = regla desactivada
+            continue                                   # defensivo: los parámetros exigen >= 1 día (no se puede apagar)
         limite = now - timedelta(days=dias)
         q = select(Expediente).where(Expediente.estado.in_(list(estados)), Expediente.anonimizado_en.is_(None),
                                      Expediente.updated_at < limite)
