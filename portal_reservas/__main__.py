@@ -29,6 +29,10 @@ def main(argv=None) -> int:
     ap.add_argument("--dias", type=int, default=10)
     ap.add_argument("--retencion-s", type=float, default=300, help="segundos que dura un horario apartado")
     ap.add_argument("--sesion-s", type=float, default=900, help="segundos que dura una sesión")
+    ap.add_argument("--zona-horaria", default=os.environ.get("PORTAL_ZONA_HORARIA") or None,
+                    help="zona IANA del calendario (p. ej. America/Mexico_City); por defecto la del sistema")
+    ap.add_argument("--horizonte-dias", type=int, default=30, help="días hacia adelante del inventario diario")
+    ap.add_argument("--dias-habilitados", type=int, default=15, help="días hábiles habilitados al sembrar")
     a = ap.parse_args(argv)
     try:
         loopback = ipaddress.ip_address(a.host).is_loopback
@@ -43,7 +47,8 @@ def main(argv=None) -> int:
         return 2
     a.datos.parent.mkdir(parents=True, exist_ok=True)
     app = crear_app(a.datos, token, control, semilla=a.semilla, dias=a.dias, retencion_s=a.retencion_s,
-                    sesion_s=a.sesion_s)
+                    sesion_s=a.sesion_s, zona=a.zona_horaria, horizonte_dias=a.horizonte_dias,
+                    dias_habilitados=a.dias_habilitados)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     print(f"Portal de reservaciones de PRUEBA en http://{a.host}:{a.puerto}/reservar (datos ficticios en {a.datos})",
           flush=True)

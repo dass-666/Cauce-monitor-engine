@@ -58,7 +58,8 @@ def _huella(*partes: str) -> str:
 
 class Portal:
     def __init__(self, ruta: Path, semilla: int = 5, dias: int = 10, retencion_s: float = 300,
-                 sesion_s: float = 900):
+                 sesion_s: float = 900, zona: str | None = None, horizonte_dias: int = 30,
+                 dias_habilitados: int = 15):
         self.ruta = Path(ruta)
         self.lock = threading.RLock()
         self.retencion_s, self.sesion_s = retencion_s, sesion_s
@@ -66,7 +67,12 @@ class Portal:
             self.d = json.loads(self.ruta.read_text(encoding="utf-8"))
         else:
             self.d = self._sembrar(random.Random(semilla), dias)
-            self._guardar()
+        # v1.6: inventario POR DÍA (se añade también a un archivo de la v1.5)
+        from .dias import InventarioDias
+        self.dias = InventarioDias(self, zona=zona, horizonte=horizonte_dias, habilitados=dias_habilitados,
+                                   semilla=semilla)
+        self.repetir_folio = False          # fallo de laboratorio: el portal repite un folio ya emitido
+        self._guardar()
 
     # ------------------------------------------------------------------ persistencia
     def _guardar(self) -> None:
@@ -140,7 +146,41 @@ class Portal:
     # ------------------------------------------------------------------ pantalla 1: datos
     def validar_datos(self, tok: str, f: dict) -> dict:
         """Devuelve {campo: mensaje} con TODOS los errores (vacío si es correcto) y guarda los datos."""
-        errores: dict[str, str] = {}
+        return self._validar(tok, f, modo="horario")
+
+    def validar_datos_dia(self, tok: str, f: dict) -> dict:
+        """v1.6 (modo por día): además de los campos comunes, dos campos de CAPTURA MANUAL
+        (clave de identidad y aceptación del aviso) y una validación dependiente: reprogramar exige
+        el folio anterior, que debe ser una cita confirmada del mismo identificador y trámite.
+        La clave de identidad solo se valida: el portal no la guarda (minimización)."""
+        import re
+        extra: dict[str, str] = {}
+        ci = str(f.get("clave_identidad") or "").strip().upper()
+        if not ci:
+            extra["clave_identidad"] = "Campo obligatorio (captura manual)"
+        elif not re.fullmatch(r"[A-Z]{3}[0-9]{6}", ci):
+            extra["clave_identidad"] = "Formato: tres letras y seis números (AAA000000)"
+        if str(f.get("acepto_privacidad") or "") != "si":
+            extra["acepto_privacidad"] = "Debes aceptar el aviso de privacidad"
+        fa = str(f.get("folio_anterior") or "").strip().upper()
+        if f.get("operacion") == "reprogramar":
+            if not fa:
+                extra["folio_anterior"] = "Para reprogramar indica el folio de la cita anterior"
+            else:
+                with self.lock:
+                    r = self._reservacion_por_folio(fa)
+                ident = str(f.get("identificador") or "").strip().upper()
+                if r is None or r["estado"] != "CONFIRMADA":
+                    extra["folio_anterior"] = "No existe una cita confirmada con ese folio"
+                elif r["identificador"] != ident or r["tramite"] != f.get("tramite"):
+                    extra["folio_anterior"] = "Ese folio no corresponde a este registro y trámite"
+        elif fa:
+            extra["folio_anterior"] = "Solo se indica al reprogramar"
+        return self._validar(tok, f, modo="dia", extra=extra, folio_anterior=fa or None)
+
+    def _validar(self, tok: str, f: dict, modo: str, extra: dict | None = None,
+                 folio_anterior: str | None = None) -> dict:
+        errores: dict[str, str] = dict(extra or {})
         req = ["operacion", "tramite", "identificador", "fecha_nacimiento", "telefono", "telefono_confirmacion",
                "correo", "correo_confirmacion"]
         for c in req:
@@ -177,10 +217,88 @@ class Portal:
                 s["datos"] = {"operacion": f["operacion"], "tramite": f["tramite"],
                               "identificador": str(f["identificador"]).strip().upper(),
                               # minimización: el portal guarda solo una huella del contacto
-                              "contacto": _huella(tel, correo)}
-                s["paso"] = 2
+                              "contacto": _huella(tel, correo), "telefono_final": tel[-4:],
+                              "folio_anterior": folio_anterior}
+                s["paso"], s["modo"] = 2, modo
                 self._guardar()
             return errores
+
+    def _reservacion_por_folio(self, folio: str) -> dict | None:
+        r = self.d["reservaciones"].get(folio)
+        if r is None:                         # folio repetido (fallo simulado): se guarda con sufijo
+            r = next((x for x in self.d["reservaciones"].values() if x["folio"] == folio), None)
+        return r
+
+    # ------------------------------------------------------------------ v1.6: confirmación POR DÍA
+    def confirmar_dia(self, tok: str, clave: str, sucursal: str, fecha: str) -> tuple[dict, bool]:
+        """Confirma la cita del DÍA elegido (sin hora). Idempotente por clave, como por horario.
+        Si es una reprogramación, la cita anterior se cancela en la MISMA operación."""
+        from .dias import clave_dia
+        with self.lock:
+            if clave in self.d["claves"]:
+                return self.d["reservaciones"][self.d["claves"][clave]], True
+            s = self.sesion(tok)
+            if clave != s["clave"]:
+                raise ErrorPortal("CLAVE_INVALIDA", "La confirmación no corresponde a esta sesión. Recarga la página.")
+            if s.get("modo") != "dia" or s["paso"] < 2 or not s["datos"]:
+                raise ErrorPortal("PASO_INVALIDO", "Primero completa tus datos.", http=409)
+            datos = s["datos"]
+            if not sucursal or sucursal not in self.d["sucursales"]:
+                raise ErrorPortal("SUCURSAL_REQUERIDA", "Elige una sucursal.", campo="sucursal", http=422)
+            try:
+                date.fromisoformat(fecha or "")
+            except ValueError:
+                raise ErrorPortal("DIA_REQUERIDO", "Elige un día del calendario.", campo="dia", http=422) from None
+            if fecha <= self.dias.hoy().isoformat():
+                raise ErrorPortal("DIA_NO_HABILITADO", "Esa fecha ya no se puede reservar.", campo="dia")
+            anterior = None
+            if datos["operacion"] == "reprogramar":
+                anterior = self._reservacion_por_folio(datos.get("folio_anterior") or "")
+                if anterior is None or anterior["estado"] != "CONFIRMADA":
+                    raise ErrorPortal("FOLIO_ANTERIOR_INVALIDO", "La cita anterior ya no está confirmada.")
+            else:
+                for r in self.d["reservaciones"].values():
+                    if (r["identificador"] == datos["identificador"] and r["tramite"] == datos["tramite"]
+                            and r["estado"] == "CONFIRMADA"):
+                        raise ErrorPortal("RESERVACION_DUPLICADA",
+                                          f"Ya existe una cita confirmada para este trámite (folio {r['folio']}).")
+            k = clave_dia(sucursal, datos["tramite"], fecha)
+            self.dias.ocupar(k)                       # DIA_AGOTADO / DIA_NO_HABILITADO / DIA_DESHABILITADO
+            self.d["secuencia"] += 1
+            folio = f"DIA-{fecha.replace('-', '')}-{self.d['secuencia']:05d}"
+            folio += "ABCDEFGHJKLMNPQRSTUVWXYZ"[int(_huella(folio), 16) % 24]
+            llave = folio
+            if self.repetir_folio:
+                previas = [x["folio"] for x in self.d["reservaciones"].values() if x.get("modo") == "dia"]
+                if previas:
+                    folio = previas[-1]
+                    llave = f"{folio}#{self.d['secuencia']}"
+                self.repetir_folio = False
+            suc = self.d["sucursales"][sucursal]
+            ahora_iso = iso(ahora())
+            r = {"folio": folio, "estado": "CONFIRMADA", "clave": clave, "identificador": datos["identificador"],
+                 "tramite": datos["tramite"], "operacion": datos["operacion"], "modo": "dia", "dia": k,
+                 "sucursal": sucursal, "sucursal_nombre": suc["nombre"], "region": suc["region"], "fecha": fecha,
+                 "hora": None, "horario": None, "confirmada_en": ahora_iso, "reprograma": datos.get("folio_anterior"),
+                 "historial": [{"ts": ahora_iso, "estado": "CONFIRMADA"}]}
+            self.d["reservaciones"][llave] = r
+            self.d["claves"][clave] = llave
+            if anterior is not None:
+                self._cancelar_registro(anterior, "REPROGRAMADA")
+            s["paso"], s["folio"] = 4, llave
+            s["clave"] = secrets.token_hex(12)
+            self._evento("CONFIRMADA", folio=folio, dia=k)
+            self._guardar()
+            return r, False
+
+    def _cancelar_registro(self, r: dict, estado: str = "CANCELADA") -> None:
+        r["estado"] = estado
+        r["historial"].append({"ts": iso(ahora()), "estado": estado})
+        if r.get("modo") == "dia":
+            self.dias.desocupar(r["dia"])
+        elif r.get("horario"):
+            self.d["horarios"][r["horario"]]["ocupados"] -= 1
+        self._evento(estado, folio=r["folio"], horario=r.get("horario"), dia=r.get("dia"))
 
     # ------------------------------------------------------------------ pantalla 2: disponibilidad
     def disponibilidad(self, region: str | None = None, sucursal: str | None = None, tramite: str | None = None) -> list[dict]:
@@ -283,7 +401,11 @@ class Portal:
 
     def reservacion(self, folio: str) -> dict | None:
         with self.lock:
-            return self.d["reservaciones"].get(folio)
+            return self._reservacion_por_folio(folio)
+
+    def reservacion_llave(self, llave: str) -> dict | None:
+        with self.lock:
+            return self.d["reservaciones"].get(llave)
 
     def por_clave(self, clave: str) -> dict | None:
         with self.lock:
@@ -292,15 +414,12 @@ class Portal:
 
     def cancelar(self, folio: str) -> dict:
         with self.lock:
-            r = self.d["reservaciones"].get(folio)
+            r = self._reservacion_por_folio(folio)
             if r is None:
                 raise ErrorPortal("FOLIO_INEXISTENTE", "Folio inexistente.", http=404)
-            if r["estado"] == "CANCELADA":
+            if r["estado"] in ("CANCELADA", "REPROGRAMADA"):
                 return r
-            r["estado"] = "CANCELADA"
-            r["historial"].append({"ts": iso(ahora()), "estado": "CANCELADA"})
-            self.d["horarios"][r["horario"]]["ocupados"] -= 1
-            self._evento("CANCELADA", folio=folio, horario=r["horario"])
+            self._cancelar_registro(r, "CANCELADA")
             self._guardar()
             return r
 
@@ -328,7 +447,10 @@ class Portal:
                     "libres": sum(self._libres(h) for h in self.d["horarios"]),
                     "retenciones": len(self.d["retenciones"]), "confirmadas": len(conf),
                     "canceladas": len(self.d["reservaciones"]) - len(conf), "sesiones": len(self.d["sesiones"]),
-                    "eventos": len(self.d["historial"])}
+                    "eventos": len(self.d["historial"]),
+                    "dias": len(self.d["dias"]),
+                    "dias_disponibles": sum(1 for k in self.d["dias"] if self.dias.publico(k)["estado"] == "DISPONIBLE"),
+                    "seq_dias": self.d["seq_dias"], "reloj": self.dias.reloj.estado()}
 
     def registro_ejemplo(self, n: int = 0) -> tuple[str, dict]:
         k = sorted(self.d["registros"])[n % len(self.d["registros"])]

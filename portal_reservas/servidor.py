@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import asyncio
 import html
+import logging
+import random
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import parse_qsl, quote
 
@@ -213,10 +216,34 @@ def html_resultado(r: dict) -> str:
 
 # ---------------------------------------------------------------------- aplicación
 def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, dias: int = 10,
-              retencion_s: float = 300, sesion_s: float = 900) -> FastAPI:
-    portal = Portal(archivo, semilla=semilla, dias=dias, retencion_s=retencion_s, sesion_s=sesion_s)
+              retencion_s: float = 300, sesion_s: float = 900, zona: str | None = None,
+              horizonte_dias: int = 30, dias_habilitados: int = 15, tic_s: float = 0.5) -> FastAPI:
+    portal = Portal(archivo, semilla=semilla, dias=dias, retencion_s=retencion_s, sesion_s=sesion_s, zona=zona,
+                    horizonte_dias=horizonte_dias, dias_habilitados=dias_habilitados)
     fallos = Fallos()
-    app = FastAPI(title="Portal de reservaciones de PRUEBA", docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def ciclo(_app):
+        """v1.6: el tiempo pasa en el portal (vencimientos y ventana nocturna simulada)."""
+        rng = random.Random(semilla)
+
+        async def tictac():
+            while True:
+                await asyncio.sleep(tic_s)
+                try:
+                    with portal.lock:
+                        if portal.dias.tic(rng):
+                            portal._guardar()
+                except Exception:  # noqa: BLE001 - un fallo del reloj no debe tumbar el portal
+                    logging.getLogger("portal_reservas").exception("fallo en el reloj del laboratorio")
+        tarea = asyncio.create_task(tictac())
+        try:
+            yield
+        finally:
+            tarea.cancel()
+
+    app = FastAPI(title="Portal de reservaciones de PRUEBA", docs_url=None, redoc_url=None, openapi_url=None,
+                  lifespan=ciclo)
     app.state.portal, app.state.fallos = portal, fallos
 
     def auth(authorization: str | None) -> None:
@@ -245,7 +272,7 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
     @app.middleware("http")
     async def inyectar(request: Request, call_next):
         p = request.url.path
-        if p.startswith("/reservar"):
+        if p.startswith(("/reservar", "/cita")):
             pantalla = p.split("/")[2] if p.count("/") >= 2 else "datos"
             if fallos.latencia_ms:
                 await asyncio.sleep(fallos.latencia_ms / 1000)
@@ -395,9 +422,9 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
                                                  "capacidad", "libres", "tramites")} for h in items]}
 
     def _publica(r: dict) -> dict:
-        return {k: r[k] for k in ("folio", "estado", "clave", "identificador", "tramite", "operacion", "sucursal",
-                                  "sucursal_nombre", "region", "fecha", "hora", "horario", "confirmada_en",
-                                  "historial")}
+        return {k: r.get(k) for k in ("folio", "estado", "clave", "identificador", "tramite", "operacion", "sucursal",
+                                      "sucursal_nombre", "region", "fecha", "hora", "horario", "confirmada_en",
+                                      "historial", "modo", "dia", "reprograma")}
 
     @app.get("/api/reservaciones/{folio}")
     def api_reservacion(folio: str, authorization: str | None = Header(None)):
@@ -474,7 +501,13 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
         control(x_control_token)
         with portal.lock:
             return {"reservaciones": [_publica(r) for r in portal.d["reservaciones"].values()],
-                    "ocupacion": {h["id"]: h["ocupados"] for h in portal.d["horarios"].values() if h["ocupados"]}}
+                    "ocupacion": {h["id"]: h["ocupados"] for h in portal.d["horarios"].values() if h["ocupados"]},
+                    "ocupacion_dias": {k: {"ocupados": x["ocupados"], "capacidad": x["capacidad"]}
+                                       for k, x in portal.d["dias"].items() if x["ocupados"]}}
+
+    # v1.6: modo POR DÍA (pantallas /cita, API /api/dias y /api/eventos, controles de días)
+    from . import servidor_dias
+    servidor_dias.montar(app, portal, fallos, auth, control, CSS)
 
     @app.exception_handler(ErrorPortal)
     async def _err(_req, ex: ErrorPortal):
