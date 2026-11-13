@@ -153,6 +153,7 @@ def test_acceptance_flow_via_api_and_restart(app_db):
         assert c.post(f"/api/alerts/{mine[0]['id']}/confirmar", headers=h).json()["ok"]
         events = c.get("/api/events?region=ESTE", headers=h).json()
         assert any(e["change_type"] == "NUEVA_DISPONIBILIDAD" for e in events)
+        n_fuentes = len(c.get("/api/sources", headers=h).json())
     # ---- reinicio: nueva instancia de la aplicación sobre la misma base de datos
     with client(app_db) as c2:
         h = login(c2)
@@ -160,7 +161,7 @@ def test_acceptance_flow_via_api_and_restart(app_db):
         assert req["status"] == "ASIGNADO" and len(req["asignaciones"]) == 1
         a = [x for x in c2.get("/api/alerts", headers=h).json() if x["request_id"] == rid][0]
         assert a["status"] == "CONFIRMADA"
-        assert len(c2.get("/api/sources", headers=h).json()) == 8   # no se resiembra
+        assert len(c2.get("/api/sources", headers=h).json()) == n_fuentes   # no se resiembra
         assert c2.get("/api/metrics", headers=h).json()["integridad"] == []
 
 

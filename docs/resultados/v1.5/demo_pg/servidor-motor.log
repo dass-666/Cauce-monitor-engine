@@ -36,3 +36,64 @@ INFO:     127.0.0.1:38254 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:38254 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:38254 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:38254 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
+2026-11-13 02:47:47,701 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/disponibilidad "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38260 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38280 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38260 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38274 - "GET /api/captura/resumen HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38260 - "GET /api/expedientes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38260 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38260 - "POST /api/expedientes/1/preparar HTTP/1.1" 200 OK
+2026-11-13 02:47:48,732 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/reservar "HTTP/1.1 200 OK"
+2026-11-13 02:47:48,738 INFO httpx: HTTP Request: POST http://127.0.0.1:48057/reservar/datos "HTTP/1.1 303 See Other"
+2026-11-13 02:47:48,741 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/reservar/disponibilidad?region=norte "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38260 - "POST /api/reservaciones/1/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 02:47:48,925 INFO httpx: HTTP Request: POST http://127.0.0.1:48057/reservar/horario "HTTP/1.1 303 See Other"
+2026-11-13 02:47:48,928 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/reservar/confirmacion "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38260 - "POST /api/reservaciones/1/seleccionar HTTP/1.1" 200 OK
+2026-11-13 02:47:49,158 INFO httpx: HTTP Request: POST http://127.0.0.1:48057/reservar/confirmar "HTTP/1.1 303 See Other"
+2026-11-13 02:47:49,161 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/reservaciones/LAB-20261116-00001E "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38260 - "POST /api/reservaciones/1/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38260 - "GET /api/expedientes/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38288 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38292 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38288 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38292 - "GET /api/expedientes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/captura/resumen HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/captura/resumen HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38292 - "GET /api/expedientes HTTP/1.1" 200 OK
+2026-11-13 02:47:49,764 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/disponibilidad "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38292 - "GET /api/captura/contrato HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/reservaciones HTTP/1.1" 200 OK
+2026-11-13 02:47:50,657 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/disponibilidad "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38302 - "GET /api/captura/calendario HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/reservaciones HTTP/1.1" 200 OK
+2026-11-13 02:47:51,930 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/disponibilidad "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38302 - "GET /api/reservaciones HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/captura/historial?limit=300 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38306 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38318 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38306 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38306 - "GET /api/expedientes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38308 - "GET /api/captura/resumen HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38302 - "GET /api/captura/historial?limit=300 HTTP/1.1" 200 OK
+2026-11-13 02:47:53,996 INFO httpx: HTTP Request: GET http://127.0.0.1:48057/api/disponibilidad "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:37328 - "GET /api/expedientes/1 HTTP/1.1" 200 OK

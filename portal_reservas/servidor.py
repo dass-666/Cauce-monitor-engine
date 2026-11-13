@@ -17,12 +17,21 @@ import asyncio
 import html
 import threading
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote
 
-from fastapi import FastAPI, Form, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from .estado import OPERACIONES, REGIONES, TRAMITES, ErrorPortal, Portal
+
+
+async def leer_formulario(request: Request) -> dict:
+    """Lee un formulario HTML (application/x-www-form-urlencoded) sin depender de python-multipart,
+    que no forma parte de las dependencias del proyecto. Cuerpo limitado a 64 KB."""
+    cuerpo = await request.body()
+    if len(cuerpo) > 65536:
+        raise HTTPException(413, "formulario demasiado grande")
+    return dict(parse_qsl(cuerpo.decode("utf-8", "replace"), keep_blank_values=True))
 
 COOKIE = "portal_sesion"
 MODOS = {"normal", "error_interno", "cortar", "cortar_tras_confirmar", "lento", "renombrar_campo"}
@@ -279,7 +288,7 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
         tok, s = sesion_o_reinicio(request)
         if not isinstance(s, dict):
             return s
-        form = dict(await request.form())
+        form = await leer_formulario(request)
         inverso = {v: k for k, v in fallos.renombrar.items()}
         f = {inverso.get(k, k): str(v) for k, v in form.items()}
         try:
@@ -307,7 +316,7 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
         tok, s = sesion_o_reinicio(request)
         if not isinstance(s, dict):
             return s
-        form = await request.form()
+        form = await leer_formulario(request)
         region, sucursal = form.get("region") or None, form.get("sucursal") or None
         hid = str(form.get("horario") or "")
         try:
@@ -334,7 +343,7 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
 
     @app.post("/reservar/confirmar", response_class=HTMLResponse)
     async def confirmar(request: Request):
-        form = await request.form()
+        form = await leer_formulario(request)
         clave = str(form.get("clave") or "")
         tok = request.cookies.get(COOKIE)
         try:

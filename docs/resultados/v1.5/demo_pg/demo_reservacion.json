@@ -1,0 +1,174 @@
+{
+  "version": "1.5.0",
+  "momento": "2026-11-13 02:48:03",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 20.5,
+  "base_de_datos": "postgresql",
+  "expediente": "EXP-000001",
+  "folio": "LAB-20261116-00001E",
+  "folio_tras_reinicio": "LAB-20261116-00003U",
+  "recorrido_panel": {
+    "expediente": "EXP-000001",
+    "campos_preparados": 8,
+    "horarios_visibles": 62,
+    "horario": "NOR-1-2026-11-16-1200",
+    "folio": "LAB-20261116-00001E",
+    "historial_normalizados": [
+      "RESERVACION CONFIRMADA",
+      "RESERVACION PENDIENTE",
+      "RECURSO SELECCIONADO",
+      "FORMULARIO PREPARADO",
+      "DISPONIBILIDAD DETECTADA"
+    ],
+    "desborde_horizontal_movil": false,
+    "folio_portal_directo": "LAB-20261116-00002H",
+    "errores_js": []
+  },
+  "portal": {
+    "confirmadas": 3,
+    "canceladas": 0,
+    "retenciones": 0
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "el portal de prueba arranca como proceso independiente",
+      "ok": true,
+      "detalle": "http://127.0.0.1:48057"
+    },
+    {
+      "comprobacion": "el motor arranca como proceso independiente",
+      "ok": true,
+      "detalle": "1.61 s"
+    },
+    {
+      "comprobacion": "fuente del portal registrada por la API",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "operador creado",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "expediente ficticio creado",
+      "ok": true,
+      "detalle": "EXP-000001"
+    },
+    {
+      "comprobacion": "el alta devuelve los datos enmascarados",
+      "ok": true,
+      "detalle": "••••••0007"
+    },
+    {
+      "comprobacion": "el MOTOR detecta disponibilidad y asigna el expediente solo",
+      "ok": true,
+      "detalle": "2.07 s, operador Operador Ficticio Norte"
+    },
+    {
+      "comprobacion": "recorrido Playwright: expediente → formulario → calendario → horario → confirmación → folio",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el panel mostró un folio",
+      "ok": true,
+      "detalle": "LAB-20261116-00001E"
+    },
+    {
+      "comprobacion": "sin errores de JavaScript en el panel",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "el panel no desborda en pantalla de teléfono",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el portal se llena directamente desde el contrato JSON (otra navegación, mismo contrato)",
+      "ok": true,
+      "detalle": "LAB-20261116-00002H"
+    },
+    {
+      "comprobacion": "evidencia independiente: el PORTAL tiene el folio CONFIRMADO",
+      "ok": true,
+      "detalle": "CONFIRMADA"
+    },
+    {
+      "comprobacion": "el motor guarda el folio con evidencia y clave coincidente",
+      "ok": true,
+      "detalle": {
+        "folio": "LAB-20261116-00001E",
+        "estado_portal": "CONFIRMADA",
+        "clave_coincide": true,
+        "fuente": "api_por_folio",
+        "horario_portal": "NOR-1-2026-11-16-1200",
+        "confirmada_en_portal": "2026-11-13T02:47:49.156463Z",
+        "verificada_en": "2026-11-13T02:47:49.163248Z"
+      }
+    },
+    {
+      "comprobacion": "trazabilidad: eventos normalizados en el historial del expediente",
+      "ok": true,
+      "detalle": [
+        "CREADO",
+        "DISPONIBILIDAD_DETECTADA",
+        "FORMULARIO_PREPARADO",
+        "DATOS_ENVIADOS",
+        "RECURSO_SELECCIONADO",
+        "RESERVACION_PENDIENTE",
+        "RESERVACION_CONFIRMADA",
+        "CONFIRMADO"
+      ]
+    },
+    {
+      "comprobacion": "el expediente queda CONFIRMADO",
+      "ok": true,
+      "detalle": "CONFIRMADO"
+    },
+    {
+      "comprobacion": "motor y portal detenidos de golpe (kill)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "ambos vuelven a arrancar sobre los mismos datos",
+      "ok": true,
+      "detalle": "motor 1.09 s"
+    },
+    {
+      "comprobacion": "tras el reinicio el folio sigue CONFIRMADO en motor y portal",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADO",
+        "CONFIRMADA"
+      ]
+    },
+    {
+      "comprobacion": "tras el reinicio el motor asigna un expediente nuevo",
+      "ok": true,
+      "detalle": "6.17 s"
+    },
+    {
+      "comprobacion": "segundo expediente llega a folio tras el reinicio",
+      "ok": true,
+      "detalle": "LAB-20261116-00003U"
+    },
+    {
+      "comprobacion": "folios únicos",
+      "ok": true,
+      "detalle": [
+        "LAB-20261116-00001E",
+        "LAB-20261116-00003U"
+      ]
+    },
+    {
+      "comprobacion": "ningún horario del portal quedó reservado dos veces",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}

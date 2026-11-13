@@ -1,0 +1,20 @@
+02:47:48 captura 01_expedientes_operador.png
+02:47:48 captura 02_ficha_expediente.png
+02:47:48 captura 03_formulario_preparado.png
+02:47:48 captura 04_calendario.png
+02:47:49 captura 05_confirmacion.png
+02:47:49 folio en el panel: LAB-20261116-00001E
+02:47:49 captura 06_folio.png
+02:47:50 captura 10_panel_expedientes.png
+02:47:50 captura 11_panel_preparacion.png
+02:47:51 captura 12_panel_calendario.png
+02:47:51 captura 13_panel_reservaciones.png
+02:47:52 captura 14_panel_confirmaciones.png
+02:47:52 captura 15_panel_historial.png
+02:47:53 captura 20_panel_movil.png
+02:47:54 captura 30_portal_datos.png
+02:47:54 captura 31_portal_disponibilidad.png
+02:47:54 captura 32_portal_confirmacion.png
+02:47:54 captura 33_portal_resultado.png
+RESULTADO {"expediente":"EXP-000001","campos_preparados":8,"horarios_visibles":62,"horario":"NOR-1-2026-11-16-1200","folio":"LAB-20261116-00001E","historial_normalizados":["RESERVACION CONFIRMADA","RESERVACION PENDIENTE","RECURSO SELECCIONADO","FORMULARIO PREPARADO","DISPONIBILIDAD DETECTADA"],"desborde_horizontal_movil":false,"folio_portal_directo":"LAB-20261116-00002H","errores_js":[]}
+
