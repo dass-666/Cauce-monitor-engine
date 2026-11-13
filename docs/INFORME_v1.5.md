@@ -40,7 +40,8 @@ recomendación es no hacerlo sin esas tres cosas**, aunque técnicamente sea pos
 | `918cba4` | Portal de prueba, expedientes, validación, motor de formularios, reservaciones con evidencia, panel, migración 0006, pruebas |
 | `209bf53` | Recorrido Playwright, prueba de carga, capturas del panel, trabajos de CI de reservaciones |
 | `067292d` | Corrección de un defecto encontrado por CI (dependencia no declarada, §8) |
-| (último) | Documentación, guía de Windows, este informe y resultados |
+| `82689f6` | Consola de Windows (cp1252), guía de Windows v1.5, arquitectura, registros de ejemplo |
+| (último) | Sección de CI de este informe |
 
 82 archivos cambiados frente a `fase-1.4`. Cambios en el núcleo del motor: **34 líneas** (una tarea
 del planificador, dos parámetros y el bloqueo de "completar a mano" en asignaciones de expedientes).
@@ -144,7 +145,24 @@ conexión y de cada commit); para el volumen previsto de un laboratorio no es un
 
 ## 7. GitHub Actions
 
-PENDIENTE_CI
+**20/20 trabajos en verde** (MEDIDO): ejecución
+[43355789726](https://github.com/dass-666/Cauce-monitor-engine/actions/runs/43355789726), commit
+`82689f6`. El último commit solo añade esta sección del informe.
+
+| Trabajo | Resultado |
+|---|---|
+| Pruebas Linux · Python 3.11 / 3.12 / 3.13 (SQLite y PostgreSQL) | verde |
+| Pruebas Windows · Python 3.11 / 3.12 / 3.13, y Windows con PostgreSQL | verde |
+| Instalación y actualización (Windows PowerShell 5.1 y PowerShell 7), scripts PowerShell | verde |
+| Actualizar desde v1.1, v1.2, v1.3 y **v1.4** con sus instaladores reales | verde |
+| Integración HTTP Linux y Windows (v1.3) | verde |
+| **Reservaciones · Linux**: demo con navegador real y carga, en SQLite y PostgreSQL | verde |
+| **Reservaciones · Windows · Python 3.11 / 3.12 / 3.13**: demo 23/23 con Chromium real, reinicio brusco, y carga de 80 expedientes con 6 operadores → 80 folios (20–34 s) | verde |
+
+Antes de llegar a verde, CI encontró dos defectos que mi equipo no mostraba: la dependencia no
+declarada (§8, defecto 2) y que la consola de Windows (cp1252) no puede imprimir "→", lo que
+detenía los scripts de demostración (ahora sustituyen el carácter en vez de fallar).
+Recordatorio: estas son máquinas Windows limpias de GitHub, **no el MSI**.
 
 ## 8. Defectos corregidos
 
