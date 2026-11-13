@@ -583,3 +583,28 @@ def test_v17_centro_con_calendario_por_dia_cifras_de_la_base(lab):
     assert cap["expedientes"]["por_estado"].get("RESERVACION_CONFIRMADA", 0) == conf
     assert cap["tiempo_hasta_confirmacion_ms"]["n"] >= 1          # ASIGNADO -> confirmada, medido del historial
     assert lab.c.get("/api/centro?periodo=24h", headers=lab.ops[u]).status_code == 200
+
+
+def test_v17_redistribuir_no_toca_una_confirmacion_en_verificacion(lab):
+    """Un operador deja de responder justo con una confirmación EN_VERIFICACION (resultado incierto).
+    La redistribución NO debe liberarla aunque se incluyan las tomadas y no haya señal: el motor la
+    resuelve preguntando al portal. Si se liberara, otro operador podría reservar dos veces."""
+    from datetime import timedelta
+    from monitoreo.db import utcnow
+    from monitoreo.models import Reservacion
+    eid, u, h = asignado(lab)
+    rid, _ = lab.hasta_fecha(eid, h)
+    with lab.db.session() as s:
+        s.get(Reservacion, rid).estado = "EN_VERIFICACION"
+        e = s.get(Expediente, eid)
+        oid = e.operator_id
+        aid = s.scalar(select(Assignment.id).where(Assignment.request_id == e.request_id,
+                                                   Assignment.status.in_(["ACTIVA", "EN_PROCESO"])))
+        s.get(Operator, oid).visto_en = utcnow() - timedelta(hours=2)
+    r = lab.c.post(f"/api/supervision/operadores/{oid}/redistribuir", headers=lab.h,
+                   json={"confirmo": True, "motivo": "no responde", "incluir_en_proceso": True}).json()
+    assert all(x["asignacion"] != aid for x in r["liberadas"])
+    assert any(x["asignacion"] == aid and "confirmación" in x["motivo"] for x in r["no_liberadas"])
+    with lab.db.session() as s:
+        assert s.get(Assignment, aid).status in ("ACTIVA", "EN_PROCESO")
+        assert s.get(Expediente, eid).operator_id == oid

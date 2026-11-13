@@ -499,3 +499,26 @@ def confirmar_varias(body: ConfirmarIn, user: CurrentUser = Depends(current_user
                 status="CONFIRMADA", acknowledged_at=now, acknowledged_by=user.username)).rowcount
             security.audit(s, user.username, "confirmar_alertas", f"{n} alertas", {"ids": visibles[:50]})
     return {"confirmadas": n, "ignoradas": len(set(body.ids)) - n}
+
+
+# ======================================================================= diagnóstico: reparaciones
+@router.get("/diagnostico/reparaciones")
+def reparaciones_lista(user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
+    from .. import reparaciones as rp
+    return {"reparaciones": rp.revisar(db, utcnow())}
+
+
+class RepararIn(BaseModel):
+    confirmo: bool = False
+    motivo: str = Field(default="", max_length=200)
+
+
+@router.post("/diagnostico/reparaciones/{clave}")
+def reparar(clave: str, body: RepararIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
+    from .. import reparaciones as rp
+    try:
+        return rp.aplicar(db, clave, utcnow(), user.username, body.confirmo, body.motivo)
+    except KeyError:
+        raise HTTPException(404, "Reparación desconocida") from None
+    except PermissionError as e:
+        raise HTTPException(422, str(e)) from None

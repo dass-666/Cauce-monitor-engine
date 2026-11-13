@@ -332,12 +332,92 @@ def check_integrity(out: list[Item], db: Database, now: datetime, ctx: dict) -> 
                         "Asignaciones, cargas, retenciones y referencias correctas."))
 
 
+# ----------------------------------------------------------------------------- v1.7
+def check_eventos(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    from .models import ChangeEvent
+    with db.session() as s:
+        n, viejo = s.execute(select(func.count(), func.min(ChangeEvent.detected_at)).where(
+            ChangeEvent.processed.is_(False))).one()
+    edad = _age(viejo, now)
+    if n and ctx.get("scheduler_running") and edad and edad > 300:
+        out.append(Item("Eventos", AVISO, f"{n} cambios de disponibilidad sin procesar",
+                        f"El más antiguo espera desde hace {_fmt_s(edad)}.",
+                        "El motor los procesa en cada ciclo: si no bajan, revisa los errores del planificador.", "ev:atraso"))
+    else:
+        out.append(Item("Eventos", OK, "Cambios de disponibilidad al día", f"{n} pendientes de procesar"))
+
+
+def check_operaciones(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    from .models import Assignment, Reservacion
+    with db.session() as s:
+        abandonadas = s.scalar(select(func.count()).select_from(Assignment).where(
+            Assignment.status == "EN_PROCESO", Assignment.inactive_alerted_at.is_not(None))) or 0
+        dudosas = s.scalar(select(func.count()).select_from(Reservacion).where(
+            Reservacion.estado.in_(["CONFIRMANDO", "EN_VERIFICACION"]),
+            Reservacion.updated_at < now - timedelta(minutes=30))) or 0
+    if abandonadas:
+        out.append(Item("Operaciones pendientes", AVISO, f"{abandonadas} operaciones tomadas sin actividad",
+                        "Un operador las tomó y no da señales. No se liberan solas: puede estar trabajando.",
+                        "Supervisión: habla con el operador; si no responde, «Redistribuir…» o «Recuperar…».", "op:abandonadas"))
+    if dudosas:
+        out.append(Item("Operaciones pendientes", CRITICO, f"{dudosas} confirmaciones sin resultado hace más de 30 min",
+                        "El motor no ha podido comprobar en el portal si se reservó o no.",
+                        "No las repitas por otro medio. Revisa la conexión con el portal (Captura › Calendario).",
+                        "op:verificacion"))
+    if not abandonadas and not dudosas:
+        out.append(Item("Operaciones pendientes", OK, "Ninguna operación atascada"))
+
+
+def check_expedientes(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    from .captura import expedientes as ex
+    from .models import Expediente
+    with db.session() as s:
+        total = s.scalar(select(func.count()).select_from(Expediente)) or 0
+        if total > 3000 and not ctx.get("profundo"):
+            out.append(Item("Expedientes", INFO, f"{total} expedientes: revisión de coherencia solo en modo profundo",
+                            "Recorre todos los expedientes; con muchos tarda.", "Ejecuta el diagnóstico profundo."))
+            return
+        malos = ex.coherencia(s) if total else []
+    if malos:
+        out.append(Item("Expedientes", CRITICO, f"{len(malos)} expedientes con estados que no cuadran",
+                        "; ".join(f"{m['expediente']}: {m['problema']}" for m in malos[:5]),
+                        "No los edites a mano. Avisa al administrador técnico con este informe.", "exp:coherencia"))
+    else:
+        out.append(Item("Expedientes", OK, "Estados de los expedientes coherentes", f"{total} revisados"))
+
+
+def check_retencion(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    from .captura import retencion
+    from .engine.params import get_params
+    with db.session() as s:
+        plan = retencion.candidatos(s, now, get_params(s))
+    if plan:
+        out.append(Item("Retención", AVISO, f"{len(plan)} expedientes superan el plazo de retención",
+                        "Siguen guardando datos personales más tiempo del que marca la política.",
+                        "Captura › Retención: revisa la vista previa y aplícala (queda auditado).", "ret:pendiente"))
+    else:
+        out.append(Item("Retención", OK, "Ningún expediente supera el plazo de retención"))
+
+
+def check_reparaciones(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    from . import reparaciones as rp
+    for r in rp.revisar(db, now):
+        if r["pendientes"]:
+            out.append(Item("Reparaciones", AVISO if r["segura"] else CRITICO, r["titulo"],
+                            f"{r['pendientes']} casos. {r['explicacion']}",
+                            "Se corrige sola en el próximo autodiagnóstico (queda auditado)." if r["segura"] else
+                            "Salud › Autodiagnóstico › Reparar (requiere tu confirmación).", f"rep:{r['clave']}"))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
-         "check_resources": "Recursos", "check_integrity": "Integridad"}
+         "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
+         "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
+         "check_retencion": "Retención", "check_reparaciones": "Reparaciones"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
-          check_notifications, check_maintenance, check_resources, check_integrity]
+          check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
+          check_operaciones, check_expedientes, check_retencion, check_reparaciones]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,
@@ -370,10 +450,16 @@ def run_and_alert(db: Database, scheduler=None, now: datetime | None = None) -> 
     from .engine import alerts as al
     from .models import Setting
     now = now or utcnow()
+    from . import reparaciones
+    try:
+        reparadas = reparaciones.aplicar_seguras(db, now)     # v1.7: solo las seguras; auditadas
+    except Exception as e:  # noqa: BLE001 - una reparación fallida no debe impedir el diagnóstico
+        reparadas = {"error": f"{type(e).__name__}: {str(e)[:120]}"}
     res = run(db, scheduler, now)
+    res["reparaciones_automaticas"] = reparadas
     with db.session() as s:
         row = s.get(Setting, "autodiagnostico.ultimo")
-        summary = {k: res[k] for k in ("momento", "estado", "criticos", "avisos", "duracion_ms")}
+        summary = {k: res[k] for k in ("momento", "estado", "criticos", "avisos", "duracion_ms", "reparaciones_automaticas")}
         summary["problemas"] = [{k: i[k] for k in ("estado", "area", "titulo")} for i in res["comprobaciones"]
                                 if i["estado"] in (CRITICO, AVISO)][:20]
         if row is None:

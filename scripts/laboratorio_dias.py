@@ -20,12 +20,22 @@ Qué hace (todo ficticio y local, 127.0.0.1):
      ningún incompleto asignado, ningún expediente con dos operadores, sin datos personales en
      los registros del motor.
 
+  v1.7 (--v17): además, durante la misma noche:
+     - errores de captura en el portal (pantalla de datos con error 500 y con conexión cortada);
+     - operadores que dejan de responder a media operación (dos se quedan "congelados" con la sesión
+       abierta y uno cierra sesión) -> la SUPERVISIÓN los distingue (CONEXION_PERDIDA / DESCONECTADO)
+       y el administrador REDISTRIBUYE su trabajo por la API (transaccional y auditado);
+     - confirmaciones inciertas (el portal confirma y corta la respuesta) -> EN_VERIFICACION;
+     - un canal de notificaciones LENTO que además falla (webhook local que tarda y responde 503):
+       el motor debe seguir detectando y asignando.
+
 Uso:  python scripts/laboratorio_dias.py --mecanismo ambos --expedientes 600 --salida resultados/laboratorio_dias
 Código de salida 0 solo si todas las comprobaciones de integridad pasan (las métricas se informan).
 """
 from __future__ import annotations
 
 import argparse
+import http.server
 import json
 import platform
 import random
@@ -102,6 +112,36 @@ def esperar(fn, timeout: float, paso: float = 0.25):
     return None, round(time.monotonic() - t0, 2)
 
 
+class WebhookLento:
+    """Canal de notificaciones de laboratorio que TARDA y FALLA a propósito (127.0.0.1, puerto libre)."""
+
+    def __init__(self, demora_s: float = 2.5):
+        self.recibidas, self.fallidas, self.lock = 0, 0, threading.Lock()
+        dueno = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):            # noqa: N802
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                time.sleep(demora_s)
+                with dueno.lock:
+                    dueno.recibidas += 1
+                    falla = dueno.recibidas % 2 == 0
+                    dueno.fallidas += falla
+                self.send_response(503 if falla else 200)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.url = f"http://127.0.0.1:{self.srv.server_address[1]}/webhook"
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def detener(self):
+        self.srv.shutdown()
+
+
 class Recolector(threading.Thread):
     """Lee periódicamente los eventos del portal (con su hora REAL) antes de que un reinicio los borre."""
 
@@ -173,6 +213,16 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                                        "interval_s": a.intervalo_b if mecanismo == "B" else 15, "jitter_pct": 0,
                                        "rate_limit_per_min": 600, "max_retries": 1})
     r.raise_for_status()
+    v17: dict = {}
+    hook = None
+    if a.v17:
+        # presencia: el panel marca la señal como mucho cada 15 s; 25 s evita falsos "conexión perdida"
+        adm.put("/api/settings/engine", json={"operador_conexion_perdida_s": 25, "operador_inactivo_s": 900}
+                ).raise_for_status()
+        hook = WebhookLento()
+        r = adm.post("/api/channels", json={"name": "Webhook lento de laboratorio", "type": "webhook",
+                                            "config": {"url": hook.url, "timeout_s": 4}, "enabled": True})
+        v17["canal_lento_creado"] = r.status_code
     ops = []
     for i in range(a.operadores):
         reg = list(REGIONES)[i % 5]
@@ -242,10 +292,16 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
             if err:
                 errores_op[err] = errores_op.get(err, 0) + 1
 
+    congelados: set[str] = set()          # v1.7: operadores que dejan de responder (SIMULADO)
+
     def operador(u):
+        hilo_usuario.u = u
         c = None
         prng = random.Random(hash(u) ^ a.semilla)
         while not parar.is_set():
+            if u in congelados:
+                parar.wait(1.0)                # ni una petición: la sesión sigue abierta pero sin señal
+                continue
             try:
                 if c is None:
                     c = login(motor.base, u, OPWD)
@@ -254,7 +310,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                     parar.wait(1.5)
                     continue
                 for e in mios:
-                    if parar.is_set():
+                    if parar.is_set() or u in congelados:
                         break
                     atender(c, e, prng)
             except (httpx.HTTPError, ValueError, KeyError):
@@ -287,6 +343,11 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
             cal = r.json().get("calendario", r.json()) if r.status_code == 200 else None
         return None, cal
 
+    hilo_usuario = threading.local()
+
+    def u_actual():
+        return getattr(hilo_usuario, "u", None)
+
     def atender(c, e, prng):
         time.sleep(prng.uniform(*a.pausa))                 # "lectura" del operador: SIMULADO
         r = llamar(c, "preparar", "POST", f"/api/expedientes/{e['id']}/preparar")
@@ -302,6 +363,8 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
             if r.status_code != 200:
                 return
             cal, est = r.json().get("calendario"), "DATOS_ENVIADOS"
+        if u_actual() in congelados:
+            return                               # se queda A MEDIAS: datos enviados, sin elegir día
         if est == "DATOS_ENVIADOS":
             if cal is None:
                 r = c.get(f"/api/reservaciones/{rid}/calendario")
@@ -356,6 +419,10 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
     fallos.append((f0, marca()))
     ck("caída de la API: el motor la detecta y marca el calendario SIN VERIFICAR", det < 60, f"{det} s")
 
+    if a.v17:                      # v1.7 · errores de captura: la pantalla de datos responde 500
+        esperar_hasta(en(80))
+        portal.fallos(modo="error_interno", pantallas=["datos"], restantes=12)
+
     # 2) sesión de eventos caducada
     esperar_hasta(en(100))
     f0 = marca()
@@ -365,6 +432,20 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
     fallos.append((f0, marca()))
     recuperacion["sesion_caducada"] = {"verificado_de_nuevo_s": t2}
 
+    if a.v17:                      # v1.7 · operadores que dejan de responder
+        esperar_hasta(en(120))
+        v17["errores_captura_500"] = portal.fallos(latencia_ms=0).get("aplicados")
+        sin_resp = ops[-2:]                       # dos "congelados" con la sesión abierta
+        congelados.update(sin_resp)
+        try:                                      # y uno cierra sesión
+            cx_ = login(motor.base, ops[-3], OPWD)
+            cx_.post("/api/auth/logout")
+            congelados.add(ops[-3])
+        except (httpx.HTTPError, KeyError, ValueError):
+            pass
+        v17["sin_responder"] = sin_resp
+        v17["cerro_sesion"] = ops[-3]
+
     # 3) eventos fuera de orden
     esperar_hasta(en(130))
     actual = portal.ctl("GET", "/control/dias")["dias"]
@@ -373,12 +454,36 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
         portal.ctl("POST", "/control/dias/reenviar-antiguo", clave=k)
     recuperacion["fuera_de_orden_inyectados"] = len(ya)
 
+    if a.v17:                      # v1.7 · errores de captura: conexión cortada al enviar los datos
+        esperar_hasta(en(140))
+        portal.fallos(reset=True)
+        portal.fallos(modo="cortar", pantallas=["datos"], restantes=8)
+
     # 4) corte del flujo de eventos
     esperar_hasta(en(160))
     f0 = marca()
     portal.ctl("POST", "/control/api", cortar_eventos=True)
     time.sleep(3)
     fallos.append((f0, marca()))
+
+    if a.v17:                      # v1.7 · supervisión y redistribución
+        # la señal de los congelados tiene que superar el umbral (25 s) + el margen de 15 s del panel
+        esperar_hasta(max(en(172), time.monotonic()))
+        esperar(lambda: all(o["presencia"] != "CONECTADO" for o in adm.get("/api/supervision").json()["operadores"]
+                            if o["nombre"] in {f"Operador Ficticio {int(u[2:]):02d}" for u in congelados}), 45, 1.0)
+        v17["cortes_datos"] = portal.fallos(latencia_ms=0).get("aplicados")
+        portal.fallos(reset=True)
+        sup = adm.get("/api/supervision").json()["operadores"]
+        nombre_de = {u: f"Operador Ficticio {int(u[2:]):02d}" for u in ops}
+        pres = {o["nombre"]: o["presencia"] for o in sup}
+        v17["presencia_antes"] = {u: pres.get(nombre_de[u]) for u in ops}
+        v17["redistribuciones"] = {}
+        for u in sorted(congelados):
+            oid = next(o["id"] for o in sup if o["nombre"] == nombre_de[u])
+            r = adm.post(f"/api/supervision/operadores/{oid}/redistribuir",
+                         json={"confirmo": True, "motivo": "laboratorio: el operador no responde",
+                               "incluir_en_proceso": True, "desactivar": True})
+            v17["redistribuciones"][u] = r.json() if r.status_code == 200 else {"error": r.status_code, "texto": r.text[:200]}
 
     # 5) reinicio brusco del portal
     esperar_hasta(en(190))
@@ -394,6 +499,10 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                                        "total_s": round(time.monotonic() - t, 2)}
     fallos.append((f0, marca()))
     ck("reinicio del portal: el motor vuelve a verificar el calendario solo", rec_t < 90, recuperacion["reinicio_portal"])
+
+    if a.v17:                      # v1.7 · confirmaciones inciertas (el portal confirma y corta la respuesta)
+        esperar_hasta(en(205))
+        portal.fallos(modo="cortar_tras_confirmar", restantes=5)
 
     # 6) reinicio brusco del motor
     esperar_hasta(en(235))
@@ -479,8 +588,63 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
             "SELECT a.created_at, s.attributes FROM assignments a JOIN slot_states s ON s.id=a.slot_id")).fetchall()
         ev = cx.execute(text("SELECT expediente_id, ts, tipo, detalle FROM expediente_eventos ORDER BY id")).fetchall()
         res_rows = cx.execute(text("SELECT expediente_id, estado, created_at, updated_at FROM reservaciones")).fetchall()
+        if a.v17:
+            v17["_auditoria_redistribucion"] = cx.execute(text(
+                "SELECT COUNT(*) FROM audit_log WHERE action='operador_redistribuido'")).scalar()
+            v17["_entregas_canal_lento"] = dict(cx.execute(text(
+                "SELECT d.status, COUNT(*) FROM deliveries d JOIN channels c ON c.id=d.channel_id "
+                "WHERE c.name='Webhook lento de laboratorio' GROUP BY d.status")).fetchall())
+            liberadas = [x["asignacion"] for r_ in v17.get("redistribuciones", {}).values()
+                         for x in (r_.get("liberadas") or [])]
+            v17["_liberadas_destino"] = {}
+            for aid in liberadas:
+                fila = cx.execute(text(
+                    "SELECT e.estado, e.operator_id, a.operator_id FROM assignments a JOIN expedientes e "
+                    "ON e.request_id=a.request_id WHERE a.id=:a"), {"a": aid}).fetchone()
+                if fila:
+                    v17["_liberadas_destino"][aid] = {"estado": fila[0], "otro_operador": fila[1] not in (None, fila[2]),
+                                                      "operador_actual": fila[1], "operador_anterior": fila[2]}
+            inciertas = {r_[0] for r_ in cx.execute(text(
+                "SELECT DISTINCT expediente_id FROM expediente_eventos WHERE tipo='CONFIRMACION_EN_VERIFICACION'"))}
+            v17["_inciertas"] = {"n": len(inciertas), "estado_final_reservacion": {}}
+            for eid_, est_, *_ in res_rows:
+                if eid_ in inciertas:
+                    d_ = v17["_inciertas"]["estado_final_reservacion"]
+                    d_[est_] = d_.get(est_, 0) + 1
+            ops_inact = cx.execute(text("SELECT o.name FROM operators o WHERE o.active = :f"), {"f": False}).fetchall()
+            v17["_desactivados"] = sorted(x[0] for x in ops_inact)
+            atascados = cx.execute(text(
+                "SELECT COUNT(*) FROM reservaciones WHERE estado='CONFIRMANDO'")).scalar()
+            v17["_confirmando_al_final"] = atascados
     eng.dispose()
     ck("ninguna solicitud con dos operadores a la vez", not dos_ops, [x[0] for x in dos_ops][:5])
+    if a.v17:
+        pres = v17.get("presencia_antes", {})
+        sin_resp, cerro = v17.get("sin_responder", []), v17.get("cerro_sesion")
+        ck("v1.7 supervisión: los que dejaron de responder aparecen como CONEXION_PERDIDA (sesión abierta)",
+           all(pres.get(u) == "CONEXION_PERDIDA" for u in sin_resp), {u: pres.get(u) for u in sin_resp})
+        ck("v1.7 supervisión: el que cerró sesión aparece como DESCONECTADO", pres.get(cerro) == "DESCONECTADO",
+           pres.get(cerro))
+        activos_ = [u for u in ops if u not in sin_resp and u != cerro]
+        ck("v1.7 supervisión: los que siguen trabajando aparecen como CONECTADO",
+           sum(pres.get(u) == "CONECTADO" for u in activos_) >= len(activos_) - 1,
+           {u: pres.get(u) for u in activos_})
+        reds = v17.get("redistribuciones", {})
+        ck("v1.7 redistribución por la API: responde y queda en la auditoría",
+           len(reds) == 3 and all("error" not in r_ for r_ in reds.values()) and v17["_auditoria_redistribucion"] == 3,
+           {u: (len(r_.get("liberadas", [])), len(r_.get("no_liberadas", []))) for u, r_ in reds.items()})
+        dest = v17["_liberadas_destino"]
+        mal = [k for k, d_ in dest.items() if d_["estado"] in ACTIVOS_OP and not d_["otro_operador"]]
+        ck("v1.7 lo redistribuido no se queda con el operador que no responde", not mal, mal[:5])
+        ck("v1.7 los operadores redistribuidos quedan desactivados (no reciben trabajo nuevo)",
+           len(v17["_desactivados"]) == 3, v17["_desactivados"])
+        ck("v1.7 ninguna confirmación se queda a medias (CONFIRMANDO) al final", v17["_confirmando_al_final"] == 0,
+           v17["_confirmando_al_final"])
+        ent = v17["_entregas_canal_lento"]
+        ck("v1.7 el canal lento recibió notificaciones y falló a propósito",
+           hook is not None and hook.recibidas > 0 and hook.fallidas > 0,
+           {"recibidas": hook.recibidas if hook else 0, "503": hook.fallidas if hook else 0, "entregas": ent})
+
 
     # detección: cada liberación del portal (hora real) contra el primer cambio del motor con esa versión o posterior
     def utc(x):
@@ -507,6 +671,9 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
             siguiente = [x for x in rec.eventos.values() if x["clave"] == e["clave"] and x["version"] == e["version"] + 1]
             if siguiente and siguiente[0]["estado"] == "AGOTADO":
                 transitorias += 1
+    if a.v17:
+        ck("v1.7 con el canal lento el motor siguió detectando a tiempo (p95 < 15 s fuera de fallos)",
+           bool(lat) and (pct(lat, 95) or 0) < 15, resumen(lat))
     tipos: dict[str, int] = {}
     for cmb in cambios:
         tipos[cmb["tipo"]] = tipos.get(cmb["tipo"], 0) + 1
@@ -569,6 +736,10 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
         "errores_operador": errores_op, "drenado_s": t_drenado,
         "duracion_total_s": round(time.time() - t_inicio, 1),
     }
+    if a.v17:
+        metricas["v1_7"] = {k.lstrip("_"): v for k, v in v17.items()} | {
+            "canal_lento": {"recibidas": hook.recibidas, "respondidas_503": hook.fallidas}}
+        hook.detener()
     rep = {"ok": ck.ok, "comprobaciones": ck.items, "metricas": metricas}
     (out / "laboratorio.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return rep
@@ -594,6 +765,7 @@ def main() -> int:
     ap.add_argument("--limite-api", type=int, default=6000,
                     help="peticiones/min por IP en el motor del laboratorio (todos comparten 127.0.0.1)")
     ap.add_argument("--salida", default="resultados/laboratorio_dias")
+    ap.add_argument("--v17", action="store_true", help="añade los fallos de la v1.7 (ver la descripción)")
     a = ap.parse_args()
     a.expedientes = max(1, min(a.expedientes, 5000))
     mecs = ["A", "B"] if a.mecanismo == "ambos" else [a.mecanismo]

@@ -472,7 +472,27 @@ async function selfCheckCard() {
       h("div", {}, badge(i.estado), " ", h("b", {}, `${i.area}: ${i.titulo}`)),
       i.detalle ? h("div", { class: "muted" }, i.detalle) : null,
       i.accion ? h("div", {}, "Qué hacer: " + i.accion) : null))) : null,
-    h("p", { class: "muted" }, `Correcto: ${oks.map((i) => i.area + " (" + i.titulo + ")").join(" · ") || "—"}`));
+    h("p", { class: "muted" }, `Correcto: ${oks.map((i) => i.area + " (" + i.titulo + ")").join(" · ") || "—"}`),
+    await reparacionesBlock());
+}
+// v1.7: reparaciones. Las seguras se aplican solas en el autodiagnóstico; aquí se pueden lanzar ya.
+// Las que borran datos piden motivo y confirmación explícita.
+async function reparacionesBlock() {
+  const r = (await api("/api/diagnostico/reparaciones")).reparaciones.filter((x) => x.pendientes);
+  if (!r.length) return h("p", { class: "muted", id: "reparaciones" }, "Reparaciones: no hace falta ninguna.");
+  return h("div", { id: "reparaciones" }, h("h3", {}, "Reparaciones disponibles"), r.map((x) => h("div", { class: "diag-item" },
+    h("div", {}, badge(x.segura ? "INFO" : "AVISO"), " ", h("b", {}, x.titulo), ` · ${x.pendientes} casos`),
+    h("div", { class: "muted" }, x.explicacion),
+    h("button", { class: "btn small" + (x.segura ? "" : " danger"), "data-reparar": x.clave, onclick: async () => {
+      let body = { confirmo: false, motivo: "" };
+      if (!x.segura) {
+        const motivo = prompt("Esta reparación borra datos. Escribe el motivo (queda en la auditoría):");
+        if (!motivo) return;
+        body = { confirmo: true, motivo };
+      }
+      await act(() => api(`/api/diagnostico/reparaciones/${x.clave}`, { method: "POST", body }), (o) => `Reparado: ${o.pendientes} casos`);
+      S.diag = null; refresh(true);
+    } }, x.segura ? "Reparar ahora" : "Reparar (con confirmación)"))));
 }
 async function viewHealth() {
   const [d, st, diagCard, svc, ops] = await Promise.all([api("/api/observabilidad"), api("/api/estadisticas?group=region&days=7"), selfCheckCard(),

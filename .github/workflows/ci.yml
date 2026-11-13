@@ -353,6 +353,7 @@ jobs:
           - { origen: "v1.3", ref: "0f3cd78", instalador: "si" }
           - { origen: "v1.4", ref: "77ced28", instalador: "si" }
           - { origen: "v1.5", ref: "eb7f469", instalador: "si" }
+          - { origen: "v1.6", ref: "dedc062", instalador: "si" }
     defaults:
       run:
         shell: pwsh
@@ -537,7 +538,7 @@ jobs:
     # con Playwright hasta el folio, reinicio brusco de ambos y carga con varios operadores.
     name: Reservaciones de laboratorio · Linux (SQLite y PostgreSQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 80
     services:
       postgres:
         image: postgres:16
@@ -567,7 +568,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Crear bases PostgreSQL limpias para demo y carga
         run: |
-          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia')]"
+          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia', 'monitoreo_v17')]"
       - name: Recorrido completo expediente → folio (SQLite)
         run: python scripts/demo_reservacion.py --salida resultados/demo_sqlite --capturas resultados/capturas_sqlite
       - name: Recorrido completo expediente → folio (PostgreSQL)
@@ -578,6 +579,12 @@ jobs:
         run: python scripts/demo_dia.py --salida resultados/demo_dia_pg --capturas resultados/capturas_dia_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_dia"
       - name: v1.6 · Laboratorio multisucursal A (eventos) y B (consulta), noche simulada con fallos
         run: python scripts/laboratorio_dias.py --mecanismo ambos --expedientes 400 --operadores 10 --noche-s 180 --salida resultados/laboratorio_dias
+      - name: v1.7 · Panel en navegador real (centro, supervisión, notificaciones, Mi trabajo, reinicio, sin conexión) · SQLite
+        run: python scripts/demo_v17.py --salida resultados/demo_v17_sqlite --capturas resultados/capturas_v17_sqlite
+      - name: v1.7 · Panel en navegador real · PostgreSQL
+        run: python scripts/demo_v17.py --salida resultados/demo_v17_pg --capturas resultados/capturas_v17_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v17"
+      - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
+        run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
         run: python scripts/carga_captura.py --expedientes 120 --operadores 8 --salida resultados/carga_sqlite
       - name: Carga con varios operadores (PostgreSQL)
@@ -594,7 +601,7 @@ jobs:
   reservaciones-windows:
     name: Reservaciones de laboratorio · Windows · Python ${{ matrix.python }}
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:
@@ -626,6 +633,14 @@ jobs:
       - name: v1.6 · Laboratorio multisucursal (reducido)
         run: |
           python scripts/laboratorio_dias.py --mecanismo ambos --expedientes 150 --operadores 6 --noche-s 90 --salida resultados/laboratorio_dias
+          exit $LASTEXITCODE
+      - name: v1.7 · Panel en navegador real (centro, supervisión, notificaciones, Mi trabajo, reinicio, sin conexión)
+        run: |
+          python scripts/demo_v17.py --salida resultados/demo_v17 --capturas resultados/capturas_v17
+          exit $LASTEXITCODE
+      - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
+        run: |
+          python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 150 --operadores 10 --noche-s 150 --salida resultados/laboratorio_v17
           exit $LASTEXITCODE
       - name: Carga con varios operadores
         run: |

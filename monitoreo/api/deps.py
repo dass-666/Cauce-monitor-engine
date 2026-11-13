@@ -57,7 +57,12 @@ def _marcar_presencia(s, operator_id: int, visto_en) -> None:
     from ..db import utcnow
     now = utcnow()
     if visto_en is None or now - visto_en >= timedelta(seconds=PRESENCIA_CADA_S):
-        s.execute(update(Operator).where(Operator.id == operator_id).values(visto_en=now))
+        from sqlalchemy.exc import OperationalError
+        try:
+            with s.begin_nested():     # la presencia es "mejor esfuerzo": nunca debe tumbar la consulta
+                s.execute(update(Operator).where(Operator.id == operator_id).values(visto_en=now))
+        except OperationalError:
+            pass
 
 
 def require_admin(user: CurrentUser = Depends(current_user)) -> CurrentUser:
