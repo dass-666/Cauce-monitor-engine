@@ -1,9 +1,9 @@
 {
   "version": "2.0.0-dev",
-  "momento": "2026-11-13 08:47:49",
+  "momento": "2026-11-13 09:20:52",
   "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "duracion_s": 30.0,
+  "duracion_s": 30.9,
   "base_de_datos": "sqlite",
   "por_atencion": {
     "interacciones": {
@@ -13,7 +13,7 @@
     },
     "segundos_navegador_automatizado": {
       "media": 1.7,
-      "max": 5.1
+      "max": 5.0
     },
     "nota": "MEDIDO con un navegador automatizado: el tiempo de una persona real será mayor (teclear, hablar con el solicitante)."
   },
@@ -27,7 +27,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 5.055,
+        "segundos": 5.044,
         "estado": "CONFIRMADA"
       },
       {
@@ -37,7 +37,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 0.925,
+        "segundos": 0.912,
         "estado": "CONFIRMADA"
       },
       {
@@ -47,7 +47,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 0.918,
+        "segundos": 0.926,
         "estado": "CONFIRMADA"
       },
       {
@@ -57,7 +57,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 0.975,
+        "segundos": 0.95,
         "estado": "CONFIRMADA"
       },
       {
@@ -67,7 +67,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 1.07,
+        "segundos": 1.086,
         "estado": "CONFIRMADA"
       },
       {
@@ -77,7 +77,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 1.158,
+        "segundos": 1.206,
         "estado": "CONFIRMADA"
       }
     ],
@@ -130,7 +130,7 @@
         "casillas": 3,
         "campos": 11,
         "interacciones": 20,
-        "segundos": 5.731,
+        "segundos": 5.021,
         "estado": "CONFIRMADA"
       }
     ],
@@ -159,7 +159,7 @@
       "con_cita": 9,
       "sin_cita": 1,
       "pendientes": 0,
-      "tiempo_medio_s": 2.0
+      "tiempo_medio_s": 1.9
     },
     "mias": {
       "atenciones": 10,
@@ -174,7 +174,7 @@
       "con_cita": 9,
       "sin_cita": 1,
       "pendientes": 0,
-      "tiempo_medio_s": 2.0
+      "tiempo_medio_s": 1.9
     },
     "abiertas": [],
     "recientes": [
@@ -188,10 +188,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:44.004569Z",
-        "cerrada_en": "2026-11-13T08:47:49.165164Z",
-        "duracion_s": 5.2,
-        "conexion": null,
+        "iniciada_en": "2026-11-13T09:20:46.509625Z",
+        "cerrada_en": "2026-11-13T09:20:50.906707Z",
+        "duracion_s": 4.4,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 10,
@@ -229,11 +229,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|alta|2026-11-20",
-            "confirmada_en_portal": "2026-11-13T08:47:48.958142Z",
-            "verificada_en": "2026-11-13T08:47:48.968762Z"
+            "confirmada_en_portal": "2026-11-13T09:20:50.784967Z",
+            "verificada_en": "2026-11-13T09:20:50.791769Z"
           },
-          "creada": "2026-11-13T08:47:48.258065Z",
-          "actualizada": "2026-11-13T08:47:48.943538Z",
+          "creada": "2026-11-13T09:20:50.240892Z",
+          "actualizada": "2026-11-13T09:20:50.771379Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -251,10 +251,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:38.652309Z",
-        "cerrada_en": "2026-11-13T08:47:42.464955Z",
+        "iniciada_en": "2026-11-13T09:20:41.102521Z",
+        "cerrada_en": "2026-11-13T09:20:44.901598Z",
         "duracion_s": 3.8,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 9,
@@ -292,11 +292,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|alta|2026-11-19",
-            "confirmada_en_portal": "2026-11-13T08:47:42.348466Z",
-            "verificada_en": "2026-11-13T08:47:42.354806Z"
+            "confirmada_en_portal": "2026-11-13T09:20:44.687864Z",
+            "verificada_en": "2026-11-13T09:20:44.698232Z"
           },
-          "creada": "2026-11-13T08:47:38.982889Z",
-          "actualizada": "2026-11-13T08:47:42.334167Z",
+          "creada": "2026-11-13T09:20:41.438534Z",
+          "actualizada": "2026-11-13T09:20:44.672030Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -314,10 +314,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:36.314904Z",
-        "cerrada_en": "2026-11-13T08:47:37.531861Z",
+        "iniciada_en": "2026-11-13T09:20:38.801636Z",
+        "cerrada_en": "2026-11-13T09:20:40.003000Z",
         "duracion_s": 1.2,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 8,
@@ -355,11 +355,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|renovacion|2026-11-17",
-            "confirmada_en_portal": "2026-11-13T08:47:37.430593Z",
-            "verificada_en": "2026-11-13T08:47:37.436961Z"
+            "confirmada_en_portal": "2026-11-13T09:20:39.887118Z",
+            "verificada_en": "2026-11-13T09:20:39.893986Z"
           },
-          "creada": "2026-11-13T08:47:36.837995Z",
-          "actualizada": "2026-11-13T08:47:37.416307Z",
+          "creada": "2026-11-13T09:20:39.273894Z",
+          "actualizada": "2026-11-13T09:20:39.873292Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -377,8 +377,8 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:34.538222Z",
-        "cerrada_en": "2026-11-13T08:47:34.999692Z",
+        "iniciada_en": "2026-11-13T09:20:37.135956Z",
+        "cerrada_en": "2026-11-13T09:20:37.590380Z",
         "duracion_s": 0.5,
         "conexion": null,
         "operador": "operador1",
@@ -412,8 +412,8 @@
           "confirmada_por": null,
           "modo": "POR_DIA",
           "evidencia": {},
-          "creada": "2026-11-13T08:47:34.889393Z",
-          "actualizada": "2026-11-13T08:47:34.999692Z",
+          "creada": "2026-11-13T09:20:37.451575Z",
+          "actualizada": "2026-11-13T09:20:37.590380Z",
           "sesion_portal": null
         },
         "siguiente": {
@@ -431,10 +431,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:32.413690Z",
-        "cerrada_en": "2026-11-13T08:47:33.395812Z",
+        "iniciada_en": "2026-11-13T09:20:34.850946Z",
+        "cerrada_en": "2026-11-13T09:20:35.885775Z",
         "duracion_s": 1.0,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 6,
@@ -472,11 +472,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|constancia|2026-11-17",
-            "confirmada_en_portal": "2026-11-13T08:47:33.310220Z",
-            "verificada_en": "2026-11-13T08:47:33.317507Z"
+            "confirmada_en_portal": "2026-11-13T09:20:35.783471Z",
+            "verificada_en": "2026-11-13T09:20:35.791470Z"
           },
-          "creada": "2026-11-13T08:47:32.752523Z",
-          "actualizada": "2026-11-13T08:47:33.296961Z",
+          "creada": "2026-11-13T09:20:35.139814Z",
+          "actualizada": "2026-11-13T09:20:35.768941Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -494,10 +494,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:31.329136Z",
-        "cerrada_en": "2026-11-13T08:47:32.298591Z",
+        "iniciada_en": "2026-11-13T09:20:33.751504Z",
+        "cerrada_en": "2026-11-13T09:20:34.737806Z",
         "duracion_s": 1.0,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 5,
@@ -535,11 +535,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|constancia|2026-11-16",
-            "confirmada_en_portal": "2026-11-13T08:47:32.098400Z",
-            "verificada_en": "2026-11-13T08:47:32.108906Z"
+            "confirmada_en_portal": "2026-11-13T09:20:34.637266Z",
+            "verificada_en": "2026-11-13T09:20:34.644099Z"
           },
-          "creada": "2026-11-13T08:47:31.595059Z",
-          "actualizada": "2026-11-13T08:47:32.084920Z",
+          "creada": "2026-11-13T09:20:34.032058Z",
+          "actualizada": "2026-11-13T09:20:34.620542Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -557,10 +557,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:30.365181Z",
-        "cerrada_en": "2026-11-13T08:47:31.230605Z",
-        "duracion_s": 0.9,
-        "conexion": null,
+        "iniciada_en": "2026-11-13T09:20:32.800638Z",
+        "cerrada_en": "2026-11-13T09:20:33.650114Z",
+        "duracion_s": 0.8,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 4,
@@ -598,11 +598,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|alta|2026-11-19",
-            "confirmada_en_portal": "2026-11-13T08:47:31.144540Z",
-            "verificada_en": "2026-11-13T08:47:31.150301Z"
+            "confirmada_en_portal": "2026-11-13T09:20:33.562727Z",
+            "verificada_en": "2026-11-13T09:20:33.569812Z"
           },
-          "creada": "2026-11-13T08:47:30.648542Z",
-          "actualizada": "2026-11-13T08:47:31.131454Z",
+          "creada": "2026-11-13T09:20:33.058973Z",
+          "actualizada": "2026-11-13T09:20:33.552047Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -620,10 +620,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:29.430045Z",
-        "cerrada_en": "2026-11-13T08:47:30.246968Z",
+        "iniciada_en": "2026-11-13T09:20:31.884528Z",
+        "cerrada_en": "2026-11-13T09:20:32.699821Z",
         "duracion_s": 0.8,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 3,
@@ -661,11 +661,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|alta|2026-11-19",
-            "confirmada_en_portal": "2026-11-13T08:47:30.165904Z",
-            "verificada_en": "2026-11-13T08:47:30.173029Z"
+            "confirmada_en_portal": "2026-11-13T09:20:32.616555Z",
+            "verificada_en": "2026-11-13T09:20:32.622946Z"
           },
-          "creada": "2026-11-13T08:47:29.693501Z",
-          "actualizada": "2026-11-13T08:47:30.149024Z",
+          "creada": "2026-11-13T09:20:32.145784Z",
+          "actualizada": "2026-11-13T09:20:32.602096Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -683,10 +683,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:28.513831Z",
-        "cerrada_en": "2026-11-13T08:47:29.330746Z",
+        "iniciada_en": "2026-11-13T09:20:30.968696Z",
+        "cerrada_en": "2026-11-13T09:20:31.768761Z",
         "duracion_s": 0.8,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 2,
@@ -724,11 +724,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|alta|2026-11-19",
-            "confirmada_en_portal": "2026-11-13T08:47:29.240469Z",
-            "verificada_en": "2026-11-13T08:47:29.248628Z"
+            "confirmada_en_portal": "2026-11-13T09:20:31.678544Z",
+            "verificada_en": "2026-11-13T09:20:31.685155Z"
           },
-          "creada": "2026-11-13T08:47:28.794864Z",
-          "actualizada": "2026-11-13T08:47:29.230455Z",
+          "creada": "2026-11-13T09:20:31.248678Z",
+          "actualizada": "2026-11-13T09:20:31.668611Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -746,10 +746,10 @@
         "abierta": false,
         "region": "NORTE",
         "sucursal": "NOR-1",
-        "iniciada_en": "2026-11-13T08:47:23.870168Z",
-        "cerrada_en": "2026-11-13T08:47:28.353882Z",
+        "iniciada_en": "2026-11-13T09:20:26.324148Z",
+        "cerrada_en": "2026-11-13T09:20:30.801785Z",
         "duracion_s": 4.5,
-        "conexion": null,
+        "conexion": "LOCAL",
         "operador": "operador1",
         "expediente": {
           "id": 1,
@@ -787,11 +787,11 @@
             "fuente": "api_por_folio",
             "horario_portal": null,
             "dia_portal": "NOR-1|renovacion|2026-11-16",
-            "confirmada_en_portal": "2026-11-13T08:47:28.226430Z",
-            "verificada_en": "2026-11-13T08:47:28.234685Z"
+            "confirmada_en_portal": "2026-11-13T09:20:30.683659Z",
+            "verificada_en": "2026-11-13T09:20:30.689800Z"
           },
-          "creada": "2026-11-13T08:47:27.594050Z",
-          "actualizada": "2026-11-13T08:47:28.216332Z",
+          "creada": "2026-11-13T09:20:30.043127Z",
+          "actualizada": "2026-11-13T09:20:30.670002Z",
           "sesion_portal": "•••"
         },
         "siguiente": {
@@ -806,7 +806,7 @@
     {
       "comprobacion": "motor y portal arrancan como procesos independientes",
       "ok": true,
-      "detalle": "1.61 s"
+      "detalle": "1.72 s"
     },
     {
       "comprobacion": "fuente del calendario registrada",
@@ -910,7 +910,7 @@
     {
       "comprobacion": "el motor vuelve a arrancar sobre los mismos datos",
       "ok": true,
-      "detalle": "1.09 s"
+      "detalle": "1.1 s"
     },
     {
       "comprobacion": "«Retomar» vuelve al paso exacto (elegir día) y llega al folio",
@@ -929,6 +929,20 @@
       "comprobacion": "ventanilla en teléfono: atención completa y sin desborde horizontal",
       "ok": true,
       "detalle": false
+    },
+    {
+      "comprobacion": "pantalla «Conexiones»: el portal de prueba es local y no se aparenta probar redes físicas",
+      "ok": true,
+      "detalle": {
+        "fase": "conexiones",
+        "atenciones": [],
+        "local": true,
+        "usos": 28,
+        "sondeo": "El portal está en este mismo equipo: no hay conexiones que medir.",
+        "errores_js": [],
+        "http_errores": [],
+        "http_mensajes": []
+      }
     },
     {
       "comprobacion": "resumen del día: 9 con cita, 1 sin cita, ninguna abierta",
