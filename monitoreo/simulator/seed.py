@@ -39,11 +39,13 @@ def seed_demo(db: Database, rng: random.Random | None = None, requests_per_regio
               interval_s: float = 5, with_file_sources: bool = True, port: int = 8000, clock=None) -> None:
     rng = rng or random.Random(42)
     seed_base(db)
+    world = World(db, clock=clock, rng=rng)
+    # v1.4: la comprobación y la inserción van en la MISMA transacción (en SQLite, BEGIN IMMEDIATE
+    # la hace atómica). Antes eran dos: dos instancias arrancando a la vez sobre una base vacía
+    # pasaban ambas la comprobación y la segunda caía con UNIQUE en sources.code (visto en CI).
     with db.session() as s:
         if s.scalar(select(Source.id).limit(1)):
             return  # ya sembrado
-    world = World(db, clock=clock, rng=rng)
-    with db.session() as s:
         for region, atype, rtype, names in FEEDS:
             s.add(Source(code=feed_code(region), name=f"Simulador {region.title()} ({atype})", region=region,
                          category=atype, availability_type=atype, connector_type="simulacion",
