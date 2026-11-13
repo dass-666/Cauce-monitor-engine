@@ -54,13 +54,20 @@ def configure_logging(env: str) -> None:
         root.addHandler(fh)
 
 
+def url_panel(host: str, port: int, pantalla: str = "") -> str:
+    """v2.0: MONITOREO_ABRIR_PANTALLA=ventanilla abre directamente esa pantalla. Solo se acepta un
+    nombre en minúsculas (nunca una URL ni una ruta): cualquier otro valor abre el inicio."""
+    base = f"http://{host}:{port}"
+    return base + (f"/#{pantalla}" if re.fullmatch(r"[a-z]{1,24}", pantalla or "") else "")
+
+
 def _open_browser_when_ready(url: str, timeout_s: float = 60) -> None:
     """Abre el navegador solo cuando /api/health responde (evita la página de error inicial)."""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # nunca a través de un proxy
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
-            with opener.open(url + "/api/health", timeout=2):
+            with opener.open(url.split("/#")[0] + "/api/health", timeout=2):
                 webbrowser.open(url)
                 return
         except Exception:  # noqa: BLE001 - el servidor aún no responde
@@ -84,7 +91,8 @@ def main() -> int:
     if os.environ.get("MONITOREO_ABRIR_NAVEGADOR") == "1":
         shown = "127.0.0.1" if host in ("0.0.0.0", "::") else host
         print(f"El panel se abrirá en http://{shown}:{port} cuando el servidor esté listo.", flush=True)
-        threading.Thread(target=_open_browser_when_ready, args=(f"http://{shown}:{port}",), daemon=True).start()
+        destino = url_panel(shown, port, os.environ.get("MONITOREO_ABRIR_PANTALLA", ""))
+        threading.Thread(target=_open_browser_when_ready, args=(destino,), daemon=True).start()
     # Detrás de un proxy inverso: solo se acepta X-Forwarded-For/Proto de la IP indicada.
     proxy = os.environ.get("MONITOREO_PROXY_CONFIABLE", "")
     uvicorn.run(app, host=host, port=port, log_level=os.environ.get("MONITOREO_LOG", "info"),

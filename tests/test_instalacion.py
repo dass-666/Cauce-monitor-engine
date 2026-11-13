@@ -185,3 +185,23 @@ def test_env_file_saved_with_bom_by_notepad_is_read(tmp_path, monkeypatch):
         os.environ.pop("﻿MONITOREO_ADMIN_PASSWORD", None)
         os.environ.pop("MONITOREO_ADMIN_PASSWORD", None)
         os.environ.pop("MONITOREO_ADMIN_USER", None)
+
+
+def test_v20_scripts_de_ventanilla_ascii_crlf_y_sin_pausa():
+    """Los .bat nuevos de la 2.0: solo ASCII (cmd.exe), CRLF, y respetan MONITOREO_SIN_PAUSA."""
+    raiz = Path(__file__).resolve().parents[1]
+    for nombre in ("ventanilla.bat", "demo_ventanilla.bat"):
+        b = (raiz / nombre).read_bytes()
+        assert all(x < 128 for x in b), nombre
+        assert b.count(b"\n") == b.count(b"\r\n") > 5, nombre
+    demo = (raiz / "demo_ventanilla.bat").read_text(encoding="ascii")
+    assert "MONITOREO_SIN_PAUSA" in demo and "scripts\\demo_v20.py" in demo and "where node" in demo
+    assert "MONITOREO_ABRIR_PANTALLA=ventanilla" in (raiz / "ventanilla.bat").read_text(encoding="ascii")
+
+
+def test_v20_abrir_pantalla_solo_acepta_un_nombre():
+    """MONITOREO_ABRIR_PANTALLA no puede convertirse en una URL arbitraria."""
+    from monitoreo.__main__ import url_panel
+    assert url_panel("127.0.0.1", 8000, "ventanilla") == "http://127.0.0.1:8000/#ventanilla"
+    for malo in ("http://x", "a/b", "../", "VENTANILLA", "", "x" * 30):
+        assert url_panel("127.0.0.1", 8000, malo) == "http://127.0.0.1:8000"
