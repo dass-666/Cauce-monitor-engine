@@ -1,7 +1,5 @@
 # Informe de la versión 1.6: captura y reservaciones POR DÍA
 
-> **BORRADOR**: faltan las cifras finales del laboratorio y de CI (marcadas con <<...>>).
-
 Fecha: 13 de noviembre de 2026 · Rama `fase-1.6` (sale de `fase-1.5` `eb7f469`; **sin fusionar en `master`**)
 Repositorio: `dass-666/Cauce-monitor-engine` (privado)
 
@@ -14,10 +12,16 @@ ficticios a propósito) · **ESTIMADO** (deducción, no medido) · **PENDIENTE**
    asigna solo, el operador teclea los campos manuales, elige un **día** (sin hora) y confirma;
    tras matar motor y portal, el folio se recupera en ambos y en el panel. **27/27 comprobaciones**
    (MEDIDO, §11).
-2. Laboratorio multisucursal: <<LAB_RESUMEN>>
-3. Pruebas automáticas: <<SUITE>> (MEDIDO, §7).
-4. Se encontraron y corrigieron **4 defectos reales** del motor (zona horaria, carrera en
-   PostgreSQL, asignación con datos de una fuente caída, versión del expediente) (§10).
+2. Laboratorio multisucursal: **5 regiones, 10 sucursales, 600 expedientes (58 incompletos a propósito)
+   y 10 operadores** durante una noche simulada con caídas y reinicios. Con **eventos (A)** el motor
+   se enteró de cada liberación en **0,05 s** (mediana; 0,10 s p95) y no perdió ninguna. Con
+   **consulta cada 10 s (B)** tardó **5,5 s** (mediana; 18 s p95) y no vio 11 de 306. En los dos:
+   **0 sobreventas, 0 confirmaciones sin evidencia y ningún incompleto asignado** (MEDIDO con
+   operadores SIMULADOS, §9).
+3. Pruebas automáticas: **470 pasan** en SQLite y PostgreSQL (4 omitidas a propósito) (MEDIDO, §7).
+4. Se encontraron y corrigieron **5 defectos reales**. Dos de ellos los destapó esta fase al
+   revisar el código y en el laboratorio: el motor podía asignar con datos de una fuente que
+   acababa de fallar, y un expediente reasignado se quedaba con el operador anterior (§10).
 5. Todo sigue siendo **solo contra nuestro portal de prueba en 127.0.0.1**, con datos sintéticos y
    confirmación humana obligatoria. **No validado en el MSI físico** (PENDIENTE).
 
@@ -58,9 +62,12 @@ afirmación sobre ningún proveedor real.
 | `48e04b1` | Expedientes con 10 estados, flujo de reservación POR DÍA, rechazo con motivo, retención, panel |
 | `3d280cb` | Recorrido en navegador real por día con reinicio y recuperación del folio; capturas |
 | `f5a6c7e` | Laboratorio multisucursal A/B; corrección "no asignar con datos de una fuente que está fallando"; CI v1.6; guía y arquitectura |
-| (último) | Este informe, resultados y ajustes finales |
+| `7866dc9` | Corrección: el expediente sigue a su asignación cuando se reasigna a otro operador |
+| (últimos) | Este informe y resultados |
 
-Cambios en el núcleo del motor (`monitoreo/engine/`): **4 archivos, unas 85 líneas**. Son la tarea
+75 archivos cambiados frente a `fase-1.5`.
+
+Cambios en el núcleo del motor (`monitoreo/engine/`): **4 archivos, 84 líneas añadidas y 11 quitadas**. Son la tarea
 del planificador, el motivo DECLINADA del rechazo y el filtro de fuentes caídas en la reevaluación.
 Lo demás vive en `monitoreo/captura/`, `portal_reservas/` y el panel.
 
@@ -139,7 +146,10 @@ hasta que estos se purgan (30 días por defecto, y siempre se conservan los 3 ú
 
 ## 7. Pruebas
 
-<<SUITE_DETALLE>>
+**Resultado final: 470 pasan, 4 omitidas a propósito, 0 fallan** en SQLite y PostgreSQL 16 juntos
+(6 min 47 s). Archivo: `docs/resultados/v1.6/pytest_sqlite_y_postgresql.txt` (MEDIDO). Las 4
+omitidas son carreras que solo existen en PostgreSQL y se omiten en la pasada de SQLite. La v1.5
+terminó con 410 pruebas: las de la v1.5 siguen todas, con los cambios que se explican abajo.
 
 Pruebas nuevas de la v1.6 (cada una corre en SQLite y en PostgreSQL cuando usa base de datos):
 
@@ -147,7 +157,7 @@ Pruebas nuevas de la v1.6 (cada una corre en SQLite y en PostgreSQL cuando usa b
 |---|---|---|
 | `test_portal_dias.py` | 10 | Pantallas sin hora, campos manuales, reprogramación, última unidad, idempotencia, versiones, expiración y ventana nocturna, eventos reanudables, hueco, estado v1.5 |
 | `test_calendario_motor.py` | 6 | Todas las transiciones, fuera de orden, **error de conexión ≠ agotado**, disponibilidad que vence, B sin inventar, A con corte, reconexión y sesión caducada |
-| `test_captura_dia.py` | 15 | Recorrido hasta folio; incompleto no se asigna; **día que se agota antes de confirmar; última unidad con dos solicitudes; confirmación repetida; respuesta perdida; reinicio a mitad de la confirmación; error del servidor; folio duplicado; sesión caducada**; reprogramar; rechazo; sucursales del operador; asignaciones simultáneas; sin datos personales en alertas ni auditoría |
+| `test_captura_dia.py` | 16 | Recorrido hasta folio; incompleto no se asigna; **día que se agota antes de confirmar; última unidad con dos solicitudes; confirmación repetida; respuesta perdida; reinicio a mitad de la confirmación; error del servidor; folio duplicado; sesión caducada**; reprogramar; rechazo; sucursales del operador; asignaciones simultáneas; sin datos personales en alertas ni auditoría; reasignación entre dos sincronizaciones |
 | `test_retencion.py` | 3 | Anonimizar, borrar y respetar operaciones activas; respaldos; exportación protegida |
 | `test_assignment.py` | +1 | No asignar con datos de una fuente cuya última consulta falló |
 
@@ -162,11 +172,79 @@ Pruebas de la v1.5 que cambiaron (y por qué):
 
 ## 8. GitHub Actions
 
-<<CI>>
+Flujo `CI (Windows y Linux)` en la rama `fase-1.6`. Trabajos nuevos de la v1.6:
+
+- **Linux**: recorrido POR DÍA en SQLite y en PostgreSQL, y laboratorio A/B (400 expedientes).
+- **Windows** (Python 3.11, 3.12 y 3.13): recorrido POR DÍA y laboratorio reducido (150 expedientes).
+- **Actualizar desde v1.5** en Windows PowerShell 5.1, con datos: aplica la migración 0007 sobre
+  una instalación real de la v1.5.
+
+Corrida 31 (commit `f5a6c7e`, que ya traía todo salvo el arreglo de §10 n.º 5): **21 de 21 trabajos
+en verde** (MEDIDO): Windows 3.11, 3.12 y 3.13; Linux 3.11, 3.12 y 3.13; PostgreSQL en Windows;
+reservaciones de laboratorio en Linux y en Windows ×3; integración HTTP; instalación;
+PowerShell 5.1 y 7; actualización desde v1.1, v1.2, v1.3, v1.4 y **v1.5**.
+<<CI_FINAL>>
 
 ## 9. Laboratorio multisucursal (A = eventos, B = consulta cada 10 s)
 
-<<LAB>>
+Escenario (SIMULADO): portal de prueba con 5 regiones × 2 sucursales × 3 trámites (450 días). Todo
+el calendario empieza **agotado**, así que la disponibilidad solo aparece con las liberaciones de
+la ventana nocturna simulada 22:00-07:30. El reloj del portal va 114 veces más rápido, para que la
+noche dure 5 minutos reales. 600 expedientes, 58 de ellos incompletos a propósito. 10 operadores,
+2 por región, limitados a las sucursales de su región. Los operadores son **hilos que usan la
+API** (no personas) con pausas de 0,2 a 0,8 s. Se corrió el **mismo escenario** (misma semilla)
+con A y con B, cada uno con procesos nuevos. Fallos inyectados en los dos:
+
+1. caída de la API del calendario 20 s;
+2. sesión de eventos caducada;
+3. 5 eventos fuera de orden;
+4. corte del flujo de eventos;
+5. reinicio brusco del portal;
+6. reinicio brusco del motor.
+
+Archivo: `docs/resultados/v1.6/laboratorio_dias.json`.
+
+**Integridad, contra la verdad del portal (MEDIDO): 16/16 en A y 16/16 en B.** Sin sobreventa,
+folios únicos, cada CONFIRMADA del motor existe CONFIRMADA en el portal, ningún incompleto avanzó,
+ninguna solicitud con dos operadores, coherencia sin problemas, sin nombres ni teléfonos en los
+registros del motor.
+
+| Medida (segundos) | A: eventos | B: consulta cada 10 s |
+|---|---|---|
+| Liberaciones del portal | 300 | 306 |
+| **Detección** en operación normal: mediana / p95 / máx. | **0,048 / 0,097 / 1,4** | **5,5 / 18,2 / 61** |
+| Detección durante un fallo inyectado: mediana / p95 | 2,5 / 24,1 | 8,0 / 23,0 |
+| Liberaciones **no detectadas** | **0** | **11** (6 ya se habían vuelto a agotar antes de la siguiente consulta) |
+| Asignación desde la detección: mediana / p95 | 0,12 / 2,4 | 0,34 / 9,6 |
+| Preparación (asignado → datos enviados), operador SIMULADO: mediana / p95 | 2,3 / 4,8 | 2,7 / 5,6 |
+| Confirmación (día elegido → folio): mediana / p95 | 0,56 / 0,86 | 0,54 / 0,87 |
+| Asignado → folio: mediana / p95 | 2,9 / 5,9 | 3,5 / 6,7 |
+| Folios confirmados (de 542 válidos) | 495 (91 %) | 506 (93 %) |
+| Veces que un operador abrió un expediente y ya **no quedaban días** | **116** | **400** |
+| Caída de la API: detectada en / verificado de nuevo en | 0,31 / 10,4 | 3,4 / 9,8 |
+| Reinicio del portal: detectado en / verificado de nuevo en | 0,35 / 0,05 | 2,5 / 10,1 |
+| Reinicio del motor: arranque / calendario verificado | 1,2 / 0,3 | 1,1 / 0,9 |
+
+Lectura (inferencias razonables, no hechos medidos):
+- **A es claramente mejor detectando** (unas 100 veces más rápido en la mediana) y no pierde
+  cambios breves. B no puede ver lo que se libera y se vuelve a agotar entre dos consultas.
+- **El costo de B se ve en el trabajo inútil:** 400 aperturas sin días frente a 116. Con B el motor
+  asigna con un resumen de hasta 10 s de antigüedad, y el operador llega cuando el día ya se fue.
+  Con personas reales eso es tiempo perdido y frustración. Nunca hubo una reservación falsa,
+  porque cada paso vuelve a leer el portal.
+- **Los folios totales no son comparables como "mejor/peor"**: dependen de cuántas unidades
+  liberó el azar en cada noche (B tuvo 306 liberaciones frente a 300). Lo que sí se compara es la
+  detección y el trabajo inútil.
+- La detección en el peor caso de A durante fallos (p95 24 s) corresponde a la caída de 20 s de
+  la API: durante la caída no hay forma de enterarse, y el panel lo dice ("sin comunicación").
+- Las cifras de preparación son de **hilos**, no de personas: no sirven para planear personal.
+- Al terminar quedaron 47 (A) y 35 (B) expedientes en LISTO: no hubo días suficientes esa noche.
+  En B quedó 1 en captura con datos enviados y sin días: volverá a la cola al vencer su asignación.
+
+Recomendación: usar **A como mecanismo principal** y B solo como respaldo automático (ya lo hace:
+si el flujo de eventos no está sano, el motor consulta). Si algún portal solo permite B, conviene
+un intervalo corto, dentro de lo que permita su dueño, y avisar al operador que el día puede
+haberse ido.
 
 ## 10. Defectos encontrados y corregidos
 
@@ -175,6 +253,7 @@ Pruebas de la v1.5 que cambiaron (y por qué):
 | 1 | Con el motor en UTC y el portal en Ciudad de México, "mañana" aparecía como *no habilitado* entre las 18:00 y las 24:00 locales | Alta: ocultaba disponibilidad real | Prueba de calendario | "Hoy" se calcula en la zona que declara el portal (`calendario_fuentes.zona_horaria`, migración 0007) |
 | 2 | En PostgreSQL, el oyente de eventos y la consulta periódica podían crear a la vez la fila de estado de la fuente (`UniqueViolation`) | Media: un ciclo fallido | Suite en PostgreSQL | Punto de guardado y relectura; prueba de eventos con corte |
 | 3 | La reevaluación periódica asignaba con el último estado guardado aunque la última consulta de la fuente hubiera fallado | Media: operadores avisados de un cupo no verificado (no se reservaba nada: cada paso vuelve a leer el portal) | Revisión del código al redactar la arquitectura | `free_slots` exige que la fuente no esté fallando; prueba que falla sin la corrección |
+| 5 | Si el motor cancelaba una asignación (día agotado) y daba la solicitud a **otro** operador entre dos sincronizaciones, el expediente seguía con el operador anterior: este lo veía sin poder tomarlo (238 errores 409 en una corrida) y el nuevo no lo veía, hasta que vencía (15 min) | Media: un expediente bloqueado; nada se reservaba mal | Laboratorio A (expediente EXP-000274) | `sincronizar` hace que el expediente siga a la asignación viva (evento ASIGNACION_CAMBIADA). Prueba que falla sin el arreglo; en la corrida final del laboratorio, 0 errores 409 |
 | 4 | La versión del expediente quedaba desalineada tras validar al crear (409 en la primera edición) | Baja | Prueba de modificación | `crear` fija `version=1` tras la validación en línea |
 
 Defectos de las propias pruebas (corregidos para que no den falsos positivos):

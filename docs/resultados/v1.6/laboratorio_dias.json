@@ -1,0 +1,481 @@
+{
+  "ok": true,
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "parametros": {
+    "mecanismo": "ambos",
+    "expedientes": 600,
+    "operadores": 10,
+    "incompletos": 8.0,
+    "noche_s": 300.0,
+    "prob": 0.5,
+    "intervalo_b": 10,
+    "pausa": [
+      0.2,
+      0.8
+    ],
+    "drenado_s": 60.0,
+    "semilla": 16,
+    "limite_api": 6000,
+    "salida": "resultados/laboratorio_dias"
+  },
+  "escenarios": {
+    "A": {
+      "ok": true,
+      "comprobaciones": [
+        {
+          "comprobacion": "portal: calendario agotado al inicio (la disponibilidad llega solo de noche)",
+          "ok": true,
+          "detalle": "450 días · 10 sucursales · 650 registros sintéticos"
+        },
+        {
+          "comprobacion": "operadores creados y limitados a las sucursales de su región",
+          "ok": true,
+          "detalle": 10
+        },
+        {
+          "comprobacion": "expedientes ficticios creados por la API",
+          "ok": true,
+          "detalle": "600 en 10.0 s · 58 incompletos"
+        },
+        {
+          "comprobacion": "caída de la API: el motor la detecta y marca el calendario SIN VERIFICAR",
+          "ok": true,
+          "detalle": "0.31 s"
+        },
+        {
+          "comprobacion": "reinicio del portal: el motor vuelve a verificar el calendario solo",
+          "ok": true,
+          "detalle": {
+            "deteccion_s": 0.35,
+            "recuperacion_s": 0.05,
+            "total_s": 0.95
+          }
+        },
+        {
+          "comprobacion": "reinicio del motor: arranca y vuelve a verificar el calendario",
+          "ok": true,
+          "detalle": {
+            "arranque_s": 1.19,
+            "calendario_verificado_s": 0.28,
+            "total_s": 1.6
+          }
+        },
+        {
+          "comprobacion": "sin sobreventa: ningún día del portal por encima de su capacidad",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "folios únicos en el motor",
+          "ok": true,
+          "detalle": ""
+        },
+        {
+          "comprobacion": "cada CONFIRMADA del motor existe CONFIRMADA en el portal (evidencia)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "cada folio del portal está en el motor (o en verificación)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "el laboratorio llegó a confirmar reservaciones (no es una prueba vacía)",
+          "ok": true,
+          "detalle": 495
+        },
+        {
+          "comprobacion": "cada expediente RESERVACION_CONFIRMADA tiene folio confirmado",
+          "ok": true,
+          "detalle": "495 expedientes · 495 folios"
+        },
+        {
+          "comprobacion": "ningún expediente incompleto se asignó ni avanzó",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "coherencia del motor (sin estados contradictorios)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "ninguna solicitud con dos operadores a la vez",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "sin datos personales en los registros del motor",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "metricas": {
+        "mecanismo": "A (eventos)",
+        "expedientes": 600,
+        "incompletos": 58,
+        "operadores": 10,
+        "noche_simulada": {
+          "real_s": 300.0,
+          "factor_reloj": 114.0,
+          "ventana": "22:00-07:30 (SIMULADO)",
+          "prob_por_tic": 0.5,
+          "liberaciones": 300
+        },
+        "deteccion_s": {
+          "n": 249,
+          "p50": 0.048,
+          "p95": 0.097,
+          "max": 1.443,
+          "media": 0.058
+        },
+        "deteccion_durante_fallos_s": {
+          "n": 51,
+          "p50": 2.454,
+          "p95": 24.096,
+          "max": 26.107,
+          "media": 6.491
+        },
+        "liberaciones_no_detectadas": 0,
+        "no_detectadas_transitorias": 0,
+        "tipos_de_cambio_detectados": {
+          "REAPERTURA": 300,
+          "CAMBIO_UNIDADES": 230,
+          "AGOTAMIENTO": 259,
+          "DESCONEXION": 3,
+          "RESINCRONIZACION": 4,
+          "RECONEXION": 4,
+          "SESION_CADUCADA": 1,
+          "FUERA_DE_ORDEN": 5
+        },
+        "asignacion_s (desde la detección)": {
+          "n": 535,
+          "p50": 0.119,
+          "p95": 2.391,
+          "max": 17.804,
+          "media": 0.534
+        },
+        "preparacion_s (asignado -> datos enviados, operador SIMULADO)": {
+          "n": 496,
+          "p50": 2.255,
+          "p95": 4.77,
+          "max": 26.239,
+          "media": 2.599
+        },
+        "confirmacion_s (fecha elegida -> confirmada)": {
+          "n": 495,
+          "p50": 0.555,
+          "p95": 0.857,
+          "max": 34.622,
+          "media": 0.65
+        },
+        "asignado_a_folio_s": {
+          "n": 495,
+          "p50": 2.886,
+          "p95": 5.937,
+          "max": 55.75,
+          "media": 3.5
+        },
+        "recuperacion": {
+          "caida_api": {
+            "deteccion_s": 0.31,
+            "recuperacion_s": 10.41
+          },
+          "sesion_caducada": {
+            "verificado_de_nuevo_s": 0.03
+          },
+          "fuera_de_orden_inyectados": 5,
+          "reinicio_portal": {
+            "deteccion_s": 0.35,
+            "recuperacion_s": 0.05,
+            "total_s": 0.95
+          },
+          "reinicio_motor": {
+            "arranque_s": 1.19,
+            "calendario_verificado_s": 0.28,
+            "total_s": 1.6
+          }
+        },
+        "expedientes_por_estado": {
+          "RESERVACION_CONFIRMADA": 495,
+          "INCOMPLETO": 58,
+          "LISTO": 47
+        },
+        "confirmadas": 495,
+        "cobertura_de_validos": 0.913,
+        "reservaciones_por_estado": {
+          "CONFIRMADA": 495,
+          "CANCELADA": 1
+        },
+        "llamadas_operador_s": {
+          "preparar": {
+            "n": 671,
+            "p50": 0.018,
+            "p95": 0.114,
+            "max": 0.458,
+            "media": 0.035
+          },
+          "enviar": {
+            "n": 496,
+            "p50": 0.058,
+            "p95": 0.215,
+            "max": 0.567,
+            "media": 0.083
+          },
+          "seleccionar": {
+            "n": 501,
+            "p50": 0.033,
+            "p95": 0.163,
+            "max": 0.566,
+            "media": 0.055
+          },
+          "confirmar": {
+            "n": 496,
+            "p50": 0.052,
+            "p95": 0.212,
+            "max": 0.628,
+            "media": 0.078
+          }
+        },
+        "errores_operador": {
+          "sin_dias_disponibles_al_preparar": 116,
+          "confirmar_409": 6,
+          "preparar_404": 4,
+          "enviar_502": 2,
+          "motor_no_responde": 6
+        },
+        "drenado_s": 1.31,
+        "duracion_total_s": 317.6
+      }
+    },
+    "B": {
+      "ok": true,
+      "comprobaciones": [
+        {
+          "comprobacion": "portal: calendario agotado al inicio (la disponibilidad llega solo de noche)",
+          "ok": true,
+          "detalle": "450 días · 10 sucursales · 650 registros sintéticos"
+        },
+        {
+          "comprobacion": "operadores creados y limitados a las sucursales de su región",
+          "ok": true,
+          "detalle": 10
+        },
+        {
+          "comprobacion": "expedientes ficticios creados por la API",
+          "ok": true,
+          "detalle": "600 en 9.3 s · 58 incompletos"
+        },
+        {
+          "comprobacion": "caída de la API: el motor la detecta y marca el calendario SIN VERIFICAR",
+          "ok": true,
+          "detalle": "3.39 s"
+        },
+        {
+          "comprobacion": "reinicio del portal: el motor vuelve a verificar el calendario solo",
+          "ok": true,
+          "detalle": {
+            "deteccion_s": 2.51,
+            "recuperacion_s": 10.07,
+            "total_s": 13.11
+          }
+        },
+        {
+          "comprobacion": "reinicio del motor: arranca y vuelve a verificar el calendario",
+          "ok": true,
+          "detalle": {
+            "arranque_s": 1.11,
+            "calendario_verificado_s": 0.85,
+            "total_s": 2.07
+          }
+        },
+        {
+          "comprobacion": "sin sobreventa: ningún día del portal por encima de su capacidad",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "folios únicos en el motor",
+          "ok": true,
+          "detalle": ""
+        },
+        {
+          "comprobacion": "cada CONFIRMADA del motor existe CONFIRMADA en el portal (evidencia)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "cada folio del portal está en el motor (o en verificación)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "el laboratorio llegó a confirmar reservaciones (no es una prueba vacía)",
+          "ok": true,
+          "detalle": 506
+        },
+        {
+          "comprobacion": "cada expediente RESERVACION_CONFIRMADA tiene folio confirmado",
+          "ok": true,
+          "detalle": "506 expedientes · 506 folios"
+        },
+        {
+          "comprobacion": "ningún expediente incompleto se asignó ni avanzó",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "coherencia del motor (sin estados contradictorios)",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "ninguna solicitud con dos operadores a la vez",
+          "ok": true,
+          "detalle": []
+        },
+        {
+          "comprobacion": "sin datos personales en los registros del motor",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "metricas": {
+        "mecanismo": "B (consulta cada 10 s)",
+        "expedientes": 600,
+        "incompletos": 58,
+        "operadores": 10,
+        "noche_simulada": {
+          "real_s": 300.0,
+          "factor_reloj": 114.0,
+          "ventana": "22:00-07:30 (SIMULADO)",
+          "prob_por_tic": 0.5,
+          "liberaciones": 306
+        },
+        "deteccion_s": {
+          "n": 236,
+          "p50": 5.533,
+          "p95": 18.176,
+          "max": 61.107,
+          "media": 6.943
+        },
+        "deteccion_durante_fallos_s": {
+          "n": 59,
+          "p50": 8.033,
+          "p95": 22.984,
+          "max": 30.012,
+          "media": 9.012
+        },
+        "liberaciones_no_detectadas": 11,
+        "no_detectadas_transitorias": 6,
+        "tipos_de_cambio_detectados": {
+          "REAPERTURA": 292,
+          "AGOTAMIENTO": 246,
+          "CAMBIO_UNIDADES": 28,
+          "DESCONEXION": 2
+        },
+        "asignacion_s (desde la detección)": {
+          "n": 508,
+          "p50": 0.34,
+          "p95": 9.625,
+          "max": 82.357,
+          "media": 1.922
+        },
+        "preparacion_s (asignado -> datos enviados, operador SIMULADO)": {
+          "n": 507,
+          "p50": 2.742,
+          "p95": 5.598,
+          "max": 17.009,
+          "media": 3.042
+        },
+        "confirmacion_s (fecha elegida -> confirmada)": {
+          "n": 506,
+          "p50": 0.543,
+          "p95": 0.872,
+          "max": 17.528,
+          "media": 0.637
+        },
+        "asignado_a_folio_s": {
+          "n": 506,
+          "p50": 3.454,
+          "p95": 6.715,
+          "max": 70.797,
+          "media": 4.125
+        },
+        "recuperacion": {
+          "caida_api": {
+            "deteccion_s": 3.39,
+            "recuperacion_s": 9.79
+          },
+          "sesion_caducada": {
+            "verificado_de_nuevo_s": 0.04
+          },
+          "fuera_de_orden_inyectados": 5,
+          "reinicio_portal": {
+            "deteccion_s": 2.51,
+            "recuperacion_s": 10.07,
+            "total_s": 13.11
+          },
+          "reinicio_motor": {
+            "arranque_s": 1.11,
+            "calendario_verificado_s": 0.85,
+            "total_s": 2.07
+          }
+        },
+        "expedientes_por_estado": {
+          "RESERVACION_CONFIRMADA": 506,
+          "INCOMPLETO": 58,
+          "LISTO": 35,
+          "CAPTURA_EN_PROCESO": 1
+        },
+        "confirmadas": 506,
+        "cobertura_de_validos": 0.934,
+        "reservaciones_por_estado": {
+          "DATOS_ENVIADOS": 1,
+          "CONFIRMADA": 506
+        },
+        "llamadas_operador_s": {
+          "preparar": {
+            "n": 928,
+            "p50": 0.017,
+            "p95": 0.116,
+            "max": 0.652,
+            "media": 0.034
+          },
+          "enviar": {
+            "n": 507,
+            "p50": 0.054,
+            "p95": 0.185,
+            "max": 0.505,
+            "media": 0.074
+          },
+          "seleccionar": {
+            "n": 520,
+            "p50": 0.03,
+            "p95": 0.102,
+            "max": 0.456,
+            "media": 0.041
+          },
+          "confirmar": {
+            "n": 506,
+            "p50": 0.049,
+            "p95": 0.191,
+            "max": 0.939,
+            "media": 0.074
+          }
+        },
+        "errores_operador": {
+          "confirmar_409": 14,
+          "sin_dias_disponibles_al_preparar": 400,
+          "enviar_502": 5,
+          "seleccionar_409": 1,
+          "motor_no_responde": 10
+        },
+        "drenado_s": 60.2,
+        "duracion_total_s": 375.2
+      }
+    }
+  }
+}
