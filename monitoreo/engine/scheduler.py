@@ -71,6 +71,10 @@ class Scheduler:
         self._captura_task: asyncio.Task | None = None
         self.last_captura_at = 0.0
         self.last_captura: dict | None = None
+        # v1.6: oyentes de eventos de calendarios POR DÍA (mecanismo A); solo en la instancia líder
+        self.eventos = None
+        self.last_eventos_at = 0.0
+        self._loop = None
         self.started_at = self.clock.now()
 
     async def _sleep_or_wake(self, delay: float, batch_s: float = 0.03) -> None:
@@ -133,6 +137,29 @@ class Scheduler:
             self._error(f"captura: {e}")
             log.exception("fallo en el seguimiento de expedientes")
 
+    def _al_cambiar_calendario(self, sid: int) -> None:
+        """Lo llama un hilo oyente: consultar esa fuente en el siguiente ciclo y despertar el bucle."""
+        from ..models import Source
+        try:
+            with self.db.session() as s:
+                src = s.get(Source, sid)
+                if src is not None:
+                    src.next_poll_at = self.clock.now()
+            if self._loop is not None:
+                self._loop.call_soon_threadsafe(self._wake.set)
+        except Exception:  # noqa: BLE001
+            log.exception("no se pudo adelantar la consulta del calendario %s", sid)
+
+    def _revisar_eventos(self, leader: bool) -> None:
+        if leader:
+            if self.eventos is None:
+                from ..captura.eventos_portal import GestorEventos
+                self.eventos = GestorEventos(self.db, self._al_cambiar_calendario)
+            self.eventos.revisar()
+        elif self.eventos is not None:
+            self.eventos.detener()
+            self.eventos = None
+
     async def _history(self) -> None:
         try:
             self.last_history = await asyncio.to_thread(run_history_maintenance, self.db, self.clock.now(),
@@ -143,6 +170,7 @@ class Scheduler:
 
     async def run(self) -> None:
         self.running = True
+        self._loop = asyncio.get_running_loop()
         maint_every = 0
         polls: set[asyncio.Task] = set()
         was_leader = False
@@ -161,6 +189,10 @@ class Scheduler:
                             run_recovery, self.db, self.clock.now(), self.lease.holder,
                             0 if self.cycles == 0 else self.lease.ttl_s)
                         log.warning("Instancia %s es LÍDER del planificador", self.lease.holder)
+                    if (leader != was_leader or time.monotonic() - self.last_eventos_at >= 5) and (
+                            leader or self.eventos is not None):
+                        self.last_eventos_at = time.monotonic()
+                        await asyncio.to_thread(self._revisar_eventos, leader)
                     was_leader = leader
                     self.role = "LIDER" if leader else "EN_ESPERA"
                     if leader:
@@ -220,6 +252,9 @@ class Scheduler:
             for task in (self._history_task, self._selfcheck_task, self._dispatch_task, self._captura_task):
                 if task:
                     await asyncio.gather(task, return_exceptions=True)
+            if self.eventos is not None:
+                await asyncio.to_thread(self.eventos.detener)
+                self.eventos = None
             try:
                 if self.role == "LIDER":
                     self.lease.release(self.clock.now())
@@ -243,6 +278,7 @@ class Scheduler:
                 "arrendamiento": self.lease.info(), "ultima_recuperacion": self.recovery,
                 "ultimo_autodiagnostico": getattr(self, "last_selfcheck", None),
                 "ultimo_mantenimiento_historial": self.last_history,
+                "oyentes_calendario": self.eventos.estado() if self.eventos else {},
                 "iniciado": self.started_at.isoformat() + "Z",
                 "proceso": {"pid": proc.pid, "memoria_mb": round(proc.memory_info().rss / 1048576, 1),
                             "cpu_pct": proc.cpu_percent(interval=None), "hilos": proc.num_threads()}}

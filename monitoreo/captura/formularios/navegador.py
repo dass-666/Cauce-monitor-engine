@@ -82,6 +82,8 @@ class Pagina:
     resumen: dict[str, str] = field(default_factory=dict)
     agotados: list[str] = field(default_factory=list)
     ubicacion: str | None = None
+    dias_no_disponibles: list[dict] = field(default_factory=list)   # v1.6: [{fecha, estado}]
+    mes: str | None = None
 
 
 class _Lector(HTMLParser):
@@ -108,7 +110,9 @@ class _Lector(HTMLParser):
                 self.form.radios.setdefault(a["name"], []).append(
                     {"valor": a.get("value", ""), **{k[5:]: v for k, v in a.items() if k.startswith("data-")}})
             else:
-                self.form.campos[a["name"]] = {"tipo": t, "valor": a.get("value", "")}
+                self.form.campos[a["name"]] = {"tipo": t, "valor": a.get("value", ""),
+                                               **{k: v for k, v in a.items() if k.startswith("data-")},
+                                               **({"readonly": True} if "readonly" in a else {})}
         elif tag == "select" and self.form is not None and a.get("name"):
             self.select = a["name"]
             self.form.campos[self.select] = {"tipo": "select", "valor": "", "opciones": []}
@@ -125,6 +129,10 @@ class _Lector(HTMLParser):
             self.p.folio = a["data-folio"]
         if "data-agotado" in a:
             self.p.agotados.append(a["data-agotado"])
+        if "data-dia" in a and "data-estado" in a:
+            self.p.dias_no_disponibles.append({"fecha": a["data-dia"], "estado": a["data-estado"]})
+        if "data-mes" in a:
+            self.p.mes = a["data-mes"]
 
     def handle_data(self, data):
         if self.captura or self.option is not None:
@@ -208,7 +216,7 @@ class NavegadorHTTP:
         r = self._pedir("GET", ruta, params=params)
         if r.status_code in (302, 303) and r.headers.get("location"):
             loc = r.headers["location"]
-            if loc.startswith("/reservar") and loc.split("?")[0] == self.contrato.pantalla("datos")["url"]:
+            if loc.split("?")[0] == self.contrato.pantalla("datos")["url"]:
                 raise SesionCaducada("PASO_INVALIDO", "El portal volvió al inicio: hay que empezar de nuevo", http=r.status_code)
             return self._get(loc)
         return self._pagina(r)
@@ -238,16 +246,28 @@ class NavegadorHTTP:
     def enviar_datos(self, valores: dict[str, str | None]) -> None:
         cfg = self.contrato.pantalla("datos")
         f = self.abrir_datos()
+        from .contrato import requerido
         errores = {}
         for c in self.contrato.campos:
+            if c.modo == "SOLO_LECTURA":
+                continue
             v = valores.get(c.nombre)
-            if v is None and c.obligatorio:
-                errores[c.nombre] = "Falta el dato en el expediente"
+            if v is None and requerido(c, valores):
+                errores[c.nombre] = "Captura manual pendiente" if c.manual else "Falta el dato en el expediente"
             elif c.tipo == "opcion" and v is not None and v not in f.campos[c.nombre].get("opciones", []):
                 errores[c.nombre] = "El portal no ofrece esa opción"
         if errores:
             raise RevisionRequerida("DATOS_INCOMPLETOS", "Hay campos que no se pueden llenar", errores=errores)
-        datos = {c.nombre: valores[c.nombre] or "" for c in self.contrato.campos}
+        datos = {}
+        for c in self.contrato.campos:
+            if c.modo == "SOLO_LECTURA":
+                continue
+            v = valores.get(c.nombre)
+            if c.tipo == "casilla":
+                if v:                         # una casilla sin marcar no se envía (como en un navegador)
+                    datos[c.nombre] = f.campos[c.nombre].get("valor") or "si"
+            else:
+                datos[c.nombre] = v or ""
         r = self._pedir("POST", cfg["envio"], data=datos)
         if r.status_code in (302, 303) and r.headers.get("location", "").startswith(cfg["exito"]["redirige_a"]):
             return
@@ -311,6 +331,64 @@ class NavegadorHTTP:
             raise ResultadoIncierto("RESPUESTA_INESPERADA", f"respuesta no reconocida al confirmar (HTTP {r.status_code})",
                                     http=r.status_code)
         raise Rechazo(p.error_general[0], p.error_general[1], http=r.status_code)
+
+    # -------------------------------------------------------------- v1.6: pantalla 2 POR DÍA
+    def calendario_dia(self, filtros: dict[str, str | None]) -> dict:
+        """Lee la pantalla 2 (ficha de solo lectura + calendario mensual). No elige nada."""
+        cfg = self.contrato.pantalla("calendario")
+        params = {}
+        for campo, regla in cfg["filtros"].items():
+            v = filtros.get(regla["origen"])
+            if v:
+                params[campo] = v.lower() if regla.get("transformar") == "minusculas" else v
+        p = self._get(cfg["url"], params)
+        self._esperar_pantalla(p, "calendario")
+        f = p.formularios.get(cfg["formulario"])
+        solo = {}
+        for regla in cfg.get("solo_lectura", []):
+            if regla.get("atributo") and f is not None and regla["campo"] in f.campos:
+                solo[regla["campo"]] = f.campos[regla["campo"]].get(regla["atributo"])
+            else:
+                solo[regla["campo"]] = p.resumen.get(regla["campo"])
+        dias = []
+        if f is not None:
+            for x in f.radios.get(cfg["opcion_dia"], []):
+                dias.append({"fecha": x["valor"], "estado": x.get("estado", "DISPONIBLE"),
+                             "libres": int(x["libres"]) if str(x.get("libres", "")).isdigit() else None,
+                             "version": int(x["version"]) if str(x.get("version", "")).isdigit() else None})
+        dias += [{"fecha": d["fecha"], "estado": d["estado"], "libres": 0, "version": None}
+                 for d in p.dias_no_disponibles]
+        clave = f.campos.get(cfg["clave"], {}).get("valor") if f is not None else None
+        return {"dias": sorted(dias, key=lambda d: d["fecha"]), "mes": p.mes, "clave": clave, "solo_lectura": solo,
+                "ficha": {k: v for k, v in p.resumen.items() if k.startswith("ficha_")}, "filtros": params,
+                "sucursal": params.get("sucursal")}
+
+    def verificar_solo_lectura(self, cal: dict, exp) -> None:
+        """Los campos de SOLO LECTURA del portal deben coincidir con el expediente; si no, se para."""
+        dif = {}
+        for regla in self.contrato.pantalla("calendario").get("solo_lectura", []):
+            esperado = getattr(exp, regla["origen"], None)
+            visto = cal["solo_lectura"].get(regla["campo"])
+            if esperado is not None and str(visto or "").strip().upper() != str(esperado).strip().upper():
+                dif[regla["campo"]] = "El portal muestra un dato distinto al del expediente"
+        if dif:
+            raise RevisionRequerida("SOLO_LECTURA_NO_COINCIDE", "La ficha del portal no coincide con el expediente",
+                                    errores=dif)
+
+    def continuar_dia(self, clave: str, sucursal: str, fecha: str, extra: dict | None = None) -> str:
+        """Envía el día elegido (botón Continuar). Devuelve la llave del resultado; NO es evidencia."""
+        cfg = self.contrato.pantalla("calendario")
+        datos = {cfg["clave"]: clave, cfg["opcion_dia"]: fecha, "sucursal": sucursal, **(extra or {})}
+        r = self._pedir("POST", cfg["envio"], data=datos)
+        loc = r.headers.get("location", "")
+        if r.status_code in (302, 303) and loc.startswith(cfg["exito"]["redirige_prefijo"]):
+            from urllib.parse import unquote
+            return unquote(loc[len(cfg["exito"]["redirige_prefijo"]):])
+        p = self._pagina(r)
+        if p.error_general is None:
+            raise ResultadoIncierto("RESPUESTA_INESPERADA", f"respuesta no reconocida al continuar (HTTP {r.status_code})",
+                                    http=r.status_code)
+        raise Rechazo(p.error_general[0], p.error_general[1], errores=p.errores, http=r.status_code)
 
     # -------------------------------------------------------------- API de verificación (evidencia)
     def _api(self, metodo: str, ruta: str, **kw) -> httpx.Response:

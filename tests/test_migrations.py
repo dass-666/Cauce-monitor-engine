@@ -28,7 +28,7 @@ def _digest_sqlite(path, tables=V10_TABLES):
         cols = [r[1] for r in c.execute(f"PRAGMA table_info({t})")]
         v10cols = [x for x in cols if x not in ("status_reason", "status_changed_at", "last_outcome", "meta", "claimed_at", "claim_token",
                                                    "connector_state", "processed_at", "taken_at", "taken_by",
-                                                   "last_activity_at", "inactive_alerted_at")]
+                                                   "last_activity_at", "inactive_alerted_at", "sucursales")]
         rows = c.execute(f"SELECT {','.join(v10cols)} FROM {t} ORDER BY 1").fetchall()
         out[t] = (len(rows), hashlib.sha256(repr(rows).encode()).hexdigest())
     c.close()

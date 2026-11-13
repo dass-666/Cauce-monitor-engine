@@ -7,7 +7,8 @@ from ..config import ENGINE_DEFAULTS
 from ..models import Setting
 
 
-CHOICES = {"enfriamiento_modo": ["adaptable", "fijo"]}
+CHOICES = {"enfriamiento_modo": ["adaptable", "fijo"], "captura_modo": ["POR_DIA", "POR_HORARIO"],
+           "retencion_accion": ["ANONIMIZAR", "BORRAR"]}
 
 # v1.4 (auditoría): límites de los parámetros cuyo valor extremo deja el motor inservible o
 # consume la CPU (p. ej. tick_segundos = 0 hacía girar el planificador sin pausa).
@@ -21,6 +22,9 @@ LIMITS = {
     "mantenimiento_historial_cada_s": (10, 7 * 86400), "lease_duracion_s": (3, 3600),
     "entrega_reclamo_vence_s": (10, 86400), "inactividad_en_proceso_min": (0, 7 * 24 * 60),
     "captura_gracia_confirmando_s": (1, 3600), "captura_timeout_portal_s": (1, 120),
+    "calendario_frescura_s": (5, 86400), "retencion_confirmados_dias": (1, 3650), "retencion_cerrados_dias": (1, 3650),
+    "retencion_incompletos_dias": (1, 3650), "retencion_respaldos_dias": (1, 3650),
+    "retencion_expedientes_cada_s": (10, 86400),
 }
 
 

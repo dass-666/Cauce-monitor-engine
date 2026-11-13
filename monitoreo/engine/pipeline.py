@@ -132,7 +132,7 @@ def poll_source(db: Database, source_id: int, clock, runtime: RuntimeState, rng:
 
     # ---- consulta a la fuente (fuera de transacción: puede tardar)
     ctx = {"db": db, "rng": rng, "virtual_time": getattr(clock, "virtual", False), "state": cstate,
-           "refresh": refresh, **(context_extra or {})}
+           "refresh": refresh, "source_id": source_id, "now": now, **(context_extra or {})}
     t0 = time.perf_counter()
     attempts, snapshot, err, outcome, retry_after = 0, None, None, "OK", None
     try:

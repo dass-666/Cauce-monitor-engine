@@ -101,4 +101,13 @@ ENGINE_DEFAULTS: dict = {
     # --- v1.5: captura y reservaciones de laboratorio
     "captura_gracia_confirmando_s": 30,         # tras perder la respuesta, espera antes de reabrir el intento
     "captura_timeout_portal_s": 10,             # tiempo máximo de cada petición al portal de prueba
+    # --- v1.6: modo de reservación, calendario por día y retención de datos personales
+    "captura_modo": "POR_DIA",                  # modo de los expedientes NUEVOS: POR_DIA o POR_HORARIO
+    "calendario_frescura_s": 60,                # sin verificación más tiempo: "pendiente de actualización"
+    "retencion_confirmados_dias": 90,           # expedientes con folio: se anonimizan pasado este plazo
+    "retencion_cerrados_dias": 30,              # cerrados sin folio (cancelados, fallidos)
+    "retencion_incompletos_dias": 60,           # incompletos o en revisión sin cambios: se cierran y anonimizan
+    "retencion_accion": "ANONIMIZAR",           # ANONIMIZAR (conserva la auditoría) o BORRAR (solo sin operaciones)
+    "retencion_respaldos_dias": 30,             # respaldos más antiguos se borran (siempre quedan los 3 últimos)
+    "retencion_expedientes_cada_s": 600,        # cada cuánto se aplica la política
 }

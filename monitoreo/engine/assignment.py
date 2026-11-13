@@ -111,7 +111,19 @@ def _matches(req: Request, slot: SlotState, source_code: str) -> bool:
             return False
     if c.get("capacidad_minima") and (slot.capacity or 0) < int(c["capacidad_minima"]):
         return False
+    # v1.6: atributos del recurso (p. ej. {"tramite": "alta", "sucursal": ["NOR-1", "NOR-2"]})
+    for k, v in (c.get("atributos") or {}).items():
+        valores = v if isinstance(v, list) else [v]
+        if (slot.attributes or {}).get(k) not in valores:
+            return False
     return True
+
+
+def _preferida(req: Request, slot: SlotState) -> int:
+    """v1.6: 0 si el recurso coincide con la preferencia de la solicitud (p. ej. su sucursal
+    preferida), 1 si solo coincide con una alternativa. Desempata a igual prioridad."""
+    pref = (req.conditions or {}).get("preferida") or {}
+    return 0 if all((slot.attributes or {}).get(k) == v for k, v in pref.items()) else 1
 
 
 def candidate_requests(session: Session, slot: SlotState, source_code: str, free: int, limit: int = 50) -> list[Request]:
@@ -123,13 +135,17 @@ def candidate_requests(session: Session, slot: SlotState, source_code: str, free
                 Request.id.not_in(rejected))
          .order_by(Request.priority.asc(), Request.created_at.asc(), Request.id.asc())
          .limit(limit * 4))
-    return [r for r in session.scalars(q) if _matches(r, slot, source_code)][:limit]
+    ok = [r for r in session.scalars(q) if _matches(r, slot, source_code)]
+    ok.sort(key=lambda r: (r.priority, _preferida(r, slot), r.created_at, r.id))   # orden estable
+    return ok[:limit]
 
 
-def candidate_operators(session: Session, region: str) -> list[Operator]:
+def candidate_operators(session: Session, region: str, sucursal: str | None = None) -> list[Operator]:
     ops = session.scalars(select(Operator).where(Operator.active.is_(True),
                                                  Operator.current_load < Operator.max_concurrent)).all()
     ops = [o for o in ops if not o.regions or region in o.regions]
+    if sucursal:   # v1.6: operador limitado a ciertas sucursales (vacío = todas las de sus regiones)
+        ops = [o for o in ops if not (o.sucursales or []) or sucursal in o.sucursales]
     return sorted(ops, key=lambda o: (o.current_load, o.last_assigned_at or datetime.min, o.id))
 
 
@@ -203,7 +219,7 @@ def allocate_slot(db: Database, slot_id: int, now: datetime, params: dict, chang
             if not cands:
                 break
             req = cands[0]
-            ops = candidate_operators(s, slot.region)
+            ops = candidate_operators(s, slot.region, (slot.attributes or {}).get("sucursal"))
             req_id, region = req.id, slot.region
         tried.add(req_id)
         if not ops:

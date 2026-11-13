@@ -172,6 +172,7 @@ class Operator(Base):
     name: Mapped[str] = mapped_column(String(128))
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     regions: Mapped[list] = mapped_column(JSON, default=list)  # vacío = todas
+    sucursales: Mapped[list] = mapped_column(JSON, default=list)  # v1.6: vacío = todas las de sus regiones
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     max_concurrent: Mapped[int] = mapped_column(Integer, default=3)
     current_load: Mapped[int] = mapped_column(Integer, default=0)
@@ -417,15 +418,24 @@ class Expediente(Base):
     id_externo: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     id_registro_previo: Mapped[str | None] = mapped_column(String(32), nullable=True)
     nombre: Mapped[str] = mapped_column(String(128))
-    fecha_nacimiento: Mapped[date] = mapped_column(Date)
-    telefono: Mapped[str] = mapped_column(String(16))
-    correo: Mapped[str] = mapped_column(String(128))
+    # v1.6: un expediente puede crearse INCOMPLETO (preparación anticipada): estos tres pueden faltar
+    fecha_nacimiento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    telefono: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    correo: Mapped[str | None] = mapped_column(String(128), nullable=True)
     region: Mapped[str] = mapped_column(ForeignKey("regions.code"), index=True)
     sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
     tipo_tramite: Mapped[str] = mapped_column(String(32))
     operacion: Mapped[str] = mapped_column(String(16), default="nueva")
-    # PENDIENTE | ASIGNADO | EN_CAPTURA | RESERVANDO | CONFIRMADO | FALLIDO | CANCELADO
-    estado: Mapped[str] = mapped_column(String(16), default="PENDIENTE", index=True)
+    # v1.6: NUEVO | INCOMPLETO | EN_VALIDACION | LISTO | ASIGNADO | CAPTURA_EN_PROCESO |
+    # RESERVACION_PENDIENTE | RESERVACION_CONFIRMADA | REQUIERE_REVISION | CERRADO
+    estado: Mapped[str] = mapped_column(String(24), default="NUEVO", index=True)
+    motivo_cierre: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    folio_anterior: Mapped[str | None] = mapped_column(String(32), nullable=True)   # solo al reprogramar
+    modo: Mapped[str] = mapped_column(String(12), default="POR_DIA")       # POR_DIA | POR_HORARIO
+    sucursales_alternativas: Mapped[list] = mapped_column(JSON, default=list)
+    ronda: Mapped[int] = mapped_column(Integer, default=0)                 # solicitudes del motor creadas
+    validado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    anonimizado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     prioridad: Mapped[int] = mapped_column(Integer, default=3)
     operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
     request_id: Mapped[int | None] = mapped_column(ForeignKey("requests.id"), nullable=True, unique=True)
@@ -469,6 +479,7 @@ class Reservacion(Base):
     operator_id: Mapped[int | None] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
     estado: Mapped[str] = mapped_column(String(16), default="PREPARADA", index=True)
     contrato: Mapped[str] = mapped_column(String(64), default="portal_laboratorio")
+    modo: Mapped[str] = mapped_column(String(12), default="POR_HORARIO")   # v1.6
     sesion_portal: Mapped[str | None] = mapped_column(String(128), nullable=True)
     horario_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -485,3 +496,67 @@ class Reservacion(Base):
     confirmada_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------------------------------------------------------------- v1.6: calendario POR DÍA
+class CalendarioDia(Base):
+    """Último estado CONOCIDO de un día (sucursal, trámite, fecha) de una fuente de calendario.
+    `version_portal` permite descartar actualizaciones que llegan fuera de orden; `verificado_en`
+    es cuándo el portal lo confirmó por última vez (no cuándo lo miró el motor)."""
+    __tablename__ = "calendario_dias"
+    __table_args__ = (UniqueConstraint("source_id", "clave", name="uq_calendario_dia"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    clave: Mapped[str] = mapped_column(String(96))
+    region: Mapped[str] = mapped_column(String(32), index=True)
+    sucursal: Mapped[str] = mapped_column(String(32), index=True)
+    sucursal_nombre: Mapped[str] = mapped_column(String(128), default="")
+    tramite: Mapped[str] = mapped_column(String(32))
+    fecha: Mapped[str] = mapped_column(String(10), index=True)
+    estado: Mapped[str] = mapped_column(String(16))      # DISPONIBLE | AGOTADO | DESHABILITADO | NO_HABILITADO
+    libres: Mapped[int] = mapped_column(Integer, default=0)
+    capacidad: Mapped[int] = mapped_column(Integer, default=0)
+    version_portal: Mapped[int] = mapped_column(Integer, default=0)
+    disponible_hasta: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    verificado_en: Mapped[datetime] = mapped_column(DateTime)
+    cambiado_en: Mapped[datetime] = mapped_column(DateTime)
+    ultima_causa: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class CalendarioCambio(Base):
+    """Cambio detectado en el calendario (o en su conexión). Sin datos personales."""
+    __tablename__ = "calendario_cambios"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(32), index=True)
+    clave: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    tramite: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fecha: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    antes: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    despues: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    libres: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    version_portal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mecanismo: Mapped[str] = mapped_column(String(12), default="PERIODICO")   # EVENTOS | PERIODICO
+    ts_portal: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    detectado_en: Mapped[datetime] = mapped_column(DateTime, index=True)
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CalendarioFuente(Base):
+    """Estado de la conexión con el calendario de una fuente: cuándo se verificó de verdad."""
+    __tablename__ = "calendario_fuentes"
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), primary_key=True)
+    mecanismo: Mapped[str] = mapped_column(String(12), default="PERIODICO")
+    conectado: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirmado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # todo el calendario al día
+    ultimo_intento_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ultimo_error_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ultimo_error_codigo: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    ultimo_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ultima_secuencia: Mapped[int] = mapped_column(Integer, default=0)
+    eventos_recibidos: Mapped[int] = mapped_column(Integer, default=0)
+    fuera_de_orden: Mapped[int] = mapped_column(Integer, default=0)
+    resincronizaciones: Mapped[int] = mapped_column(Integer, default=0)
+    reconexiones: Mapped[int] = mapped_column(Integer, default=0)
+    zona_horaria: Mapped[str | None] = mapped_column(String(64), nullable=True)   # la que declara el portal
