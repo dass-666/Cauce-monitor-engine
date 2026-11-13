@@ -68,8 +68,13 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   await page.screenshot({ path: `${outDir}/04_monitor.png`, fullPage: false });
   await page.goto(base + "/#solicitudes");
   await page.waitForSelector("tr.clickable");
-  await page.locator("tr.clickable").first().click();
-  await page.waitForSelector(".timeline");
+  // la tabla se refresca sola: si el clic cae en una fila que se acaba de redibujar, se repite
+  // (hasta 3 veces). Se sigue exigiendo que el detalle con su historial aparezca.
+  for (let intento = 1; ; intento++) {
+    await page.locator("tr.clickable").first().click();
+    try { await page.waitForSelector(".timeline", { timeout: 10000 }); break; }
+    catch (e) { if (intento >= 3) throw e; log(`detalle no abrió (intento ${intento}); se repite el clic`); }
+  }
   await page.screenshot({ path: `${outDir}/05_detalle_solicitud.png` });
   await page.keyboard.press("Escape");
   await page.goto(base + "/#config");

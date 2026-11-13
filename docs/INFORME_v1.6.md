@@ -183,7 +183,15 @@ Corrida 31 (commit `f5a6c7e`, que ya traía todo salvo el arreglo de §10 n.º 5
 en verde** (MEDIDO): Windows 3.11, 3.12 y 3.13; Linux 3.11, 3.12 y 3.13; PostgreSQL en Windows;
 reservaciones de laboratorio en Linux y en Windows ×3; integración HTTP; instalación;
 PowerShell 5.1 y 7; actualización desde v1.1, v1.2, v1.3, v1.4 y **v1.5**.
-<<CI_FINAL>>
+
+Corrida 33 (commit `9305efb`, con todos los arreglos): **20 de 21**. Falló *Linux · Python 3.13* en
+la prueba del panel general (`e2e_panel.js`, sin cambios desde versiones anteriores). Las 470
+pruebas pasaron también ahí. El navegador hizo clic en la primera fila de *Solicitudes* justo cuando
+la tabla se refrescaba sola, y el detalle no se abrió. Localmente pasó 4 de 4 veces, así que lo
+trato como una prueba frágil, no como un defecto del producto (inferencia: no lo reproduje). Se
+corrigió la prueba para que repita el clic hasta 3 veces, sin aflojar la comprobación: el detalle
+con su historial tiene que aparecer.
+<<CI_ULTIMA>>
 
 ## 9. Laboratorio multisucursal (A = eventos, B = consulta cada 10 s)
 
