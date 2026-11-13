@@ -351,6 +351,7 @@ jobs:
           - { origen: "v1.1", ref: "06f90763f4494086b30b7127bd7c3e0db3992be5", instalador: "no" }
           - { origen: "v1.2", ref: "995eb46", instalador: "si" }
           - { origen: "v1.3", ref: "0f3cd78", instalador: "si" }
+          - { origen: "v1.4", ref: "77ced28", instalador: "si" }
     defaults:
       run:
         shell: pwsh
@@ -526,6 +527,100 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integracion-http-windows
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  reservaciones-linux:
+    # v1.5: portal de reservaciones de prueba + motor como procesos reales, recorrido del operador
+    # con Playwright hasta el folio, reinicio brusco de ambos y carga con varios operadores.
+    name: Reservaciones de laboratorio · Linux (SQLite y PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres-ci
+          POSTGRES_DB: monitoreo_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      MONITOREO_TEST_PG: postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
+      - name: Preparar navegador
+        run: |
+          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          npx playwright install --with-deps chromium
+      - name: Crear bases PostgreSQL limpias para demo y carga
+        run: |
+          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga')]"
+      - name: Recorrido completo expediente → folio (SQLite)
+        run: python scripts/demo_reservacion.py --salida resultados/demo_sqlite --capturas resultados/capturas_sqlite
+      - name: Recorrido completo expediente → folio (PostgreSQL)
+        run: python scripts/demo_reservacion.py --salida resultados/demo_pg --capturas resultados/capturas_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_demo"
+      - name: Carga con varios operadores (SQLite)
+        run: python scripts/carga_captura.py --expedientes 120 --operadores 8 --salida resultados/carga_sqlite
+      - name: Carga con varios operadores (PostgreSQL)
+        run: python scripts/carga_captura.py --expedientes 120 --operadores 8 --salida resultados/carga_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_carga"
+      - name: Adjuntar resultados, capturas y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reservaciones-linux
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  reservaciones-windows:
+    name: Reservaciones de laboratorio · Windows · Python ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
+      - name: Preparar navegador
+        run: |
+          npm install --no-save --no-audit --no-fund "playwright@$env:PLAYWRIGHT_VERSION"
+          npx playwright install chromium
+      - name: Recorrido completo expediente → folio, con reinicio brusco
+        run: |
+          python scripts/demo_reservacion.py --salida resultados/demo --capturas resultados/capturas
+          exit $LASTEXITCODE
+      - name: Carga con varios operadores
+        run: |
+          python scripts/carga_captura.py --expedientes 80 --operadores 6 --salida resultados/carga
+          exit $LASTEXITCODE
+      - name: Adjuntar resultados, capturas y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reservaciones-windows-py${{ matrix.python }}
           path: resultados/
           if-no-files-found: ignore
           retention-days: 14

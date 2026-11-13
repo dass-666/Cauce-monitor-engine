@@ -1,0 +1,95 @@
+{
+  "version": "1.5.0",
+  "momento": "2026-11-13 02:47:12",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "base_de_datos": "postgresql",
+  "expedientes": 200,
+  "operadores": 10,
+  "duracion_flujo_s": 72.6,
+  "alta_expedientes_s": 3.9,
+  "estados_expedientes": {
+    "CONFIRMADO": 200
+  },
+  "confirmadas": 200,
+  "confirmadas_por_minuto": 165.3,
+  "horario_ya_tomado_por_otro": 8,
+  "confirmaciones_202": 0,
+  "latencia_ms": {
+    "preparar": {
+      "n": 200,
+      "p50": 241.4,
+      "p95": 315.0,
+      "max": 447.1,
+      "media": 238.5
+    },
+    "enviar": {
+      "n": 200,
+      "p50": 264.9,
+      "p95": 322.9,
+      "max": 367.5,
+      "media": 258.5
+    },
+    "seleccionar": {
+      "n": 208,
+      "p50": 267.9,
+      "p95": 342.8,
+      "max": 441.1,
+      "media": 269.7
+    },
+    "confirmar": {
+      "n": 200,
+      "p50": 418.3,
+      "p95": 538.2,
+      "max": 656.4,
+      "media": 421.9
+    }
+  },
+  "integridad_motor": [],
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "200 expedientes creados por la API",
+      "ok": true,
+      "detalle": "3.9 s"
+    },
+    {
+      "comprobacion": "ningún horario por encima de su capacidad (capacidad 1)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "folios únicos en el motor",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "cada CONFIRMADA del motor existe en el portal",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "cada CONFIRMADA del portal está registrada en el motor",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "toda CONFIRMADA tiene evidencia con clave coincidente",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "expedientes CONFIRMADO == reservaciones CONFIRMADA",
+      "ok": true,
+      "detalle": [
+        200,
+        200
+      ]
+    },
+    {
+      "comprobacion": "sin errores inesperados de la API",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}

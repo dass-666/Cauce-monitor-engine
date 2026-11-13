@@ -194,7 +194,7 @@ function mostrarRevision(box, e, r) {
     table([{ t: "Campo del portal", f: (c) => c.etiqueta }, { t: "Valor", f: (c) => h("span", { class: "mono" }, c.valor ?? "—") },
       { t: "Origen", f: (c) => c.origen }, { t: "", f: (c) => badge(c.listo ? "OK" : "ERROR") }], rev.campos),
     rev.faltan.length ? h("p", { class: "error" }, "Faltan datos obligatorios: " + rev.faltan.join(", ") + ". Corrige el expediente antes de enviar.") : null,
-    h("label", { class: "form" }, h("span", { class: "check" }, chk, " He revisado los campos y son correctos")),
+    h("label", { class: "check-line" }, chk, "He revisado los campos y son correctos"),
     h("div", { class: "actions" }, enviar), errs));
 }
 
@@ -238,7 +238,7 @@ function mostrarConfirmacion(box, e, res, resumen) {
     h("dl", { class: "kv" }, h("dt", {}, "Sucursal"), h("dd", {}, (resumen && resumen.sucursal) || res.sucursal),
       h("dt", {}, "Fecha"), h("dd", {}, res.fecha), h("dt", {}, "Horario"), h("dd", {}, res.hora),
       h("dt", {}, "Apartado hasta"), h("dd", {}, fmtTime(res.vence_en))),
-    h("label", { class: "form" }, h("span", { class: "check" }, chk, " Confirmo esta reservación con los datos del expediente")),
+    h("label", { class: "check-line" }, chk, "Confirmo esta reservación con los datos del expediente"),
     h("div", { class: "actions" }, btn,
       h("button", { class: "btn ghost", onclick: async () => {
         try { const r = await api(`/api/reservaciones/${res.id}/calendario`); mostrarCalendario(box, e, res, r.calendario); }
@@ -269,7 +269,8 @@ async function tabCalendario(f) {
   if (err) return card("Calendario de laboratorio", filtro, h("p", { class: "error" }, err),
     h("p", { class: "muted" }, "¿Está en marcha el portal de prueba? (iniciar_portal.bat)"));
   return h("div", {}, card("Calendario de laboratorio", filtro,
-    h("p", { class: "muted" }, `${num(cal.total_libres)} horarios libres de ${num(cal.total_horarios)} · solo lectura (no aparta nada)`)),
+    h("p", { class: "muted" }, `${num(cal.total_libres)} horarios libres de ${num(cal.total_horarios)} · solo lectura (no aparta nada)`),
+    h("p", {}, badge("DISPONIBLE"), " libre   ", badge("OCUPADO"), " ocupado o apartado")),
     cal.sucursales.map((s) => card(`${s.nombre} (${s.sucursal}) · ${s.libres} libres`, h("div", { class: "table-wrap" }, h("table", {},
       h("tbody", {}, s.dias.map((d) => h("tr", {}, h("th", {}, d.fecha), h("td", {}, h("div", { class: "actions" },
         d.horarios.map((x) => badge(x.libres > 0 ? "DISPONIBLE" : "OCUPADO")).map((b, i) => { b.textContent = d.horarios[i].hora; return b; })))))))))));

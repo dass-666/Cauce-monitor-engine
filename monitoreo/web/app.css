@@ -142,3 +142,7 @@ pre.json { background: var(--panel-2); border: 1px solid var(--border); border-r
 
 .diag-item { padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .diag-item:last-child { border-bottom: 0; }
+
+/* v1.5: casillas de confirmación humana */
+.check-line { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-weight: 500; cursor: pointer; }
+.check-line input { width: auto; }
