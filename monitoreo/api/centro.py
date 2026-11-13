@@ -216,8 +216,9 @@ def _bloque_captura(s, now, since, region, sucursal, operador, estado) -> dict:
     fuentes = []
     for cf in s.scalars(select(CalendarioFuente)):
         fuentes.append({"source_id": cf.source_id, "mecanismo": cf.mecanismo, "conectado": cf.conectado,
-                        "sin_verificar": cd.sin_verificar(cf), "verificado_en": ser.iso(cf.verificado_en),
-                        "ultimo_error": cf.ultimo_error_codigo})
+                        "sin_verificar": cd.sin_verificar(cf), "verificado_en": ser.iso(cf.confirmado_en),
+                        "ultimo_error": cf.ultimo_error_codigo,
+                        "error_en_periodo": bool(cf.ultimo_error_en and cf.ultimo_error_en >= since)})
     cq = select(CalendarioCambio.tipo, func.count()).where(CalendarioCambio.detectado_en >= since)
     if sucursal:
         cq = cq.where(CalendarioCambio.sucursal == sucursal)
@@ -240,9 +241,10 @@ def _bloque_captura(s, now, since, region, sucursal, operador, estado) -> dict:
         },
         "tiempo_hasta_confirmacion_ms": percentiles(t_conf),
         "calendario": {"fuentes": fuentes,
-                       "disponibilidades_nuevas": sum(cambios_cal.get(k, 0) for k in ("APERTURA", "REAPERTURA")),
-                       "dias_agotados": cambios_cal.get("AGOTAMIENTO", 0),
-                       "errores_de_comunicacion": sum(cambios_cal.get(k, 0) for k in ("DESCONEXION", "SESION_CADUCADA"))},
+                       "disponibilidades_nuevas": sum(cambios_cal.get(k, 0) for k in cd.APERTURAS),
+                       "dias_agotados": sum(cambios_cal.get(k, 0) for k in ("AGOTAMIENTO", "DISPONIBILIDAD_EXPIRADA")),
+                       "fuentes_sin_verificar": sum(1 for x in fuentes if x["sin_verificar"]),
+                       "fuentes_con_error_en_periodo": sum(1 for x in fuentes if x["error_en_periodo"])},
     }
 
 

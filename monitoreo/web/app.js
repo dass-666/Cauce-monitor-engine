@@ -237,7 +237,11 @@ async function refresh(force, scrollTop) {
     $("view").replaceChildren(node);
     if (scrollTop) window.scrollTo(0, 0);
   } catch (e) {
-    $("view").replaceChildren(card("No se pudo cargar", h("p", { class: "error" }, e.message)));
+    // v1.7: sin conexión se CONSERVA lo que había en pantalla (con el aviso de «sin conexión» arriba);
+    // antes se sustituía por un error y el operador perdía de vista lo que estaba haciendo.
+    if (!(e instanceof TypeError && S.offline && $("view").childElementCount)) {
+      $("view").replaceChildren(card("No se pudo cargar", h("p", { class: "error" }, e.message)));
+    }
   } finally {
     rendering = false;
     if (S.pendingForce) { S.pendingForce = false; refresh(true); }

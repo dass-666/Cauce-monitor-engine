@@ -562,3 +562,24 @@ def test_v17_calendario_salta_al_mes_siguiente_si_el_actual_no_tiene_dias(lab):
     # si el operador pide un mes concreto se respeta (aunque esté vacío)
     c3 = lab.c.get(f"/api/reservaciones/{rid}/calendario", headers=h, params={"sucursal": cal["sucursal"], "mes": mes}).json()
     assert c3["calendario"]["mes"] == mes and not any(d["estado"] == "DISPONIBLE" for d in c3["calendario"]["dias"])
+
+
+def test_v17_centro_con_calendario_por_dia_cifras_de_la_base(lab):
+    """El centro de operaciones con una fuente de calendario por día real (hallado en el recorrido con
+    navegador: un campo mal nombrado daba 500 en cuanto existía una fuente de calendario)."""
+    from monitoreo.models import CalendarioCambio
+    eid, u, h = asignado(lab)
+    rid, _ = lab.hasta_fecha(eid, lab.ops[u])
+    assert lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=lab.ops[u], json={"confirmo": True}).status_code == 200
+    r = lab.c.get("/api/centro?periodo=24h", headers=lab.h)
+    assert r.status_code == 200, r.text
+    cap = r.json()["captura"]
+    with lab.db.session() as s:
+        aperturas = s.scalar(select(func.count()).select_from(CalendarioCambio).where(
+            CalendarioCambio.tipo.in_(["REAPERTURA", "NUEVA_FECHA", "CANCELACION_DEVUELVE", "REHABILITADA"])))
+        conf = s.scalar(select(func.count()).select_from(Expediente).where(Expediente.estado == "RESERVACION_CONFIRMADA"))
+    assert cap["calendario"]["fuentes"] and cap["calendario"]["disponibilidades_nuevas"] == aperturas
+    assert cap["reservaciones"]["confirmadas_periodo"] >= 1
+    assert cap["expedientes"]["por_estado"].get("RESERVACION_CONFIRMADA", 0) == conf
+    assert cap["tiempo_hasta_confirmacion_ms"]["n"] >= 1          # ASIGNADO -> confirmada, medido del historial
+    assert lab.c.get("/api/centro?periodo=24h", headers=lab.ops[u]).status_code == 200
