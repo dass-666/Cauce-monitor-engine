@@ -58,6 +58,8 @@ SCENARIOS = {
            "fuentes": 100, "pendientes": 2000, "historicas": 0, "clientes": 10, "instancias": 1},
     "e3": {"titulo": "10 regiones · 100 fuentes · 10.000 solicitudes almacenadas · 10 operadores", "regiones": 10,
            "fuentes": 100, "pendientes": 1000, "historicas": 9000, "clientes": 10, "instancias": 1},
+    "e5": {"titulo": "25 regiones · 100 fuentes · 2.000 solicitudes · 10 operadores (v1.4)", "regiones": 25,
+           "fuentes": 100, "pendientes": 2000, "historicas": 0, "clientes": 10, "instancias": 1},
     "e4": {"titulo": "2 instancias · 10 regiones · 100 fuentes · 2.000 solicitudes · relevo por caída",
            "regiones": 10, "fuentes": 100, "pendientes": 2000, "historicas": 0, "clientes": 6, "instancias": 2},
 }

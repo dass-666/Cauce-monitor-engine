@@ -91,9 +91,11 @@ async def control(request: Request):
 
 
 @router.get("/mensajes")
-def mensajes():
+def mensajes(limite: int = 100):
+    """Últimos `limite` mensajes (0 = todos; v1.4, para contar repetidos)."""
     with _lock:
-        return {"total": len(STATE["mensajes"]), "mensajes": list(STATE["mensajes"])[-100:]}
+        msgs = list(STATE["mensajes"])
+        return {"total": len(msgs), "mensajes": msgs if limite <= 0 else msgs[-limite:]}
 
 
 @router.post("/reiniciar")

@@ -131,6 +131,12 @@ class Emulador:
     def total(self) -> int:
         return httpx.get(self.base + "/mensajes", timeout=10).json()["total"]
 
+    def repeated(self) -> tuple[int, int]:
+        """(mensajes distintos por chat y texto, mensajes repetidos)."""
+        msgs = httpx.get(self.base + "/mensajes", params={"limite": 0}, timeout=30).json()["mensajes"]
+        unique = {(m["chat_id"], m["text"]) for m in msgs}
+        return len(unique), len(msgs) - len(unique)
+
     def stop(self):
         self.proc.terminate()
         self.proc.wait(10)
@@ -478,6 +484,7 @@ def run(args) -> dict:
     hist_after = prov.historial()["cambios"]
     prov_state = prov.estado()
     tg_messages = emu.total()
+    tg_unique, tg_repeated = emu.repeated()
 
     # ---- parada ordenada
     engine.stop()
@@ -519,8 +526,14 @@ def run(args) -> dict:
     ck("ninguna asignación quedó a medias (EN_PROCESO) al terminar", stuck == 0, stuck, critical=False)
     ck("dos operadores nunca toman la misma asignación", stats["dobles_tomas"] == 0,
        {"competencias": stats["competencias"], "resultados": stats["competencias_resultado"]})
-    ck("Telegram (emulador): cada entrega ENVIADA llegó a los 2 chats", tg_messages == 2 * tg_sent and tg_sent > 0,
-       {"entregas_enviadas": tg_sent, "entregas_totales": tg_alerts, "mensajes_en_emulador": tg_messages})
+    # Entrega "al menos una vez" (docs/NOTIFICACIONES.md): si el motor muere entre enviar a un chat y
+    # anotarlo, ese chat recibe el mensaje otra vez al reanudar. Se admite como mucho UN repetido por
+    # corte brusco del motor; cualquier otro repetido o mensaje perdido es un fallo.
+    kills = sum(1 for w in fault_windows if w["fallo"] == "motor_caido")
+    ck("Telegram (emulador): cada entrega ENVIADA llegó a los 2 chats (repetidos solo por un corte)",
+       tg_unique == 2 * tg_sent and tg_sent > 0 and tg_repeated <= kills,
+       {"entregas_enviadas": tg_sent, "entregas_totales": tg_alerts, "mensajes_en_emulador": tg_messages,
+        "mensajes_distintos": tg_unique, "repetidos": tg_repeated, "cortes_del_motor": kills})
     ck("cambios duraderos del proveedor no detectados FUERA de ventanas de fallo",
        audit["no_detectados_fuera_de_fallos"] == 0,
        {k: audit[k] for k in ("total_cambios", "detectados", "coalescidos", "no_detectados_fuera_de_fallos",
@@ -549,7 +562,8 @@ def run(args) -> dict:
         "auditoria_cambios": audit, "operadores": stats,
         "totales": {"consultas": n_polls, "asignaciones": assignments_total, "solicitudes_completadas": completed,
                     "filas_historial_solicitudes": hist_rows},
-        "telegram_emulador": {"entregas_enviadas": tg_sent, "mensajes_recibidos": tg_messages},
+        "telegram_emulador": {"entregas_enviadas": tg_sent, "mensajes_recibidos": tg_messages,
+                              "mensajes_distintos": tg_unique, "repetidos": tg_repeated},
         "proveedor": {"arranques": prov_state["arranques"], "metricas": prov_state["metricas"],
                       "fallos_aplicados": prov_state["fallos"]["aplicados"]},
         "recursos_sistema": sampler.summary(),

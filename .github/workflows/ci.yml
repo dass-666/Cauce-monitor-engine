@@ -380,8 +380,9 @@ jobs:
             "MONITOREO_ADMIN_PASSWORD=Version-Anterior-123`nMONITOREO_SECRET_KEY=$([guid]::NewGuid())$([guid]::NewGuid())" |
               Set-Content -Encoding utf8 C:\inst\anterior\.env
           }
-          python -c "import sqlite3; c=sqlite3.connect(r'C:\inst\anterior\data\monitoreo.db'); print('antes:', c.execute('select version_num from alembic_version').fetchone(), c.execute('select count(*) from requests').fetchone(), c.execute('select status, count(*) from assignments group by 1').fetchall())"
-          python -c "import sqlite3; c=sqlite3.connect(r'C:\inst\anterior\data\monitoreo.db'); print(c.execute('select count(*) from requests').fetchone()[0], c.execute(\"select count(*) from assignments where status='EN_PROCESO'\").fetchone()[0])" | Set-Content C:\inst\cuentas-antes.txt
+          python "$env:GITHUB_WORKSPACE\scripts\comprobar_actualizacion.py" cuentas C:\inst\anterior\data\monitoreo.db | Set-Content C:\inst\cuentas-antes.txt
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "antes (solicitudes, en proceso): $(Get-Content C:\inst\cuentas-antes.txt)"
           (Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash | Set-Content C:\inst\hash-anterior.txt
       - name: Actualizar lado a lado a esta versión (actualizar.ps1)
         run: |
@@ -397,10 +398,8 @@ jobs:
         run: |
           Set-Location C:\inst\nueva
           $antes = (Get-Content C:\inst\cuentas-antes.txt).Trim()
-          .\.venv\Scripts\python.exe -c "import sqlite3,sys; c=sqlite3.connect('data/monitoreo.db'); v=c.execute('select version_num from alembic_version').fetchone()[0]; n='%d %d' % (c.execute('select count(*) from requests').fetchone()[0], c.execute(\"select count(*) from assignments where status='EN_PROCESO'\").fetchone()[0]); print('esquema', v, 'solicitudes/en_proceso', n); sys.exit(0 if (v == '0005_v1_4' and n == sys.argv[1]) else 1)" "$antes"
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::datos o esquema distintos tras actualizar"; exit 1 }
-          .\.venv\Scripts\python.exe -c "from monitoreo.db import Database; from monitoreo.engine.integrity import check; db=Database('sqlite:///data/monitoreo.db'); s=db.SessionLocal(); p=check(s); print('integridad', p or 'OK'); raise SystemExit(1 if p else 0)"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\.venv\Scripts\python.exe scripts\comprobar_actualizacion.py verificar data\monitoreo.db "$antes"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::datos, esquema o integridad distintos tras actualizar"; exit 1 }
           cmd /c diagnostico.bat --motor-detenido
           if ($LASTEXITCODE -gt 1) { exit 1 }
       - name: Arranque real de la versión nueva con los datos actualizados
