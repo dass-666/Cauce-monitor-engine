@@ -191,7 +191,11 @@ la tabla se refrescaba sola, y el detalle no se abrió. Localmente pasó 4 de 4 
 trato como una prueba frágil, no como un defecto del producto (inferencia: no lo reproduje). Se
 corrigió la prueba para que repita el clic hasta 3 veces, sin aflojar la comprobación: el detalle
 con su historial tiene que aparecer.
-<<CI_ULTIMA>>
+
+**Corrida final 43375177626 (commit `8044187`): 21 de 21 trabajos en verde** (MEDIDO), incluidos
+*Linux · Python 3.13*, los recorridos y el laboratorio de la v1.6 en Linux y en Windows con Python
+3.11, 3.12 y 3.13, y la actualización desde la v1.5 en Windows PowerShell 5.1. Los cambios
+posteriores a esa corrida son solo de este informe.
 
 ## 9. Laboratorio multisucursal (A = eventos, B = consulta cada 10 s)
 
