@@ -45,10 +45,10 @@ proceso, completadas hoy, rechazos, reasignaciones, errores y trabajo sin atende
 
 ### Redistribuir el trabajo de un operador
 
-Botón **Redistribuir** en su fila. Pide un **motivo** y una casilla de confirmación.
+Botón **Redistribuir…** en su fila (aparece si tiene trabajo asignado o en proceso). Pide un **motivo** y una casilla de confirmación.
 
 - Las asignaciones **no empezadas** vuelven a la cola siempre.
-- Las **empezadas** solo si marcas *incluir las que ya empezó* **y** el operador no da señal desde
+- Las **empezadas** solo si marcas *Incluir las tomadas (en proceso)* **y** el operador no da señal desde
   hace más de `operador_conexion_perdida_s`.
 - Nunca se libera un expediente con una **confirmación en curso o en verificación**: la resuelve el
   motor contra el portal. Aparece en la respuesta como *no liberada* con el motivo.
@@ -74,15 +74,16 @@ Menú **Notificaciones**. Diez categorías con nivel:
 | Problema del motor | CRÍTICA |
 | Requiere intervención | CRÍTICA |
 
-- **Filtros**: categoría, nivel, estado, región, sin confirmar y periodo. **Confirmar visibles** marca
-  como vistas las que estás viendo (queda en la auditoría).
+- **Filtros**: categoría, nivel, estado, región, sin confirmar y periodo. **Confirmar las N visibles** marca
+  como vistas las que estás viendo (hasta 200) (queda en la auditoría).
 - **Silenciar**: se puede silenciar cualquier categoría que no sea CRÍTICA. Las silenciadas quedan
   en el historial pero no se envían por ningún canal.
 - **Agrupar**: los avisos repetidos de la misma causa (una fuente que falla una y otra vez) dentro de
   `alertas_agrupar_s` (300 s) se suman en uno con su número de repeticiones.
 - **Canales**: cada canal puede limitarse a ciertas categorías (`config.categorias`). La tabla de
   canales muestra entregas por estado y latencia. Un canal lento o caído **no detiene** al motor: las
-  entregas se hacen aparte y se reintentan.
+  entregas se hacen aparte y se reintentan. Desde la v1.7 cada canal tiene además un tiempo máximo
+  por pasada (`despacho_canal_presupuesto_s`, 3 s): un canal que responde despacio no retrasa a los demás.
 - Las notificaciones **no llevan datos personales**: el titular aparece con iniciales.
 
 ## 5. Diagnóstico y reparaciones
@@ -96,7 +97,7 @@ reparaciones disponibles.
 |---|---|---|
 | Recalcular la carga de operadores y lo retenido en cada recurso | Segura | **Sola**, en cada autodiagnóstico, y queda en la auditoría. |
 | Devolver a la cola notificaciones atascadas en «enviando» | Segura | Sola, igual que la anterior. |
-| Borrar entregas cuya alerta ya no existe | **Borra datos** | Solo con el botón **Reparar**, confirmación y motivo de un administrador. |
+| Borrar entregas cuya alerta ya no existe | **Borra datos** | Solo con el botón **Reparar (con confirmación)** y un motivo escrito por un administrador. |
 
 ## 6. Usuarios y privacidad
 

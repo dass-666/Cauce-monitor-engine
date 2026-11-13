@@ -285,6 +285,50 @@ reservación apartada o en verificación. Respaldos con permisos solo del dueño
 siempre conserva los 3 últimos. Exportación de expedientes enmascarada por defecto; la completa
 exige motivo y queda auditada.
 
+## Decisiones de la versión 1.7 (centro de operaciones y consola del operador)
+
+**Nada nuevo en el núcleo de detección.** La v1.7 trabaja encima de lo que ya existía: lee las
+mismas tablas y añade solo cinco columnas (migración **0008**, sin borrar nada): `operators.visto_en`,
+`assignments.explicacion` y `alerts.categoria / nivel / grupo / repeticiones / ultima_en`. Las
+alertas antiguas se clasifican al migrar con una tabla fija.
+
+```
+ panel (app.js / captura.js)
+   ├─ Inicio ─────────── GET /api/centro            (cifras reales + filtros; operador = solo lo suyo)
+   ├─ Mi trabajo ─────── GET /api/captura/mi-trabajo (paso 1..12, a medias, avisos; sin datos personales)
+   ├─ Supervisión ────── GET /api/supervision        (presencia: token vivo + visto_en)
+   │                     POST …/operadores/{id}/redistribuir  (UPDATE condicional por asignación + auditoría)
+   ├─ Notificaciones ─── GET /api/notificaciones, POST /api/notificaciones/confirmar
+   └─ Autodiagnóstico ── GET/POST /api/diagnostico/reparaciones
+```
+
+- **Presencia sin tráfico extra.** Cada petición autenticada marca `visto_en` como mucho cada 15 s,
+  en una transacción anidada que nunca hace fallar la petición. La presencia combina eso con la
+  sesión: sesión revocada o caducada = DESCONECTADO; sesión viva y sin señal = CONEXION_PERDIDA y,
+  pasado `operador_inactivo_s`, INACTIVO.
+- **Redistribución que no pisa a nadie.** Cada asignación se libera con `UPDATE … WHERE estado =
+  el leído`: si el operador la tomó o terminó entre medias, no se toca. Las tomadas solo se liberan
+  a petición y sin señal reciente; las que tienen una confirmación en curso o en verificación,
+  nunca (las resuelve el motor contra el portal).
+- **Explicación de la asignación.** `elegir_operadores()` devuelve los candidatos y los descartes con
+  su motivo; se guarda un resumen legible en la asignación. Al operador se le corta la parte de
+  otros candidatos. El reparto `equitativo_dia` es opcional; el predeterminado sigue siendo el de la
+  v1.6 (`menor_carga`), para no cambiar el comportamiento a nadie que actualice.
+- **Notificaciones.** Diez categorías fijas con nivel. Silenciar = la alerta se guarda con estado
+  `SILENCIADA` y sin entregas (las CRÍTICAS no se pueden silenciar). Agrupar = un `UPDATE` atómico
+  suma repeticiones a la alerta abierta del mismo grupo; solo para causas de sistema repetidas.
+  El titular viaja con iniciales. **Despacho:** además del presupuesto por pasada (v1.4) y de
+  apartar un canal que falla (v1.4), cada canal tiene su propio tiempo por pasada
+  (`despacho_canal_presupuesto_s`): un canal lento que sí responde ya no retrasa a los demás
+  (defecto real encontrado por el laboratorio v1.7).
+- **Visibilidad por operador.** Una única función (`alertas_visibles`, `_solicitudes_visibles`)
+  decide qué ve un operador; la usan la lista, el detalle, la confirmación y el panel de inicio.
+- **Reparaciones.** `reparaciones.py` declara cada reparación como *segura* (recalcular contadores,
+  devolver a la cola) o *destructiva* (borrar filas). Las seguras las aplica el autodiagnóstico y
+  quedan auditadas; las destructivas exigen confirmación y motivo.
+- **Calendario a fin de mes.** Si el mes actual no tiene días libres, se pide el siguiente y se
+  avisa (defecto real de la v1.6 que dependía de la fecha).
+
 ## Máquina de estados de solicitudes
 
 ```

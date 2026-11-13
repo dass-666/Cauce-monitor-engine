@@ -87,6 +87,7 @@ ENGINE_DEFAULTS: dict = {
     "alerta_minimo_aumento": 1,        # unidades mínimas de aumento para alertar
     "reintentos_notificacion": 5,
     "despacho_presupuesto_s": 10,       # v1.4: tiempo máximo de cada pasada de envío de alertas
+    "despacho_canal_presupuesto_s": 3,  # v1.7: tiempo máximo de UN canal por pasada (un canal lento no frena a otros)
     "backoff_notificacion_s": 2,
     # --- v1.1: retención del historial (valores conservadores; 0 = no borrar nunca)
     "retencion_consultas_dias": 14,             # poll_log detallado (ya resumido en agregados)

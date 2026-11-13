@@ -1,4 +1,4 @@
-# Guía rápida para Windows (v1.6)
+# Guía rápida para Windows (v1.7)
 
 Para el equipo MSI o cualquier Windows 10/11. Tiempo aproximado: 10 minutos.
 Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
@@ -12,7 +12,7 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
 
 ## A. Instalación nueva
 
-1. Descomprime `motor-monitoreo-v1.6.zip` en `C:\`: se crea la carpeta `C:\motor-monitoreo-v1.6`.
+1. Descomprime `motor-monitoreo-v1.7.zip` en `C:\`: se crea la carpeta `C:\motor-monitoreo-v1.7`.
 2. Abre esa carpeta, haz **Shift + clic derecho** en un espacio vacío → *Abrir ventana de
    PowerShell aquí* (o *Abrir en Terminal*) y escribe:
    ```powershell
@@ -26,14 +26,14 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
    equipo. Si no lo quieres, crea la variable `MONITOREO_SIN_PORTAL=1` o ciérralo.
 4. Para detenerlo: `Ctrl + C` en la ventana negra y cierra también la del portal.
 
-## B. Actualizar desde una versión anterior (v1.0 a v1.5)
+## B. Actualizar desde una versión anterior (v1.0 a v1.6)
 
 1. Cierra el motor anterior (`Ctrl + C`).
-2. Descomprime la v1.6 en `C:\` (crea la carpeta nueva `C:\motor-monitoreo-v1.6`). No la pongas encima
+2. Descomprime la v1.7 en `C:\` (crea la carpeta nueva `C:\motor-monitoreo-v1.7`). No la pongas encima
    de la anterior.
 3. En PowerShell dentro de la carpeta nueva (cambia la ruta por la carpeta de tu versión anterior):
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\motor-monitoreo-v1.5
+   powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Anterior C:\motor-monitoreo-v1.6
    ```
    Copia (no mueve) tus datos y tu `.env`, hace un respaldo antes de migrar y comprueba todo.
    La carpeta anterior queda intacta: para volver atrás basta con su `iniciar.bat`.
@@ -52,6 +52,16 @@ Todo funciona con datos ficticios y solo en tu equipo (http://127.0.0.1:8000).
   cambios, los cerrados a los 30 y los incompletos a los 60. Los plazos se cambian en
   *Configuración* (de 1 a 3650 días); antes de aplicarla a mano verás una vista previa.
 - Los operadores pueden limitarse a sucursales concretas (*Configuración → Usuarios*).
+
+**Qué cambia al pasar de la v1.6 a la v1.7** (lo hace solo `actualizar.ps1`, con respaldo previo):
+
+- La base recibe la migración **0008**: añade columnas, no borra nada. Las alertas antiguas reciben
+  su categoría automáticamente.
+- El reparto de trabajo sigue igual (`menor_carga`). El nuevo `equitativo_dia` es opcional.
+- Los operadores ahora ven **solo sus** notificaciones y solicitudes (antes veían las de todos).
+- Menús nuevos: **Supervisión** (solo administradores) y **Notificaciones** (antes *Alertas*).
+  Para los operadores, *Captura* abre **Mi trabajo**.
+- Guías nuevas: `docs/GUIA_OPERACION.md`, `docs/GUIA_ADMINISTRADOR.md`, `docs/SOLUCION_PROBLEMAS.md`.
 
 ## C. Probar la captura y las reservaciones (v1.5, 5 minutos)
 
@@ -80,6 +90,18 @@ Nada de esto sale de tu equipo: el portal es un programa local con datos fictici
    **Confirmar**. Verás el folio y la fecha.
 5. Si el calendario muestra un aviso naranja de **sin comunicación**, los días aparecen como
    *desconocidos*: no significa que no haya lugar, solo que no se pudo comprobar.
+
+## E. Probar la v1.7 (10 minutos)
+
+1. Como `admin`, en **Inicio** verás el centro de operaciones: cambia la región o el periodo y las
+   cifras se recalculan.
+2. Como operador, **Captura** abre **Mi trabajo**: pulsa **Continuar**, completa el flujo y, tras el
+   folio, **Siguiente expediente**. Cierra el navegador a mitad de uno: al volver aparece **A medias**
+   y se retoma en el mismo paso.
+3. Como `admin`, **Supervisión** muestra la presencia de cada operador y permite **Redistribuir…**.
+4. Opcional: doble clic en **`laboratorio.bat`** (unos 10 minutos, datos ficticios en carpetas
+   temporales, no toca tus datos). Debe terminar con "todas las comprobaciones del laboratorio pasaron".
+   *Pendiente de validar en el MSI:* hasta ahora solo se ha ejecutado en Linux y en Windows de CI.
 
 ## Si algo falla
 

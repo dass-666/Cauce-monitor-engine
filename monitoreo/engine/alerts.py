@@ -348,7 +348,7 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
     - el progreso por destinatario se guarda en cuanto ocurre;
     - entrega "al menos una vez": una caída entre el envío y su registro puede producir un repetido."""
     stats = {"enviadas": 0, "fallos": 0, "definitivas": 0, "tardias": 0, "aplazadas_por_canal": 0,
-             "aplazadas_por_tiempo": 0,
+             "aplazadas_por_tiempo": 0, "aplazadas_por_lentitud": 0,
              "reencoladas": requeue_stale_claims(db, now, float(params.get("entrega_reclamo_vence_s", 300)))}
     # v1.4: un destino que no responde no debe retener a los demás ni al motor.
     # - tras un fallo transitorio de un canal, sus demás entregas esperan a la siguiente pasada
@@ -356,6 +356,11 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
     # - cada pasada tiene un presupuesto de tiempo; lo que no cabe queda para la siguiente.
     budget_end = time.monotonic() + float(params.get("despacho_presupuesto_s", 10))
     down_channels: set[int] = set()
+    # v1.7: un canal LENTO que sí responde tampoco debe retener a los demás: cada canal tiene su propio
+    # presupuesto por pasada; al agotarlo, sus entregas restantes esperan a la siguiente (sin gastar intentos).
+    canal_presupuesto = float(params.get("despacho_canal_presupuesto_s", 3))
+    canal_gastado: dict[int, float] = {}
+    lentos: set[int] = set()
     with db.session() as s:
         rows = list(s.execute(select(Delivery.id, Delivery.channel_id)
                               .where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
@@ -366,6 +371,9 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             break
         if channel_id in down_channels:
             stats["aplazadas_por_canal"] += 1
+            continue
+        if channel_id in lentos:
+            stats["aplazadas_por_lentitud"] += 1
             continue
         token = uuid.uuid4().hex
         with db.session() as s:  # reclamar la entrega (evita doble envío si hubiera dos despachadores)
@@ -382,6 +390,7 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             alert_id, attempts = d.alert_id, d.attempts
         sender.checkpoint = _checkpoint(db, did, token)
         ok, detail, permanent, retry_after = True, "", False, None
+        t_envio = time.monotonic()
         try:
             detail = sender.send(payload, progress)
         except DeliveryError as e:
@@ -389,6 +398,9 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
         except Exception as e:  # un canal defectuoso nunca debe tumbar el motor
             ok, detail = False, f"error inesperado: {e.__class__.__name__}"
             log.exception("fallo en canal %s", ch_name)
+        canal_gastado[channel_id] = canal_gastado.get(channel_id, 0.0) + (time.monotonic() - t_envio)
+        if canal_gastado[channel_id] >= canal_presupuesto:
+            lentos.add(channel_id)
         with db.session() as s:
             attempts += 1
             values = {"attempts": attempts, "meta": progress or None, "claim_token": None}

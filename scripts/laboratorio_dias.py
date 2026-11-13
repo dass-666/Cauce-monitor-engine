@@ -293,12 +293,22 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                 errores_op[err] = errores_op.get(err, 0) + 1
 
     congelados: set[str] = set()          # v1.7: operadores que dejan de responder (SIMULADO)
+    cerrar_sesion: set[str] = set()       # v1.7: operadores que cierran SU sesión y se van
 
     def operador(u):
         hilo_usuario.u = u
         c = None
         prng = random.Random(hash(u) ^ a.semilla)
         while not parar.is_set():
+            if u in cerrar_sesion:
+                try:
+                    if c is not None:
+                        c.post("/api/auth/logout")
+                except httpx.HTTPError:
+                    pass
+                c = None
+                congelados.add(u)
+                cerrar_sesion.discard(u)
             if u in congelados:
                 parar.wait(1.0)                # ni una petición: la sesión sigue abierta pero sin señal
                 continue
@@ -310,7 +320,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                     parar.wait(1.5)
                     continue
                 for e in mios:
-                    if parar.is_set() or u in congelados:
+                    if parar.is_set() or u in congelados or u in cerrar_sesion:
                         break
                     atender(c, e, prng)
             except (httpx.HTTPError, ValueError, KeyError):
@@ -406,6 +416,14 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
     def marca():
         return datetime.now(timezone.utc)
 
+    if a.v17:                      # v1.7 · confirmaciones inciertas (el portal confirma y corta la respuesta)
+        esperar_hasta(en(20))
+        portal.fallos(modo="cortar_tras_confirmar", restantes=5)
+        esperar(lambda: (portal.fallos(latencia_ms=0).get("aplicados") or {}).get("cortar_tras_confirmar", 0) >= 5,
+                max(5.0, 25 * a.noche_s / 300.0), 0.5)
+        v17["confirmaciones_cortadas"] = portal.fallos(latencia_ms=0).get("aplicados")
+        portal.fallos(reset=True)
+
     # 1) caída de la API del calendario 20 s
     esperar_hasta(en(50))
     f0 = marca()
@@ -437,12 +455,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
         v17["errores_captura_500"] = portal.fallos(latencia_ms=0).get("aplicados")
         sin_resp = ops[-2:]                       # dos "congelados" con la sesión abierta
         congelados.update(sin_resp)
-        try:                                      # y uno cierra sesión
-            cx_ = login(motor.base, ops[-3], OPWD)
-            cx_.post("/api/auth/logout")
-            congelados.add(ops[-3])
-        except (httpx.HTTPError, KeyError, ValueError):
-            pass
+        cerrar_sesion.add(ops[-3])                # y uno cierra su sesión (la del hilo) y se va
         v17["sin_responder"] = sin_resp
         v17["cerro_sesion"] = ops[-3]
 
@@ -470,7 +483,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
         # la señal de los congelados tiene que superar el umbral (25 s) + el margen de 15 s del panel
         esperar_hasta(max(en(172), time.monotonic()))
         esperar(lambda: all(o["presencia"] != "CONECTADO" for o in adm.get("/api/supervision").json()["operadores"]
-                            if o["nombre"] in {f"Operador Ficticio {int(u[2:]):02d}" for u in congelados}), 45, 1.0)
+                            if o["nombre"] in {f"Operador Ficticio {int(u[2:]):02d}" for u in congelados | cerrar_sesion}), 45, 1.0)
         v17["cortes_datos"] = portal.fallos(latencia_ms=0).get("aplicados")
         portal.fallos(reset=True)
         sup = adm.get("/api/supervision").json()["operadores"]
@@ -478,7 +491,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
         pres = {o["nombre"]: o["presencia"] for o in sup}
         v17["presencia_antes"] = {u: pres.get(nombre_de[u]) for u in ops}
         v17["redistribuciones"] = {}
-        for u in sorted(congelados):
+        for u in sorted(congelados | cerrar_sesion):
             oid = next(o["id"] for o in sup if o["nombre"] == nombre_de[u])
             r = adm.post(f"/api/supervision/operadores/{oid}/redistribuir",
                          json={"confirmo": True, "motivo": "laboratorio: el operador no responde",
@@ -499,10 +512,6 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                                        "total_s": round(time.monotonic() - t, 2)}
     fallos.append((f0, marca()))
     ck("reinicio del portal: el motor vuelve a verificar el calendario solo", rec_t < 90, recuperacion["reinicio_portal"])
-
-    if a.v17:                      # v1.7 · confirmaciones inciertas (el portal confirma y corta la respuesta)
-        esperar_hasta(en(205))
-        portal.fallos(modo="cortar_tras_confirmar", restantes=5)
 
     # 6) reinicio brusco del motor
     esperar_hasta(en(235))
@@ -606,7 +615,14 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
                                                       "operador_actual": fila[1], "operador_anterior": fila[2]}
             inciertas = {r_[0] for r_ in cx.execute(text(
                 "SELECT DISTINCT expediente_id FROM expediente_eventos WHERE tipo='CONFIRMACION_EN_VERIFICACION'"))}
-            v17["_inciertas"] = {"n": len(inciertas), "estado_final_reservacion": {}}
+            ev_conf = cx.execute(text(
+                "SELECT detalle FROM expediente_eventos WHERE tipo='RESERVACION_CONFIRMADA'")).fetchall()
+            por_evid: dict[str, int] = {}
+            for (det_,) in ev_conf:
+                det_ = json.loads(det_) if isinstance(det_, str) else (det_ or {})
+                por_evid[det_.get("evidencia") or "?"] = por_evid.get(det_.get("evidencia") or "?", 0) + 1
+            v17["_inciertas"] = {"n_en_verificacion": len(inciertas), "estado_final_reservacion": {},
+                                 "confirmadas_por_evidencia": por_evid}
             for eid_, est_, *_ in res_rows:
                 if eid_ in inciertas:
                     d_ = v17["_inciertas"]["estado_final_reservacion"]
@@ -640,6 +656,13 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
            len(v17["_desactivados"]) == 3, v17["_desactivados"])
         ck("v1.7 ninguna confirmación se queda a medias (CONFIRMANDO) al final", v17["_confirmando_al_final"] == 0,
            v17["_confirmando_al_final"])
+        cortadas = (v17.get("confirmaciones_cortadas") or {}).get("cortar_tras_confirmar", 0)
+        inc = v17["_inciertas"]
+        ck("v1.7 confirmaciones inciertas (respuesta cortada tras confirmar): cada una se resolvió con evidencia del portal por la clave",
+           cortadas > 0 and inc["confirmadas_por_evidencia"].get("api_por_clave", 0)
+           + inc["confirmadas_por_evidencia"].get("recuperacion_por_clave", 0) >= cortadas
+           and not inc["estado_final_reservacion"].get("EN_VERIFICACION"),
+           {"cortadas_por_el_portal": cortadas, **inc})
         ent = v17["_entregas_canal_lento"]
         ck("v1.7 el canal lento recibió notificaciones y falló a propósito",
            hook is not None and hook.recibidas > 0 and hook.fallidas > 0,
