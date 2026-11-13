@@ -58,7 +58,9 @@ def revisar(db, now: datetime, url_portal: str, profundo: bool = False) -> list[
     host, puerto = destino(url_portal)
     local = es_local(host)
     g = gestor()
-    ifs = g.actualizar(forzar=profundo)
+    # Con el portal en este equipo no se mide ninguna red: no se enumeran interfaces (en Windows eso
+    # llama a PowerShell y puede tardar varios segundos; hacía lento el autodiagnóstico).
+    ifs = [] if local else g.actualizar(forzar=profundo)
     with db.session() as s:
         params = get_params(s)
         u24 = ultimas_24h(s, now)
@@ -68,7 +70,8 @@ def revisar(db, now: datetime, url_portal: str, profundo: bool = False) -> list[
     tipos = ", ".join(f"{i.nombre} ({i.tipo})" for i in cand) or "ninguna"
     if local:
         out.append({"estado": "OK", "titulo": "El portal configurado está en este mismo equipo",
-                    "detalle": f"{host}:{puerto}. Interfaces utilizables: {tipos}.", "accion": "", "clave": ""})
+                    "detalle": f"{host}:{puerto}. No hay redes que medir (no se enumeran interfaces).",
+                    "accion": "", "clave": ""})
     elif not cand:
         out.append({"estado": "CRITICO", "titulo": "No hay ninguna conexión de red utilizable hacia el portal",
                     "detalle": f"Interfaces vistas: {len(ifs)}; utilizables: {len(usables)}; deshabilitadas por "
