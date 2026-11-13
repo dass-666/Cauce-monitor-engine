@@ -138,7 +138,10 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
       idle = (await call("/api/assignments?sin_actividad=true")).body || [];
     }
     await page.goto(base + "/#inicio");
-    const kpiTxt = await page.locator(".kpi.attention").first().textContent().catch(() => "");
+    // v1.7: Inicio es ahora el centro de operaciones y llama «Operaciones abandonadas» a lo que antes
+    // era «Asignaciones sin actividad»; se leen todos los indicadores en alerta, no solo el primero.
+    await page.waitForSelector(".kpi.attention", { timeout: 15000 }).catch(() => null);
+    const kpiTxt = (await page.locator(".kpi.attention").allTextContents().catch(() => [])).join(" | ");
     log("Inicio · indicador:", kpiTxt.replace(/\s+/g, " "));
     await page.screenshot({ path: `${outDir}/13_inicio_sin_actividad.png`, fullPage: true });
     await page.goto(base + "/#solicitudes");
@@ -157,7 +160,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     const audit = ((await call("/api/audit?limit=20")).body || []);
     const audited = JSON.stringify(audit).includes("asignacion_recuperar");
     log("tras recuperar: asignación", (after.asignaciones.find((a) => a.id === aid) || {}).status, "· solicitud", after.status, "· auditada:", audited);
-    v14 = t1.status === 200 && t2.status === 200 && idle.length > 0 && /Asignaciones sin actividad/.test(kpiTxt)
+    v14 = t1.status === 200 && t2.status === 200 && idle.length > 0 && /Asignaciones sin actividad|Operaciones abandonadas/.test(kpiTxt)
       && (after.asignaciones.find((a) => a.id === aid) || {}).status === "RECHAZADA" && audited;
   } else log("v1.4: no había asignación ACTIVA para la prueba de inactividad");
   if (prev) await call("/api/settings/engine", "PUT", { inactividad_en_proceso_min: prev.inactividad_en_proceso_min });

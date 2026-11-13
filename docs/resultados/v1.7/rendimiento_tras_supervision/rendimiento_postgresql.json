@@ -1,0 +1,152 @@
+{
+ "generado": "2026-11-13T09:01:34",
+ "motor": "postgresql",
+ "plataforma": "Linux 6.18.44-fc-v445 · Python 3.13.18 · 4 CPU · 15.7 GB",
+ "etiquetas": {
+  "MEDIDO": "latencias, CPU, memoria, crecimiento, bloqueos, integridad, asignación",
+  "SIMULADO": "fuentes, operadores (clientes HTTP), datos ficticios"
+ },
+ "escenarios": [
+  {
+   "escenario": "s3",
+   "regiones": 25,
+   "sucursales": 25,
+   "fuentes": 100,
+   "expedientes": 10000,
+   "operadores": 20,
+   "sembrado_s": 23.2,
+   "arranque_s": 1.7,
+   "duracion_s": 40.0,
+   "parada": "forzada",
+   "peticiones": 1578,
+   "errores_http": {},
+   "peticiones_por_s": 39.5,
+   "latencia_api": {
+    "/api/captura/mi-trabajo": {
+     "n": 374,
+     "p50_ms": 237.0,
+     "p95_ms": 448.6,
+     "max_ms": 653.8
+    },
+    "/api/captura/resumen": {
+     "n": 10,
+     "p50_ms": 332.3,
+     "p95_ms": 414.5,
+     "max_ms": 414.5
+    },
+    "/api/centro": {
+     "n": 394,
+     "p50_ms": 676.8,
+     "p95_ms": 1185.4,
+     "max_ms": 1600.2
+    },
+    "/api/dashboard": {
+     "n": 384,
+     "p50_ms": 480.7,
+     "p95_ms": 840.0,
+     "max_ms": 1235.0
+    },
+    "/api/expedientes": {
+     "n": 10,
+     "p50_ms": 752.9,
+     "p95_ms": 903.4,
+     "max_ms": 903.4
+    },
+    "/api/health": {
+     "n": 2,
+     "p50_ms": 5.4,
+     "p95_ms": 5.4,
+     "max_ms": 5.4
+    },
+    "/api/notificaciones": {
+     "n": 384,
+     "p50_ms": 218.5,
+     "p95_ms": 398.9,
+     "max_ms": 785.8
+    },
+    "/api/operators": {
+     "n": 10,
+     "p50_ms": 263.2,
+     "p95_ms": 524.3,
+     "max_ms": 524.3
+    },
+    "/api/supervision": {
+     "n": 10,
+     "p50_ms": 644.6,
+     "p95_ms": 899.5,
+     "max_ms": 899.5
+    }
+   },
+   "refresco_vistas": {
+    "admin · Centro filtrado": {
+     "n": 10,
+     "p50_ms": 625.7,
+     "p95_ms": 1185.8,
+     "max_ms": 1185.8
+    },
+    "admin · Expedientes": {
+     "n": 10,
+     "p50_ms": 753.9,
+     "p95_ms": 904.4,
+     "max_ms": 904.4
+    },
+    "admin · Inicio (centro)": {
+     "n": 10,
+     "p50_ms": 993.5,
+     "p95_ms": 1069.6,
+     "max_ms": 1069.6
+    },
+    "admin · Notificaciones": {
+     "n": 10,
+     "p50_ms": 411.0,
+     "p95_ms": 786.2,
+     "max_ms": 786.2
+    },
+    "admin · Supervisión": {
+     "n": 10,
+     "p50_ms": 644.9,
+     "p95_ms": 899.9,
+     "max_ms": 899.9
+    },
+    "operador · Inicio": {
+     "n": 374,
+     "p50_ms": 687.5,
+     "p95_ms": 1201.6,
+     "max_ms": 1601.2
+    },
+    "operador · Mi trabajo": {
+     "n": 374,
+     "p50_ms": 239.2,
+     "p95_ms": 449.0,
+     "max_ms": 662.8
+    }
+   },
+   "cpu_servidor_pct": {
+    "media": 101.1,
+    "max": 107.9
+   },
+   "memoria_servidor_mb": {
+    "max": 182.4,
+    "final": 182.4
+   },
+   "base_bytes": {
+    "antes": 20511767,
+    "despues": 21511191,
+    "crecimiento": 999424
+   },
+   "database_is_locked_en_registro": 0,
+   "asignacion_motor": {
+    "n": 4,
+    "p50_ms": 16.4,
+    "p95_ms": 26.9,
+    "max_ms": 26.9,
+    "recursos": 4,
+    "asignaciones_creadas": 2
+   },
+   "integridad": [],
+   "asignaciones_dobles": 0,
+   "salud_final": true,
+   "motor": "postgresql"
+  }
+ ]
+}

@@ -1,0 +1,494 @@
+{
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "portal: calendario agotado al inicio (la disponibilidad llega solo de noche)",
+      "ok": true,
+      "detalle": "450 días · 10 sucursales · 650 registros sintéticos"
+    },
+    {
+      "comprobacion": "operadores creados y limitados a las sucursales de su región",
+      "ok": true,
+      "detalle": 10
+    },
+    {
+      "comprobacion": "expedientes ficticios creados por la API",
+      "ok": true,
+      "detalle": "600 en 11.0 s · 58 incompletos"
+    },
+    {
+      "comprobacion": "caída de la API: el motor la detecta y marca el calendario SIN VERIFICAR",
+      "ok": true,
+      "detalle": "0.3 s"
+    },
+    {
+      "comprobacion": "reinicio del portal: el motor vuelve a verificar el calendario solo",
+      "ok": true,
+      "detalle": {
+        "deteccion_s": 0.04,
+        "recuperacion_s": 0.38,
+        "total_s": 0.94
+      }
+    },
+    {
+      "comprobacion": "reinicio del motor: arranca y vuelve a verificar el calendario",
+      "ok": true,
+      "detalle": {
+        "arranque_s": 1.1,
+        "calendario_verificado_s": 0.19,
+        "total_s": 1.39
+      }
+    },
+    {
+      "comprobacion": "sin sobreventa: ningún día del portal por encima de su capacidad",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "folios únicos en el motor",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "cada CONFIRMADA del motor existe CONFIRMADA en el portal (evidencia)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "cada folio del portal está en el motor (o en verificación)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "el laboratorio llegó a confirmar reservaciones (no es una prueba vacía)",
+      "ok": true,
+      "detalle": 478
+    },
+    {
+      "comprobacion": "cada expediente RESERVACION_CONFIRMADA tiene folio confirmado",
+      "ok": true,
+      "detalle": "478 expedientes · 478 folios"
+    },
+    {
+      "comprobacion": "ningún expediente incompleto se asignó ni avanzó",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "coherencia del motor (sin estados contradictorios)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "ninguna solicitud con dos operadores a la vez",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "v1.7 supervisión: los que dejaron de responder aparecen como CONEXION_PERDIDA (sesión abierta)",
+      "ok": true,
+      "detalle": {
+        "op09": "CONEXION_PERDIDA",
+        "op10": "CONEXION_PERDIDA"
+      }
+    },
+    {
+      "comprobacion": "v1.7 supervisión: el que cerró sesión aparece como DESCONECTADO",
+      "ok": true,
+      "detalle": "DESCONECTADO"
+    },
+    {
+      "comprobacion": "v1.7 supervisión: los que siguen trabajando aparecen como CONECTADO",
+      "ok": true,
+      "detalle": {
+        "op01": "CONECTADO",
+        "op02": "CONECTADO",
+        "op03": "CONECTADO",
+        "op04": "CONECTADO",
+        "op05": "CONECTADO",
+        "op06": "CONECTADO",
+        "op07": "CONECTADO"
+      }
+    },
+    {
+      "comprobacion": "v1.7 redistribución por la API: responde y queda en la auditoría",
+      "ok": true,
+      "detalle": {
+        "op08": [
+          3,
+          0
+        ],
+        "op09": [
+          3,
+          0
+        ],
+        "op10": [
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "comprobacion": "v1.7 lo redistribuido no se queda con el operador que no responde",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "v1.7 los operadores redistribuidos quedan desactivados (no reciben trabajo nuevo)",
+      "ok": true,
+      "detalle": [
+        "Operador Ficticio 08",
+        "Operador Ficticio 09",
+        "Operador Ficticio 10"
+      ]
+    },
+    {
+      "comprobacion": "v1.7 ninguna confirmación se queda a medias (CONFIRMANDO) al final",
+      "ok": true,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "v1.7 confirmaciones inciertas (respuesta cortada tras confirmar): cada una se resolvió con evidencia del portal por la clave",
+      "ok": true,
+      "detalle": {
+        "cortadas_por_el_portal": 5,
+        "n_en_verificacion": 2,
+        "estado_final_reservacion": {
+          "CONFIRMADA": 2
+        },
+        "confirmadas_por_evidencia": {
+          "api_por_folio": 471,
+          "api_por_clave": 5,
+          "recuperacion_por_clave": 2
+        }
+      }
+    },
+    {
+      "comprobacion": "v1.7 el canal lento recibió notificaciones y falló a propósito",
+      "ok": true,
+      "detalle": {
+        "recibidas": 118,
+        "503": 59,
+        "entregas": {
+          "ENVIADA": 59,
+          "PENDIENTE": 1555
+        }
+      }
+    },
+    {
+      "comprobacion": "v1.7 con el canal lento el motor siguió detectando a tiempo (p95 < 15 s fuera de fallos)",
+      "ok": true,
+      "detalle": {
+        "n": 251,
+        "p50": 0.062,
+        "p95": 0.099,
+        "max": 1.666,
+        "media": 0.067
+      }
+    },
+    {
+      "comprobacion": "sin datos personales en los registros del motor",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "metricas": {
+    "mecanismo": "A (eventos)",
+    "expedientes": 600,
+    "incompletos": 58,
+    "operadores": 10,
+    "noche_simulada": {
+      "real_s": 300.0,
+      "factor_reloj": 114.0,
+      "ventana": "22:00-07:30 (SIMULADO)",
+      "prob_por_tic": 0.5,
+      "liberaciones": 302
+    },
+    "deteccion_s": {
+      "n": 251,
+      "p50": 0.062,
+      "p95": 0.099,
+      "max": 1.666,
+      "media": 0.067
+    },
+    "deteccion_durante_fallos_s": {
+      "n": 51,
+      "p50": 2.193,
+      "p95": 23.855,
+      "max": 25.878,
+      "media": 6.379
+    },
+    "liberaciones_no_detectadas": 0,
+    "no_detectadas_transitorias": 0,
+    "tipos_de_cambio_detectados": {
+      "REAPERTURA": 302,
+      "AGOTAMIENTO": 243,
+      "CAMBIO_UNIDADES": 231,
+      "DESCONEXION": 3,
+      "RESINCRONIZACION": 4,
+      "RECONEXION": 4,
+      "SESION_CADUCADA": 1,
+      "FUERA_DE_ORDEN": 5
+    },
+    "asignacion_s (desde la detección)": {
+      "n": 520,
+      "p50": 0.136,
+      "p95": 8.338,
+      "max": 41.141,
+      "media": 1.323
+    },
+    "preparacion_s (asignado -> datos enviados, operador SIMULADO)": {
+      "n": 478,
+      "p50": 2.598,
+      "p95": 6.8,
+      "max": 70.047,
+      "media": 4.118
+    },
+    "confirmacion_s (fecha elegida -> confirmada)": {
+      "n": 478,
+      "p50": 0.559,
+      "p95": 0.847,
+      "max": 35.416,
+      "media": 0.738
+    },
+    "asignado_a_folio_s": {
+      "n": 478,
+      "p50": 3.266,
+      "p95": 8.238,
+      "max": 70.624,
+      "media": 4.934
+    },
+    "recuperacion": {
+      "caida_api": {
+        "deteccion_s": 0.3,
+        "recuperacion_s": 10.27
+      },
+      "sesion_caducada": {
+        "verificado_de_nuevo_s": 0.92
+      },
+      "fuera_de_orden_inyectados": 5,
+      "reinicio_portal": {
+        "deteccion_s": 0.04,
+        "recuperacion_s": 0.38,
+        "total_s": 0.94
+      },
+      "reinicio_motor": {
+        "arranque_s": 1.1,
+        "calendario_verificado_s": 0.19,
+        "total_s": 1.39
+      }
+    },
+    "expedientes_por_estado": {
+      "RESERVACION_CONFIRMADA": 478,
+      "INCOMPLETO": 58,
+      "LISTO": 64
+    },
+    "confirmadas": 478,
+    "cobertura_de_validos": 0.882,
+    "reservaciones_por_estado": {
+      "CONFIRMADA": 478,
+      "CANCELADA": 2
+    },
+    "llamadas_operador_s": {
+      "preparar": {
+        "n": 568,
+        "p50": 0.018,
+        "p95": 0.147,
+        "max": 0.746,
+        "media": 0.039
+      },
+      "enviar": {
+        "n": 478,
+        "p50": 0.058,
+        "p95": 0.18,
+        "max": 0.754,
+        "media": 0.079
+      },
+      "seleccionar": {
+        "n": 486,
+        "p50": 0.032,
+        "p95": 0.147,
+        "max": 0.665,
+        "media": 0.051
+      },
+      "confirmar": {
+        "n": 480,
+        "p50": 0.058,
+        "p95": 0.188,
+        "max": 0.732,
+        "media": 0.08
+      }
+    },
+    "errores_operador": {
+      "preparar_404": 4,
+      "enviar_409": 1,
+      "enviar_502": 20,
+      "confirmar_409": 8,
+      "enviar_404": 1,
+      "motor_no_responde": 7
+    },
+    "drenado_s": 4.88,
+    "duracion_total_s": 325.1,
+    "v1_7": {
+      "canal_lento_creado": 201,
+      "confirmaciones_cortadas": {
+        "cortar_tras_confirmar": 5
+      },
+      "errores_captura_500": {
+        "error_interno": 12
+      },
+      "sin_responder": [
+        "op09",
+        "op10"
+      ],
+      "cerro_sesion": "op08",
+      "cortes_datos": {
+        "cortar": 8
+      },
+      "presencia_antes": {
+        "op01": "CONECTADO",
+        "op02": "CONECTADO",
+        "op03": "CONECTADO",
+        "op04": "CONECTADO",
+        "op05": "CONECTADO",
+        "op06": "CONECTADO",
+        "op07": "CONECTADO",
+        "op08": "DESCONECTADO",
+        "op09": "CONEXION_PERDIDA",
+        "op10": "CONEXION_PERDIDA"
+      },
+      "redistribuciones": {
+        "op08": {
+          "operador": "Operador Ficticio 08",
+          "liberadas": [
+            {
+              "asignacion": 242
+            },
+            {
+              "asignacion": 249
+            },
+            {
+              "asignacion": 260
+            }
+          ],
+          "no_liberadas": [],
+          "desactivado": true
+        },
+        "op09": {
+          "operador": "Operador Ficticio 09",
+          "liberadas": [
+            {
+              "asignacion": 234
+            },
+            {
+              "asignacion": 247
+            },
+            {
+              "asignacion": 262
+            }
+          ],
+          "no_liberadas": [],
+          "desactivado": true
+        },
+        "op10": {
+          "operador": "Operador Ficticio 10",
+          "liberadas": [
+            {
+              "asignacion": 240
+            },
+            {
+              "asignacion": 251
+            },
+            {
+              "asignacion": 254
+            }
+          ],
+          "no_liberadas": [],
+          "desactivado": true
+        }
+      },
+      "auditoria_redistribucion": 3,
+      "entregas_canal_lento": {
+        "ENVIADA": 59,
+        "PENDIENTE": 1555
+      },
+      "liberadas_destino": {
+        "242": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 3,
+          "operador_anterior": 8
+        },
+        "249": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 3,
+          "operador_anterior": 8
+        },
+        "260": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 3,
+          "operador_anterior": 8
+        },
+        "234": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 4,
+          "operador_anterior": 9
+        },
+        "247": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 4,
+          "operador_anterior": 9
+        },
+        "262": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 4,
+          "operador_anterior": 9
+        },
+        "240": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 5,
+          "operador_anterior": 10
+        },
+        "251": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 5,
+          "operador_anterior": 10
+        },
+        "254": {
+          "estado": "RESERVACION_CONFIRMADA",
+          "otro_operador": true,
+          "operador_actual": 5,
+          "operador_anterior": 10
+        }
+      },
+      "inciertas": {
+        "n_en_verificacion": 2,
+        "estado_final_reservacion": {
+          "CONFIRMADA": 2
+        },
+        "confirmadas_por_evidencia": {
+          "api_por_folio": 471,
+          "api_por_clave": 5,
+          "recuperacion_por_clave": 2
+        }
+      },
+      "desactivados": [
+        "Operador Ficticio 08",
+        "Operador Ficticio 09",
+        "Operador Ficticio 10"
+      ],
+      "confirmando_al_final": 0,
+      "canal_lento": {
+        "recibidas": 118,
+        "respondidas_503": 59
+      }
+    }
+  }
+}

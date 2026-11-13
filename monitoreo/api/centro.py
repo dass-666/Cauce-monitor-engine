@@ -280,19 +280,41 @@ def supervision(request: HttpRequest, user: CurrentUser = Depends(require_admin)
     cap = captura_habilitada(request)
     with db.session() as s:
         params = get_params(s)
+        # v1.7 (rendimiento): una consulta AGRUPADA por cifra para todos los operadores, en vez de
+        # 6-8 consultas por operador (con 20 operadores y 10 000 expedientes tardaba ~2,6 s en PostgreSQL).
+        A = Assignment
+        est_por: dict[int, dict] = {}
+        for oid, st, n in s.execute(select(A.operator_id, A.status, func.count()).group_by(A.operator_id, A.status)):
+            est_por.setdefault(oid, {})[st] = n
+        hoy_por: dict[int, dict] = {}
+        for oid, st, n in s.execute(select(A.operator_id, A.status, func.count()).where(A.created_at >= hoy)
+                                    .group_by(A.operator_id, A.status)):
+            hoy_por.setdefault(oid, {})[st] = n
+        ult_por = dict(s.execute(select(A.operator_id, func.max(func.coalesce(A.last_activity_at, A.taken_at, A.created_at)))
+                                 .group_by(A.operator_id)).all())
+        sin_por = dict(s.execute(select(A.operator_id, func.count()).where(or_(
+            (A.status == "EN_PROCESO") & A.inactive_alerted_at.is_not(None),
+            (A.status == "ACTIVA") & (A.created_at <= now - timedelta(seconds=float(params["operador_conexion_perdida_s"])))))
+            .group_by(A.operator_id)).all())
+        exp_por: dict[int, dict] = {}
+        reas_por: dict[int, int] = {}
+        err_por: dict[int, int] = {}
+        if cap:
+            from ..models import Expediente, ExpedienteEvento, Reservacion
+            for oid, st, n in s.execute(select(Expediente.operator_id, Expediente.estado, func.count())
+                                        .where(Expediente.operator_id.is_not(None))
+                                        .group_by(Expediente.operator_id, Expediente.estado)):
+                exp_por.setdefault(oid, {})[st] = n
+            anterior = ExpedienteEvento.detalle["operador_anterior"].as_integer()
+            reas_por = dict(s.execute(select(anterior, func.count()).where(
+                ExpedienteEvento.tipo.in_(["ASIGNACION_CAMBIADA", "ASIGNACION_LIBERADA", "REDISTRIBUIDO"]),
+                anterior.is_not(None)).group_by(anterior)).all())
+            err_por = dict(s.execute(select(Reservacion.operator_id, func.count()).where(
+                Reservacion.operator_id.is_not(None), Reservacion.error_codigo.is_not(None))
+                .group_by(Reservacion.operator_id)).all())
         out = []
         for o in s.scalars(select(Operator).order_by(Operator.name)):
-            est = dict(s.execute(select(Assignment.status, func.count()).where(
-                Assignment.operator_id == o.id).group_by(Assignment.status)).all())
-            hoy_est = dict(s.execute(select(Assignment.status, func.count()).where(
-                Assignment.operator_id == o.id, Assignment.created_at >= hoy).group_by(Assignment.status)).all())
-            ult = s.scalar(select(func.max(func.coalesce(Assignment.last_activity_at, Assignment.taken_at,
-                                                         Assignment.created_at))).where(Assignment.operator_id == o.id))
-            sin_atencion = s.scalar(select(func.count()).select_from(Assignment).where(
-                Assignment.operator_id == o.id, or_(
-                    (Assignment.status == "EN_PROCESO") & Assignment.inactive_alerted_at.is_not(None),
-                    (Assignment.status == "ACTIVA") & (Assignment.created_at <= now - timedelta(
-                        seconds=float(params["operador_conexion_perdida_s"])))))) or 0
+            est, hoy_est, ult = est_por.get(o.id, {}), hoy_por.get(o.id, {}), ult_por.get(o.id)
             fila = {
                 "id": o.id, "nombre": o.name, "activo": o.active, "regiones": o.regions or [],
                 "sucursales": o.sucursales or [], "carga": o.current_load, "max": o.max_concurrent,
@@ -303,17 +325,12 @@ def supervision(request: HttpRequest, user: CurrentUser = Depends(require_admin)
                 "completadas": est.get("COMPLETADA", 0), "completadas_hoy": hoy_est.get("COMPLETADA", 0),
                 "rechazos": est.get("RECHAZADA", 0) + est.get("DECLINADA", 0),
                 "expiradas": est.get("EXPIRADA", 0), "canceladas": est.get("CANCELADA", 0),
-                "sin_atencion": sin_atencion,
+                "sin_atencion": sin_por.get(o.id, 0),
             }
             if cap:
-                from ..models import Expediente, ExpedienteEvento, Reservacion
-                fila["expedientes"] = dict(s.execute(select(Expediente.estado, func.count()).where(
-                    Expediente.operator_id == o.id).group_by(Expediente.estado)).all())
-                fila["reasignaciones"] = s.scalar(select(func.count()).select_from(ExpedienteEvento).where(
-                    ExpedienteEvento.tipo.in_(["ASIGNACION_CAMBIADA", "ASIGNACION_LIBERADA", "REDISTRIBUIDO"]),
-                    ExpedienteEvento.detalle["operador_anterior"].as_integer() == o.id)) or 0
-                fila["errores"] = s.scalar(select(func.count()).select_from(Reservacion).where(
-                    Reservacion.operator_id == o.id, Reservacion.error_codigo.is_not(None))) or 0
+                fila["expedientes"] = exp_por.get(o.id, {})
+                fila["reasignaciones"] = reas_por.get(o.id, 0)
+                fila["errores"] = err_por.get(o.id, 0)
             out.append(fila)
         acciones = [{"ts": ser.iso(a.ts), "actor": a.username, "accion": a.action, "objetivo": a.target,
                      "detalle": a.detail} for a in s.scalars(
