@@ -34,6 +34,9 @@ async function login(page, u, p) {
   await login(page, opUser, opPass);
   await page.goto(base + "/#captura");
   await page.waitForSelector("text=Captura y reservaciones");
+  // v1.6: la pestaña inicial ahora es "Resumen"; la lista de expedientes está en su propia pestaña
+  await page.click("[data-tab=expedientes]");
+  await page.waitForSelector("[data-tab=expedientes][aria-selected=true]");
   const fila = page.locator("#view table tbody tr", { hasText: codigo });
   await fila.waitFor({ timeout: 30000 });
   await shot(page, "01_expedientes_operador.png");
