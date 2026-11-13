@@ -195,6 +195,11 @@ def run(a) -> dict:
 
 
 def main() -> int:
+    for flujo in (sys.stdout, sys.stderr):   # consola de Windows (cp1252): no fallar por "→" o "•"
+        try:
+            flujo.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--expedientes", type=int, default=200)
     ap.add_argument("--operadores", type=int, default=10)

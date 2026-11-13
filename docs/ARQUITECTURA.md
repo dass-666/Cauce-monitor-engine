@@ -188,6 +188,42 @@ evento, no se emite "disponibilidad sin solicitud compatible": nadie podría usa
 asignación creada en un intento que falló antes de avisar recibe su aviso al reprocesar (o en el
 mantenimiento): nunca queda una asignación viva sin que el operador se entere.
 
+## Decisiones de la versión 1.5 (captura y reservaciones de laboratorio)
+
+```
+ Panel (Captura) ──API /api/expedientes, /api/reservaciones──► monitoreo/captura/
+                                                                 ├─ validacion.py   datos y confirmaciones (no se guardan copias)
+ Expediente ──crea──► Request del motor (holder = código EXP-…, sin datos personales)
+                                                                 ├─ expedientes.py  estados, historial, permisos, huella anti-duplicado
+ Conector portal_reservas ──► Resource "agenda:<sucursal>" ──► motor asigna (núcleo sin cambios)
+                                                                 ├─ seguimiento.py  refleja la asignación en el expediente
+ Operador revisa ──► formularios/contrato.py (JSON de campos) + navegador.py (cómo se navega)
+                                                                 ├─ reservaciones.py máquina de estados con evidencia
+ portal_reservas/ (proceso aparte, 127.0.0.1:8200) ◄── HTTP ── navegador.py
+```
+
+- **Reutilizar el núcleo.** Cada expediente crea una solicitud normal del motor (`resource_type="cita"`).
+  Asignación, operadores, alertas, auditoría, autenticación y recuperación son las de siempre. El
+  conector publica **un recurso por sucursal** (no uno por horario) para no generar cientos de alertas.
+- **Contrato separado de la navegación.** `contratos/portal_laboratorio.json` dice qué campo del
+  portal sale de qué dato del expediente; `navegador.py` sabe cómo recorrer las pantallas. Un
+  cambio de nombre de campo en el portal se corrige en el JSON, y el contrato se probó también
+  llenando el portal con Playwright directamente.
+- **Sin CONFIRMADA sin evidencia.** Estados: PREPARADA → DATOS_ENVIADOS → RETENIDA → CONFIRMANDO →
+  CONFIRMADA (o RECHAZADA / EXPIRADA / CANCELADA). El paso a CONFIRMANDO se guarda **antes** de llamar
+  al portal; la evidencia es la API del portal devolviendo el folio CONFIRMADO con la misma clave
+  de idempotencia. Si la respuesta se pierde, el resultado es "incierto" (HTTP 202) y se verifica
+  por clave; un trabajo de recuperación cada 2 s resuelve los CONFIRMANDO pendientes.
+- **Sin doble reserva.** En el motor: índice único `viva_expediente_id` (un intento vivo por
+  expediente) y UPDATE condicional RETENIDA→CONFIRMANDO (solo un operador gana). En el portal:
+  capacidad por horario. La prueba de carga lo comprueba contra el portal, no contra el motor.
+- **Datos personales.** Solo ficticios (dominios `.test`/`example`, teléfonos 555; se puede
+  desactivar el filtro con `MONITOREO_CAPTURA_SOLO_SINTETICOS=0` solo en laboratorio). Listados
+  enmascarados; la ficha completa solo para el operador asignado y administradores, con auditoría
+  sin valores. Las confirmaciones (teléfono/correo) se validan y se descartan.
+- **Solo laboratorio.** Las rutas de captura no se montan en modo producción (prueba automática).
+  El navegador solo acepta hosts de `MONITOREO_WEBHOOK_HOSTS` (por defecto 127.0.0.1).
+
 ## Máquina de estados de solicitudes
 
 ```

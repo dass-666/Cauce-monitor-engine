@@ -24,6 +24,10 @@ plataforma externa.
 - **Novedades v1.4** (recuperación adaptable de fuentes, asignaciones abandonadas, auditoría,
   restauración segura): [docs/INFORME_v1.4.md](docs/INFORME_v1.4.md) · Guía rápida para Windows:
   [docs/GUIA_RAPIDA_WINDOWS.md](docs/GUIA_RAPIDA_WINDOWS.md)
+- **Novedades v1.5** (laboratorio de captura y reservaciones: expedientes ficticios, portal de
+  reservaciones de PRUEBA propio, formularios por contrato, folio con evidencia y confirmación humana):
+  [docs/INFORME_v1.5.md](docs/INFORME_v1.5.md). Solo funciona contra el portal de prueba en
+  127.0.0.1 y no se monta en modo producción.
 
 ## Instalación en Windows
 

@@ -111,7 +111,7 @@ def run(a) -> dict:
     else:
         p = subprocess.run([node, str(ROOT / "scripts" / "recorrido_reservacion.js"), motor.base, portal.base,
                             "operador1", OP_PWD, "admin", PWD, exp["codigo"], str(caps), json.dumps(reg2)],
-                           cwd=ROOT, capture_output=True, text=True, timeout=300)
+                           cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
         (out / "recorrido_playwright.log").write_text(p.stdout + "\n" + p.stderr, encoding="utf-8")
         linea = next((x for x in p.stdout.splitlines() if x.startswith("RESULTADO ")), None)
         ck("recorrido Playwright: expediente → formulario → calendario → horario → confirmación → folio",
@@ -188,6 +188,11 @@ def run(a) -> dict:
 
 
 def main() -> int:
+    for flujo in (sys.stdout, sys.stderr):   # consola de Windows (cp1252): no fallar por "→" o "•"
+        try:
+            flujo.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--salida", default="resultados/demo_reservacion")
     ap.add_argument("--capturas", default="docs/capturas/v1.5")
