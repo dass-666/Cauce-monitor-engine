@@ -1,0 +1,680 @@
+{
+  "version": "1.3",
+  "fecha": "2026-11-13T00:34:40.796299Z",
+  "rapido": false,
+  "naturaleza": "MEDIDO con HTTP real entre procesos independientes en 127.0.0.1. Datos ficticios. No es una prueba contra ningún proveedor externo.",
+  "maquina": {
+    "sistema": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+    "python": "3.13.18",
+    "cpus": 4
+  },
+  "base_de_datos": "PostgreSQL",
+  "parametros": {
+    "solicitudes": 1000,
+    "regiones": 5,
+    "operadores": 12,
+    "recursos_por_region": 40,
+    "intervalo_consulta_s": 1.0,
+    "duracion_controlada_s": 60,
+    "duracion_carga_s": 120,
+    "duracion_por_fallo_s": 12,
+    "semilla": 13,
+    "parametros_motor_cambiados": {
+      "ttl_asignacion_s": 20,
+      "concurrencia_maxima": 5,
+      "enfriamiento_modo": "adaptable"
+    }
+  },
+  "fases": [
+    {
+      "fase": "linea_base",
+      "inicio": "2026-11-13T00:34:40.796480Z"
+    },
+    {
+      "fase": "liberaciones_controladas",
+      "inicio": "2026-11-13T00:34:44.796635Z"
+    },
+    {
+      "fase": "carga",
+      "inicio": "2026-11-13T00:35:45.287784Z"
+    },
+    {
+      "fase": "fallos",
+      "inicio": "2026-11-13T00:37:45.292411Z"
+    },
+    {
+      "fase": "reinicio_motor",
+      "inicio": "2026-11-13T00:38:45.326190Z"
+    },
+    {
+      "fase": "reinicio_proveedor",
+      "inicio": "2026-11-13T00:38:51.300307Z"
+    },
+    {
+      "fase": "drenaje",
+      "inicio": "2026-11-13T00:39:07.040683Z"
+    }
+  ],
+  "ventanas_de_fallo": [
+    {
+      "fallo": "429",
+      "inicio": "2026-11-13T00:37:45.292467Z",
+      "fin": "2026-11-13T00:37:57.296462Z",
+      "regiones": [
+        "sur"
+      ]
+    },
+    {
+      "fallo": "conexion_cortada",
+      "inicio": "2026-11-13T00:37:57.296475Z",
+      "fin": "2026-11-13T00:38:09.301189Z",
+      "regiones": null
+    },
+    {
+      "fallo": "proveedor_no_responde",
+      "inicio": "2026-11-13T00:38:09.301203Z",
+      "fin": "2026-11-13T00:38:21.306294Z",
+      "regiones": [
+        "este"
+      ]
+    },
+    {
+      "fallo": "respuestas_antiguas",
+      "inicio": "2026-11-13T00:38:21.306305Z",
+      "fin": "2026-11-13T00:38:33.317664Z",
+      "regiones": null
+    },
+    {
+      "fallo": "cambios_entre_paginas",
+      "inicio": "2026-11-13T00:38:33.317678Z",
+      "fin": "2026-11-13T00:38:45.321609Z",
+      "regiones": null
+    },
+    {
+      "fallo": "motor_caido",
+      "inicio": "2026-11-13T00:38:45.326230Z",
+      "fin": "2026-11-13T00:38:51.300302Z"
+    },
+    {
+      "fallo": "proveedor_caido",
+      "inicio": "2026-11-13T00:38:51.338458Z",
+      "fin": "2026-11-13T00:38:55.040554Z"
+    }
+  ],
+  "reinicios": {
+    "motor": {
+      "corte": "2026-11-13T00:38:45.326230Z",
+      "listo_tras_arrancar_s": 1.09,
+      "primera_consulta_ok_s": 0.87
+    },
+    "proveedor": {
+      "corte": "2026-11-13T00:38:51.338458Z",
+      "primera_consulta_ok_s": 0.27
+    }
+  },
+  "comprobaciones": [
+    {
+      "comprobacion": "el motor arranca como proceso independiente",
+      "ok": true,
+      "critica": true,
+      "detalle": "1.08 s"
+    },
+    {
+      "comprobacion": "1000 solicitudes creadas por la API",
+      "ok": true,
+      "critica": true,
+      "detalle": "11.0 s"
+    },
+    {
+      "comprobacion": "el motor se recupera tras un corte brusco (kill)",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "corte": "2026-11-13T00:38:45.326230Z",
+        "listo_tras_arrancar_s": 1.09,
+        "primera_consulta_ok_s": 0.87
+      }
+    },
+    {
+      "comprobacion": "el motor se recupera tras un corte brusco del proveedor",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "corte": "2026-11-13T00:38:51.338458Z",
+        "primera_consulta_ok_s": 0.27
+      }
+    },
+    {
+      "comprobacion": "todas las fuentes vuelven a estar al día tras los fallos",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "segundos": 0.0,
+        "limite_s": 330.0,
+        "circuito_modo": "adaptable",
+        "circuito_enfriamiento_s": 60
+      }
+    },
+    {
+      "comprobacion": "la API devuelve el recorrido de un evento",
+      "ok": true,
+      "critica": true,
+      "detalle": 8
+    },
+    {
+      "comprobacion": "convergencia: el motor ve exactamente lo que publica el proveedor",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "distintos": 0,
+        "ejemplos": []
+      }
+    },
+    {
+      "comprobacion": "integridad de la base del motor (sin asignaciones incompatibles)",
+      "ok": true,
+      "critica": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "ninguna solicitud con dos asignaciones vivas",
+      "ok": true,
+      "critica": true,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "ningún recurso con más unidades retenidas (sin tomar) que disponibles",
+      "ok": true,
+      "critica": true,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "ninguna asignación quedó a medias (EN_PROCESO) al terminar",
+      "ok": true,
+      "critica": false,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "dos operadores nunca toman la misma asignación",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "competencias": 193,
+        "resultados": {
+          "[200, 409]": 190,
+          "[409, 409]": 3
+        }
+      }
+    },
+    {
+      "comprobacion": "Telegram (emulador): cada entrega ENVIADA llegó a los 2 chats (repetidos solo por un corte)",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "entregas_enviadas": 1330,
+        "entregas_totales": 1330,
+        "mensajes_en_emulador": 2660,
+        "mensajes_distintos": 2660,
+        "repetidos": 0,
+        "cortes_del_motor": 1
+      }
+    },
+    {
+      "comprobacion": "cambios duraderos del proveedor no detectados FUERA de ventanas de fallo",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "total_cambios": 2571,
+        "detectados": 1349,
+        "coalescidos": 598,
+        "no_detectados_fuera_de_fallos": 0,
+        "no_detectados_en_fallos": 10,
+        "no_detectados_fuente_sin_datos": 0,
+        "anticipados_por_el_motor": 493,
+        "coincide_con_descuento_local": 0,
+        "sin_cambio_neto": 120,
+        "motor_tenia_el_valor": 1,
+        "ejemplos_no_detectados": []
+      }
+    },
+    {
+      "comprobacion": "todas las liberaciones controladas se detectaron (salvo las tapadas por otro cambio del recurso antes de la siguiente consulta, que se cuentan aparte)",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "total": 50,
+        "detectadas": 50,
+        "mezcladas_con_otro_cambio": 0,
+        "deteccion_ms": {
+          "n": 50,
+          "p50": 601.3,
+          "p95": 1380.1,
+          "p99": 1631.5,
+          "max": 1631.5
+        },
+        "hasta_asignacion_ms": {
+          "n": 50,
+          "p50": 668.9,
+          "p95": 1455.3,
+          "p99": 1693.4,
+          "max": 1693.4
+        },
+        "hasta_telegram_ms": {
+          "n": 50,
+          "p50": 697.0,
+          "p95": 1512.4,
+          "p99": 1738.2,
+          "max": 1738.2
+        }
+      }
+    }
+  ],
+  "metricas_servicio": {
+    "desde": "2026-11-13T00:34:40.796299Z",
+    "hasta": "2026-11-13T00:39:13.117193Z",
+    "origen": "medido (marcas de tiempo del motor)",
+    "tiempos_ms": {
+      "deteccion": {
+        "n": 1342,
+        "p50": 704.0,
+        "p95": 1548.9,
+        "p99": 2950.1,
+        "max": 12125.0
+      },
+      "procesamiento": {
+        "n": 1342,
+        "p50": 175.1,
+        "p95": 533.9,
+        "p99": 825.8,
+        "max": 5637.2
+      },
+      "hasta_asignacion": {
+        "n": 1088,
+        "p50": 789.9,
+        "p95": 1722.8,
+        "p99": 3225.2,
+        "max": 12505.3
+      },
+      "hasta_alerta": {
+        "n": 1098,
+        "p50": 789.9,
+        "p95": 1752.9,
+        "p99": 3225.2,
+        "max": 12505.3
+      },
+      "hasta_notificacion": {
+        "panel": {
+          "n": 1098,
+          "p50": 984.8,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        },
+        "registro": {
+          "n": 1098,
+          "p50": 984.8,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        },
+        "telegram": {
+          "n": 1088,
+          "p50": 984.2,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        }
+      }
+    },
+    "consultas": {
+      "total": 973,
+      "ok": 940,
+      "exito_pct": 96.61,
+      "por_resultado": {
+        "ERROR_TEMPORAL": 29,
+        "OK": 940,
+        "LIMITADO": 4
+      },
+      "por_region": {
+        "ESTE": {
+          "consultas": 188,
+          "ok": 181,
+          "exito_pct": 96.28
+        },
+        "SUR": {
+          "consultas": 192,
+          "ok": 182,
+          "exito_pct": 94.79
+        },
+        "NORTE": {
+          "consultas": 200,
+          "ok": 196,
+          "exito_pct": 98.0
+        },
+        "OESTE": {
+          "consultas": 194,
+          "ok": 188,
+          "exito_pct": 96.91
+        },
+        "CENTRO": {
+          "consultas": 199,
+          "ok": 193,
+          "exito_pct": 96.98
+        }
+      }
+    },
+    "cambios": {
+      "detectados": 1342,
+      "de_oferta": 933,
+      "con_asignacion": 832,
+      "ofertas_desaparecidas_antes_de_usarse": 101,
+      "asignaciones_anuladas_por_la_fuente": 65
+    },
+    "retrasos": {
+      "eventos_sin_procesar": 0,
+      "evento_mas_antiguo_sin_procesar_s": 0,
+      "entrega_pendiente_mas_antigua_s": 0
+    }
+  },
+  "metricas_api_durante_la_prueba": {
+    "desde": "2026-11-12T22:39:12.073862Z",
+    "hasta": "2026-11-13T00:39:12.073862Z",
+    "origen": "medido (marcas de tiempo del motor)",
+    "tiempos_ms": {
+      "deteccion": {
+        "n": 1542,
+        "p50": 794.7,
+        "p95": 2416.3,
+        "p99": 2821.8,
+        "max": 12125.0
+      },
+      "procesamiento": {
+        "n": 1542,
+        "p50": 204.5,
+        "p95": 9316.1,
+        "p99": 10609.6,
+        "max": 10657.1
+      },
+      "hasta_asignacion": {
+        "n": 1088,
+        "p50": 789.9,
+        "p95": 1722.8,
+        "p99": 3225.2,
+        "max": 12505.3
+      },
+      "hasta_alerta": {
+        "n": 1098,
+        "p50": 789.9,
+        "p95": 1752.9,
+        "p99": 3225.2,
+        "max": 12505.3
+      },
+      "hasta_notificacion": {
+        "panel": {
+          "n": 1098,
+          "p50": 984.8,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        },
+        "registro": {
+          "n": 1098,
+          "p50": 984.8,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        },
+        "telegram": {
+          "n": 1088,
+          "p50": 984.2,
+          "p95": 2128.6,
+          "p99": 3812.2,
+          "max": 12537.9
+        }
+      }
+    },
+    "consultas": {
+      "total": 983,
+      "ok": 950,
+      "exito_pct": 96.64,
+      "por_resultado": {
+        "ERROR_TEMPORAL": 29,
+        "OK": 950,
+        "LIMITADO": 4
+      },
+      "por_region": {
+        "ESTE": {
+          "consultas": 190,
+          "ok": 183,
+          "exito_pct": 96.32
+        },
+        "SUR": {
+          "consultas": 194,
+          "ok": 184,
+          "exito_pct": 94.85
+        },
+        "NORTE": {
+          "consultas": 202,
+          "ok": 198,
+          "exito_pct": 98.02
+        },
+        "OESTE": {
+          "consultas": 196,
+          "ok": 190,
+          "exito_pct": 96.94
+        },
+        "CENTRO": {
+          "consultas": 201,
+          "ok": 195,
+          "exito_pct": 97.01
+        }
+      }
+    },
+    "cambios": {
+      "detectados": 1542,
+      "de_oferta": 933,
+      "con_asignacion": 832,
+      "ofertas_desaparecidas_antes_de_usarse": 101,
+      "asignaciones_anuladas_por_la_fuente": 65
+    },
+    "retrasos": {
+      "eventos_sin_procesar": 0,
+      "evento_mas_antiguo_sin_procesar_s": 0,
+      "entrega_pendiente_mas_antigua_s": 0
+    },
+    "proceso": {
+      "cpu_pct": 0.0,
+      "memoria_mb": 124.8
+    }
+  },
+  "auditoria_cambios": {
+    "total_cambios": 2571,
+    "detectados": 1349,
+    "coalescidos": 598,
+    "no_detectados_fuera_de_fallos": 0,
+    "no_detectados_en_fallos": 10,
+    "no_detectados_fuente_sin_datos": 0,
+    "anticipados_por_el_motor": 493,
+    "coincide_con_descuento_local": 0,
+    "sin_cambio_neto": 120,
+    "motor_tenia_el_valor": 1,
+    "vencimientos_detectados_por_el_conector": 12,
+    "ejemplos_no_detectados": [],
+    "tiempo_a_ciegas_s": {
+      "este": 36.2,
+      "sur": 36.0,
+      "norte": 13.8,
+      "oeste": 24.0,
+      "centro": 19.0
+    },
+    "controladas": {
+      "total": 50,
+      "detectadas": 50,
+      "mezcladas_con_otro_cambio": 0,
+      "deteccion_ms": {
+        "n": 50,
+        "p50": 601.3,
+        "p95": 1380.1,
+        "p99": 1631.5,
+        "max": 1631.5
+      },
+      "hasta_asignacion_ms": {
+        "n": 50,
+        "p50": 668.9,
+        "p95": 1455.3,
+        "p99": 1693.4,
+        "max": 1693.4
+      },
+      "hasta_telegram_ms": {
+        "n": 50,
+        "p50": 697.0,
+        "p95": 1512.4,
+        "p99": 1738.2,
+        "max": 1738.2
+      }
+    }
+  },
+  "operadores": {
+    "competencias": 193,
+    "competencias_resultado": {
+      "[200, 409]": 190,
+      "[409, 409]": 3
+    },
+    "dobles_tomas": 0,
+    "tomas_fallidas": 36,
+    "reservas_ok": 818,
+    "reservas_rechazadas": 444,
+    "completadas": 708,
+    "errores_api": 22,
+    "reintentos_operador": 0,
+    "reintentos_con_clave": 12
+  },
+  "totales": {
+    "consultas": 973,
+    "asignaciones": 1327,
+    "solicitudes_completadas": 818,
+    "filas_historial_solicitudes": 5916
+  },
+  "telegram_emulador": {
+    "entregas_enviadas": 1330,
+    "mensajes_recibidos": 2660,
+    "mensajes_distintos": 2660,
+    "repetidos": 0
+  },
+  "proveedor": {
+    "arranques": 2,
+    "metricas": {
+      "peticiones": 215,
+      "por_codigo": {
+        "409": 31,
+        "200": 120,
+        "201": 54,
+        "304": 10
+      },
+      "por_region": {
+        "norte": 28,
+        "sur": 28,
+        "este": 29,
+        "oeste": 25,
+        "centro": 27
+      }
+    },
+    "fallos_aplicados": {}
+  },
+  "recursos_sistema": {
+    "proveedor": {
+      "muestras": 281,
+      "cpu_pct_media": 2.9,
+      "cpu_pct_max": 6.0,
+      "memoria_mb_media": 49.9,
+      "memoria_mb_max": 52.4
+    },
+    "motor": {
+      "muestras": 278,
+      "cpu_pct_media": 46.2,
+      "cpu_pct_max": 113.0,
+      "memoria_mb_media": 129.7,
+      "memoria_mb_max": 133.2
+    }
+  },
+  "almacenamiento": {
+    "bytes_antes": 11222039,
+    "bytes_despues": 17832983,
+    "crecimiento_bytes": 6610944,
+    "duracion_s": 272.3,
+    "bytes_por_consulta": 6794.4
+  },
+  "recorrido_ejemplo": {
+    "evento": 1538,
+    "recurso": "Taller Brisa Oeste · 36",
+    "region": "OESTE",
+    "pasos": [
+      {
+        "paso": "cambio en la fuente",
+        "en": "2026-11-13T00:39:06.576860Z",
+        "desde_el_cambio_ms": 0.0,
+        "fuente": "http-oeste",
+        "conector": "proveedor_prueba"
+      },
+      {
+        "paso": "detectado por el motor",
+        "en": "2026-11-13T00:39:07.414466Z",
+        "desde_el_cambio_ms": 837.6,
+        "tipo": "REAPARICION",
+        "antes": 0,
+        "despues": 1
+      },
+      {
+        "paso": "procesado",
+        "en": "2026-11-13T00:39:07.840281Z",
+        "desde_el_cambio_ms": 1263.4,
+        "pendiente": false
+      },
+      {
+        "paso": "asignación",
+        "en": "2026-11-13T00:39:07.761835Z",
+        "desde_el_cambio_ms": 1185.0,
+        "asignacion": 1327,
+        "solicitud": 97,
+        "operador": 12,
+        "estado": "COMPLETADA",
+        "motivo": "completada"
+      },
+      {
+        "paso": "alerta",
+        "en": "2026-11-13T00:39:07.761835Z",
+        "desde_el_cambio_ms": 1185.0,
+        "alerta": 1340,
+        "tipo": "ASIGNACION",
+        "titulo": "SOL-00096 asignada a Operador Ficticio 12: Taller Brisa Oeste · 36"
+      },
+      {
+        "paso": "entrega por Panel",
+        "en": "2026-11-13T00:39:07.933732Z",
+        "desde_el_cambio_ms": 1356.9,
+        "canal": "panel",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Registro",
+        "en": "2026-11-13T00:39:07.933732Z",
+        "desde_el_cambio_ms": 1356.9,
+        "canal": "registro",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Telegram",
+        "en": "2026-11-13T00:39:07.933732Z",
+        "desde_el_cambio_ms": 1356.9,
+        "canal": "telegram",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      }
+    ]
+  }
+}
