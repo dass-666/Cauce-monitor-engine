@@ -8,3 +8,6 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# salidas de demos y laboratorios (lo que se conserva se copia a docs/resultados/)
+resultados/
