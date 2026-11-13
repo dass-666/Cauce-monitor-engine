@@ -40,6 +40,10 @@ class Lab:
         self.db = self.c.app.state.db
         self.h = self.login("admin", ADMIN_PWD)
         self.clock, self.runtime, self.rng = RealClock(), RuntimeState(), random.Random(3)
+        # Laboratorio de la v1.5: modalidad POR_HORARIO explícita (la v1.6 usa POR_DIA por defecto)
+        from monitoreo.engine.params import set_params
+        with self.db.session() as s:
+            set_params(s, {"captura_modo": "POR_HORARIO"})
         self.ops = {}
         for u in operadores:
             r = self.c.post("/api/users", headers=self.h, json={"username": u, "password": OP_PWD, "role": "operador",
@@ -106,3 +110,44 @@ class Lab:
         r = self.c.post(f"/api/reservaciones/{rid}/seleccionar", headers=h, json={"horario": hs[0]["id"]})
         assert r.status_code == 200, r.text
         return rid, hs
+
+
+MANUALES = {"clave_identidad": "QXZ482915", "acepto_privacidad": "si"}   # ficticios; nunca deben guardarse
+
+
+class LabDia(Lab):
+    """v1.6: el mismo laboratorio, en modalidad POR_DIA (conector `portal_dias`, contrato por día)."""
+
+    def __init__(self, url: str, portal, operadores=("op1", "op2"), regiones=("NORTE",), mecanismo="periodico"):
+        super().__init__(url, portal, operadores, regiones)
+        from monitoreo.engine.params import set_params
+        with self.db.session() as s:
+            set_params(s, {"captura_modo": "POR_DIA"})
+            src = s.get(Source, self.source_id)
+            src.connector_type, src.code = "portal_dias", "portal-lab-dias"
+            src.config = {"url_base": portal.base, "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5,
+                          "mecanismo": mecanismo}
+
+    def datos_expediente(self, n: int | None = None, region="NORTE", **kw):
+        kw.setdefault("sucursal", "NOR-1")
+        kw.setdefault("sucursales_alternativas", ["NOR-2"])
+        return super().datos_expediente(n, region, **kw)
+
+    def hasta_fecha(self, eid, h, manuales=None, sucursal=None, elegir=None):
+        """preparar -> enviar datos (con lo que teclea el operador) -> elegir un día DISPONIBLE."""
+        r = self.c.post(f"/api/expedientes/{eid}/preparar", headers=h)
+        assert r.status_code == 200, r.text
+        rid = r.json()["reservacion"]["id"]
+        body = {"revisado": True, "manuales": dict(manuales or MANUALES)}
+        if sucursal:
+            body["sucursal"] = sucursal
+        r = self.c.post(f"/api/reservaciones/{rid}/enviar-datos", headers=h, json=body)
+        assert r.status_code == 200, r.text
+        cal = r.json()["calendario"]
+        libres = [d for d in cal["dias"] if d["estado"] == "DISPONIBLE"]
+        assert libres, "el calendario debería tener días disponibles"
+        dia = elegir(libres) if elegir else libres[0]
+        r = self.c.post(f"/api/reservaciones/{rid}/seleccionar-dia", headers=h,
+                        json={"fecha": dia["fecha"], "sucursal": cal["sucursal"]})
+        assert r.status_code == 200, r.text
+        return rid, {**dia, "sucursal": cal["sucursal"]}

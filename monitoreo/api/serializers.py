@@ -76,7 +76,8 @@ def alert(a) -> dict:
 
 
 def operator(o) -> dict:
-    return {"id": o.id, "name": o.name, "user_id": o.user_id, "regions": o.regions, "active": o.active,
+    return {"id": o.id, "name": o.name, "user_id": o.user_id, "regions": o.regions,
+            "sucursales": list(o.sucursales or []), "active": o.active,
             "max_concurrent": o.max_concurrent, "current_load": o.current_load,
             "last_assigned_at": iso(o.last_assigned_at)}
 

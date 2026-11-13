@@ -2,7 +2,8 @@
 
   MONITOREO_PORTAL_URL     dirección del portal de prueba (por defecto http://127.0.0.1:8200)
   MONITOREO_PORTAL_TOKEN   token Bearer de PRUEBA de su API de verificación
-  MONITOREO_PORTAL_CONTRATO  contrato de campos (por defecto portal_laboratorio)
+  MONITOREO_PORTAL_CONTRATO  contrato de campos POR_HORARIO (por defecto portal_laboratorio)
+  MONITOREO_PORTAL_CONTRATO_DIA  contrato POR_DIA (v1.6; por defecto portal_laboratorio_dia)
 
 El host debe estar en MONITOREO_WEBHOOK_HOSTS (por defecto solo localhost/127.0.0.1): el motor
 no puede apuntarse por configuración a un servicio externo.
@@ -27,10 +28,13 @@ def url() -> str:
     return os.environ.get("MONITOREO_PORTAL_URL", "http://127.0.0.1:8200").rstrip("/")
 
 
-def contrato():
+def contrato(modo: str | None = None):
+    """Contrato de la modalidad (sin modalidad: el de la v1.5, POR_HORARIO)."""
+    if modo == "POR_DIA":
+        return cargar(os.environ.get("MONITOREO_PORTAL_CONTRATO_DIA", "portal_laboratorio_dia"))
     return cargar(os.environ.get("MONITOREO_PORTAL_CONTRATO", "portal_laboratorio"))
 
 
-def navegador(sesion: str | None = None, timeout: float = 10) -> NavegadorHTTP:
-    return NavegadorHTTP(url(), contrato(), token_api=token(), sesion=sesion,
+def navegador(sesion: str | None = None, timeout: float = 10, modo: str | None = None) -> NavegadorHTTP:
+    return NavegadorHTTP(url(), contrato(modo), token_api=token(), sesion=sesion,
                          timeout=timeout, allowed_hosts=list(settings.webhook_allowed_hosts))

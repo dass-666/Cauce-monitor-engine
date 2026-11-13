@@ -71,9 +71,18 @@ def correo_de_prueba(correo: str) -> bool:
     return dom in DOMINIOS_PRUEBA or dom.endswith(TLD_PRUEBA) or any(dom.endswith("." + d) for d in DOMINIOS_PRUEBA)
 
 
-def validar(entrada: dict, regiones: set[str], parcial: bool = False, hoy: date | None = None) -> Resultado:
+MINIMOS = ("nombre", "region", "tipo_tramite")      # v1.6: lo mínimo para abrir un expediente
+MODOS = ("POR_DIA", "POR_HORARIO")
+MAX_ALTERNATIVAS = 5
+
+
+def validar(entrada: dict, regiones: set[str], parcial: bool = False, hoy: date | None = None,
+            incompleto: bool = False) -> Resultado:
     """Valida y normaliza. `parcial=True` (modificación) valida solo los campos presentes, pero
-    si cambia el teléfono o el correo exige su confirmación igual que al crear."""
+    si cambia el teléfono o el correo exige su confirmación igual que al crear.
+    v1.6 `incompleto=True` (alta en preparación): solo exige nombre, región y trámite; lo que
+    venga se valida igual de estricto (y con su confirmación), lo que falte deja el expediente
+    INCOMPLETO en lugar de rechazar el alta."""
     hoy = hoy or date.today()
     r = Resultado()
     e = r.errores
@@ -82,7 +91,7 @@ def validar(entrada: dict, regiones: set[str], parcial: bool = False, hoy: date 
     def falta(campo: str) -> bool:
         if campo in presentes:
             return False
-        if not parcial:
+        if not parcial and (not incompleto or campo in MINIMOS):
             e[campo] = "Campo obligatorio"
         return True
 
@@ -168,8 +177,38 @@ def validar(entrada: dict, regiones: set[str], parcial: bool = False, hoy: date 
             e["prioridad"] = "Prioridad de 1 (máxima) a 5"
     elif not parcial:
         r.datos["prioridad"] = 3
+    # v1.6: modalidad, sucursales alternativas y folio de la cita anterior (al reprogramar)
+    if "modo" in presentes:
+        m = str(entrada["modo"]).strip().upper()
+        if m not in MODOS:
+            e["modo"] = "Modalidad no válida (POR_DIA o POR_HORARIO)"
+        else:
+            r.datos["modo"] = m
+    if entrada.get("sucursales_alternativas") is not None:
+        alts = entrada["sucursales_alternativas"]
+        if isinstance(alts, str):
+            alts = [a for a in alts.replace(";", ",").split(",")]
+        limpias = []
+        for a in alts if isinstance(alts, list) else [None]:
+            a = str(a or "").strip().upper()
+            if not _SUCURSAL.match(a):
+                e["sucursales_alternativas"] = "Sucursal alternativa no válida"
+                break
+            if a not in limpias and a != r.datos.get("sucursal"):
+                limpias.append(a)
+        if len(limpias) > MAX_ALTERNATIVAS:
+            e["sucursales_alternativas"] = f"Máximo {MAX_ALTERNATIVAS} sucursales alternativas"
+        if "sucursales_alternativas" not in e:
+            r.datos["sucursales_alternativas"] = limpias
+    if "folio_anterior" in presentes:
+        v = str(entrada["folio_anterior"]).strip().upper()
+        if not _IDENT.match(v):
+            e["folio_anterior"] = "Folio no válido"
+        else:
+            r.datos["folio_anterior"] = v
     # Coherencia entre campos
-    if r.datos.get("operacion") == "reprogramar" and not (entrada.get("id_registro_previo") or parcial):
+    if (r.datos.get("operacion") == "reprogramar" and not incompleto
+            and not (entrada.get("id_registro_previo") or parcial)):
         e.setdefault("id_registro_previo", "Para reprogramar hace falta el identificador de registro previo")
     return r
 
@@ -188,4 +227,5 @@ def enmascarar_correo(c: str) -> str:
     return (u[:1] + "•••@" + d) if d else "•••"
 
 
-CAMPOS_PERSONALES = ("nombre", "fecha_nacimiento", "telefono", "correo", "id_registro_previo", "id_externo")
+CAMPOS_PERSONALES = ("nombre", "fecha_nacimiento", "telefono", "correo", "id_registro_previo", "id_externo",
+                     "folio_anterior")

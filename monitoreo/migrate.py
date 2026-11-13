@@ -126,6 +126,7 @@ def backup(url: str, label: str = "") -> str:
             dst.close()
             src.close()
         _verify_sqlite_backup(dest)
+        _proteger(dest_dir, dest)
         return str(dest)
     # PostgreSQL
     pg_dump = shutil.which("pg_dump")
@@ -145,7 +146,15 @@ def backup(url: str, label: str = "") -> str:
     r = subprocess.run(args, env=env, capture_output=True, text=True, timeout=3600)
     if r.returncode != 0:
         raise MigrationError(f"pg_dump falló: {r.stderr.strip()[:300]}")
+    _proteger(dest_dir, dest)
     return str(dest)
+
+
+def _proteger(carpeta: Path, archivo: Path) -> None:
+    """v1.6: los respaldos llevan datos de expedientes: solo el dueño puede leerlos (POSIX)."""
+    from .captura.retencion import proteger
+    proteger(carpeta)
+    proteger(archivo)
 
 
 def _verify_sqlite_backup(path: Path) -> None:

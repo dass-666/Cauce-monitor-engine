@@ -1,10 +1,20 @@
-"""Reservaciones de laboratorio (v1.5): del expediente al folio, con un operador en cada paso.
+"""Reservaciones de laboratorio (v1.5; POR DÍA en v1.6): del expediente al folio, con un operador
+en cada paso. El motor NUNCA confirma solo.
 
-Flujo (cada paso lo pide un operador desde el panel; el motor nunca confirma solo):
-  preparar        -> FORMULARIO_PREPARADO   (revisión humana de los campos)
-  enviar_datos    -> pantalla 1 del portal y calendario (requiere `revisado=True`)
-  seleccionar     -> RECURSO_SELECCIONADO + RESERVACION_PENDIENTE (horario apartado en el portal)
-  confirmar       -> RESERVACION_CONFIRMADA solo con EVIDENCIA (requiere `confirmo=True`)
+POR_HORARIO (v1.5)                         POR_DIA (v1.6, sin hora)
+  preparar       FORMULARIO_PREPARADO        preparar        igual (incluye campos MANUAL_REQUIRED)
+  enviar_datos   pantalla 1 + calendario     enviar_datos    pantalla 1 con lo que TECLEÓ el operador
+  seleccionar    horario apartado (RETENIDA) seleccionar_dia FECHA_ELEGIDA (el portal no aparta días)
+  confirmar      CONFIRMADA con evidencia    confirmar       "Continuar" -> CONFIRMADA con evidencia
+
+Estados de la reservación: PREPARADA -> DATOS_ENVIADOS -> (RETENIDA | FECHA_ELEGIDA) -> CONFIRMANDO
+-> CONFIRMADA, o EN_VERIFICACION si el resultado es incierto (respuesta perdida, error del portal,
+evidencia que no se pudo leer). EN_VERIFICACION se resuelve SOLO preguntando al portal por la clave.
+
+Campos MANUAL_REQUIRED (p. ej. clave de identidad, aceptación del aviso): llegan en la petición
+del operador, se validan con el contrato y se envían al portal en ese mismo momento; NUNCA se
+guardan en la base, ni en el historial, ni en registros. Si la sesión del portal caduca, el
+operador debe volver a teclearlos (es intencional).
 
 Garantías:
 - Un intento vivo por expediente (`viva_expediente_id` UNIQUE) y un único confirmador:
@@ -18,7 +28,7 @@ Garantías:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -34,10 +44,20 @@ from .formularios.navegador import (DatosRechazados, ErrorFormulario, Rechazo, R
                                     RevisionRequerida, SesionCaducada)
 
 PREPARADA, DATOS_ENVIADOS, RETENIDA, CONFIRMANDO = "PREPARADA", "DATOS_ENVIADOS", "RETENIDA", "CONFIRMANDO"
+FECHA_ELEGIDA, EN_VERIFICACION = "FECHA_ELEGIDA", "EN_VERIFICACION"
 CONFIRMADA, RECHAZADA, EXPIRADA, CANCELADA = "CONFIRMADA", "RECHAZADA", "EXPIRADA", "CANCELADA"
-VIVAS = (PREPARADA, DATOS_ENVIADOS, RETENIDA, CONFIRMANDO)
-GRUPO = {PREPARADA: "en_proceso", DATOS_ENVIADOS: "en_proceso", RETENIDA: "pendiente", CONFIRMANDO: "pendiente",
-         CONFIRMADA: "confirmado", RECHAZADA: "fallido", EXPIRADA: "fallido", CANCELADA: "fallido"}
+VIVAS = (PREPARADA, DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA, CONFIRMANDO, EN_VERIFICACION)
+LISTAS_PARA_CONFIRMAR = (RETENIDA, FECHA_ELEGIDA)
+BLOQUEANTES = (RETENIDA, CONFIRMANDO, EN_VERIFICACION)    # hay (o puede haber) algo en el portal
+GRUPO = {PREPARADA: "en_proceso", DATOS_ENVIADOS: "en_proceso", RETENIDA: "pendiente", FECHA_ELEGIDA: "pendiente",
+         CONFIRMANDO: "pendiente", EN_VERIFICACION: "verificacion", CONFIRMADA: "confirmado", RECHAZADA: "fallido",
+         EXPIRADA: "fallido", CANCELADA: "fallido"}
+DIA_NO_DISPONIBLE = ("DIA_AGOTADO", "DIA_DESHABILITADO", "DIA_NO_HABILITADO")
+
+
+def viva_bloquea(s, exp_id: int) -> bool:
+    return s.scalar(select(Reservacion.id).where(Reservacion.viva_expediente_id == exp_id,
+                                                 Reservacion.estado.in_(BLOQUEANTES))) is not None
 
 
 class ErrorReservacion(Exception):
@@ -90,7 +110,7 @@ def vista(r: Reservacion) -> dict:
             "asignacion": r.assignment_id, "operator_id": r.operator_id, "horario": r.horario_id,
             "sucursal": r.sucursal, "fecha": r.fecha, "hora": r.hora, "folio": r.folio,
             "vence_en": iso(r.vence_en), "error_codigo": r.error_codigo, "error": r.error,
-            "intentos_confirmacion": r.intentos_confirmacion, "confirmada_por": r.confirmada_por,
+            "intentos_confirmacion": r.intentos_confirmacion, "confirmada_por": r.confirmada_por, "modo": r.modo,
             "evidencia": r.evidencia or {}, "creada": iso(r.created_at), "actualizada": iso(r.updated_at),
             "sesion_portal": "•••" if r.sesion_portal else None}
 
@@ -100,7 +120,7 @@ def preparar(db: Database, exp_id: int, user, now: datetime) -> dict:
     """Abre (o retoma) el intento vivo del expediente y prepara los campos para revisión."""
     with db.session() as s:
         exp = _exp_visible(s, exp_id, user)
-        if exp.estado not in (ex.ASIGNADO, ex.EN_CAPTURA, ex.RESERVANDO):
+        if exp.estado not in (ex.ASIGNADO, ex.CAPTURA, ex.RES_PENDIENTE):
             raise ErrorReservacion(409, f"El expediente está {exp.estado}: no se puede preparar")
         if exp.operator_id is None:
             raise ErrorReservacion(409, "El expediente aún no tiene operador asignado")
@@ -112,22 +132,25 @@ def preparar(db: Database, exp_id: int, user, now: datetime) -> dict:
         if not asg.take_assignment(db, aid, op_id, now, _actor(user), idempotent=True):
             raise ErrorReservacion(409, "La asignación ya no está disponible (expiró o la tomó otro)")
     _tocar(db, aid, user, now)
-    c = portal.contrato()
+    with db.session() as s:
+        modo = s.get(Expediente, exp_id).modo
+    c = portal.contrato(modo)
     try:
         with db.session() as s:
             exp = s.get(Expediente, exp_id)
             res = s.scalar(select(Reservacion).where(Reservacion.viva_expediente_id == exp_id))
             if res is None:
                 res = Reservacion(expediente_id=exp_id, viva_expediente_id=exp_id, assignment_id=aid,
-                                  operator_id=exp.operator_id, estado=PREPARADA, contrato=c.nombre,
+                                  operator_id=exp.operator_id, estado=PREPARADA, contrato=c.nombre, modo=c.modo,
                                   created_at=now, updated_at=now)
                 s.add(res)
                 s.flush()
             elif res.operator_id != exp.operator_id and not user.is_admin:
                 raise ErrorReservacion(409, "Otro operador tiene un intento abierto de este expediente")
             if exp.estado == ex.ASIGNADO:
-                exp.estado, exp.updated_at = ex.EN_CAPTURA, now
+                ex.cambiar_estado(s, exp, ex.CAPTURA, _actor(user), now)
             revision = ct.preparar(c, exp)
+            revision["sucursales_permitidas"] = _sucursales_permitidas(s, exp, aid)
             ex.evento(s, exp_id, "FORMULARIO_PREPARADO", _actor(user), now, assignment_id=aid, reservacion_id=res.id,
                       contrato=c.nombre, version_contrato=c.version, faltan=revision["faltan"])
             return {"reservacion": vista(res), "revision": revision}
@@ -144,11 +167,42 @@ def _datos_intento(db: Database, res_id: int, user, estados: tuple) -> tuple[dic
         exp = s.get(Expediente, res.expediente_id)
         s.expunge(exp)
         return {"id": res.id, "sesion": res.sesion_portal, "estado": res.estado, "aid": res.assignment_id,
-                "clave": res.clave, "vence_en": res.vence_en, "folio": res.folio}, exp
+                "clave": res.clave, "vence_en": res.vence_en, "folio": res.folio, "modo": res.modo,
+                "sucursal": res.sucursal, "fecha": res.fecha,
+                "permitidas": _sucursales_permitidas(s, exp, res.assignment_id)}, exp
 
 
 def _filtros(exp: Expediente, region: str | None = None, sucursal: str | None = None) -> dict:
     return {"region": region or exp.region, "sucursal": sucursal if sucursal is not None else exp.sucursal}
+
+
+def _sucursales_permitidas(s, exp: Expediente, aid: int | None) -> list[str]:
+    """POR_DIA: la sucursal del recurso asignado primero, luego la preferida y las alternativas
+    (lista vacía = cualquiera de la región). El operador no puede salirse de esta lista."""
+    from ..models import SlotState
+    out = []
+    if aid:
+        a = s.get(Assignment, aid)
+        slot = s.get(SlotState, a.slot_id) if a else None
+        if slot is not None and (slot.attributes or {}).get("sucursal"):
+            out.append(slot.attributes["sucursal"])
+    for x in [exp.sucursal, *(exp.sucursales_alternativas or [])]:
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+def _filtros_dia(exp: Expediente, permitidas: list[str], sucursal: str | None, mes: str | None) -> dict:
+    if sucursal and permitidas and sucursal not in permitidas:
+        raise ErrorReservacion(403, "Esa sucursal no está entre las permitidas para este expediente",
+                               {"permitidas": permitidas})
+    suc = sucursal or (permitidas[0] if permitidas else None)
+    if not suc:
+        raise ErrorReservacion(422, "Elige una sucursal de la región del expediente")
+    f = {"region": exp.region, "sucursal": suc}
+    if mes:
+        f["mes"] = mes
+    return f
 
 
 def _guardar_error(db: Database, res_id: int, e: ErrorFormulario, now: datetime, estado: str | None = None) -> None:
@@ -160,16 +214,29 @@ def _guardar_error(db: Database, res_id: int, e: ErrorFormulario, now: datetime,
         s.get(Expediente, res.expediente_id).ultimo_error = f"{e.codigo}: {e.mensaje}"[:500]
 
 
-def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool) -> dict:
+def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool, manuales: dict | None = None,
+                 sucursal: str | None = None, mes: str | None = None) -> dict:
     if not revisado:
         raise ErrorReservacion(422, "Revisa los campos preparados y marca 'revisado' antes de enviarlos")
-    d, exp = _datos_intento(db, res_id, user, (PREPARADA, DATOS_ENVIADOS))
+    d, exp = _datos_intento(db, res_id, user, (PREPARADA, DATOS_ENVIADOS, FECHA_ELEGIDA))
+    c = portal.contrato(d["modo"])
+    auto = ct.valores_desde(c, exp)
+    limpios, errores = ct.validar_manuales(c, manuales, auto)
+    if errores:
+        # No se llama al portal; el estado del formulario lo conserva quien lo envió (nada se guarda aquí).
+        raise ErrorReservacion(422, "Revisa los campos de captura manual", {"tipo": "CAPTURA_MANUAL",
+                                                                             "errores": errores})
+    filtros = _filtros_dia(exp, d["permitidas"], sucursal, mes) if d["modo"] == "POR_DIA" else _filtros(exp)
     _tocar(db, d["aid"], user, now)
-    c = portal.contrato()
-    nav = portal.navegador(timeout=_timeout(db))       # sesión nueva del portal en cada envío de datos
+    nav = portal.navegador(timeout=_timeout(db), modo=d["modo"])   # sesión nueva del portal en cada envío
     try:
-        nav.enviar_datos(ct.valores_desde(c, exp))
-        cal = nav.calendario(_filtros(exp))
+        nav.enviar_datos({**auto, **limpios})
+        del limpios, manuales                           # los manuales no sobreviven a esta llamada
+        if d["modo"] == "POR_DIA":
+            cal = nav.calendario_dia(filtros)
+            nav.verificar_solo_lectura(cal, exp)
+        else:
+            cal = nav.calendario(filtros)
     except (RevisionRequerida, DatosRechazados) as e:
         _guardar_error(db, res_id, e, now, PREPARADA)
         raise ErrorReservacion(422, e.mensaje, e.como_dict()) from e
@@ -181,20 +248,29 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool)
         nav.cerrar()
     with db.session() as s:
         res = s.get(Reservacion, res_id)
-        if res.estado not in (PREPARADA, DATOS_ENVIADOS):
+        if res.estado not in (PREPARADA, DATOS_ENVIADOS, FECHA_ELEGIDA):
             raise ErrorReservacion(409, f"La reservación cambió a {res.estado} mientras tanto")
         res.estado, res.sesion_portal, res.error_codigo, res.error, res.updated_at = DATOS_ENVIADOS, sesion, None, None, now
+        if res.modo == "POR_DIA":
+            res.clave, res.sucursal, res.fecha = None, cal.get("sucursal"), None
         s.get(Expediente, res.expediente_id).ultimo_error = None
+        visibles = (sum(1 for x in cal["dias"] if x["estado"] == "DISPONIBLE") if res.modo == "POR_DIA"
+                    else len(cal["horarios"]))
         ex.evento(s, res.expediente_id, "DATOS_ENVIADOS", _actor(user), now, assignment_id=res.assignment_id,
-                  reservacion_id=res.id, horarios_visibles=len(cal["horarios"]))
-        return {"reservacion": vista(res), "calendario": cal}
+                  reservacion_id=res.id, disponibles_visibles=visibles,
+                  manuales_capturados=sorted(m.nombre for m in c.manuales))   # solo NOMBRES, nunca valores
+        return {"reservacion": vista(res), "calendario": cal, "permitidas": d["permitidas"]}
 
 
 def calendario(db: Database, res_id: int, user, now: datetime, region: str | None = None,
-               sucursal: str | None = None) -> dict:
-    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA))
-    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db))
+               sucursal: str | None = None, mes: str | None = None) -> dict:
+    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA))
+    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db), modo=d["modo"])
     try:
+        if d["modo"] == "POR_DIA":
+            cal = nav.calendario_dia(_filtros_dia(exp, d["permitidas"], sucursal, mes))
+            nav.verificar_solo_lectura(cal, exp)
+            return {"calendario": cal, "permitidas": d["permitidas"]}
         return {"calendario": nav.calendario(_filtros(exp, region, sucursal))}
     except SesionCaducada as e:
         _guardar_error(db, res_id, e, now, PREPARADA if d["estado"] == DATOS_ENVIADOS else None)
@@ -252,12 +328,66 @@ def seleccionar(db: Database, res_id: int, user, now: datetime, horario_id: str,
         res = s.get(Reservacion, res_id)
         s.refresh(res)
         e_exp = s.get(Expediente, res.expediente_id)
-        e_exp.estado, e_exp.ultimo_error, e_exp.updated_at = ex.RESERVANDO, None, now
+        ex.cambiar_estado(s, e_exp, ex.RES_PENDIENTE, _actor(user), now)
+        e_exp.ultimo_error = None
         ex.evento(s, e_exp.id, "RECURSO_SELECCIONADO", _actor(user), now, assignment_id=res.assignment_id,
                   reservacion_id=res.id, horario=horario_id, fecha=res.fecha, hora=res.hora)
         ex.evento(s, e_exp.id, "RESERVACION_PENDIENTE", _actor(user), now, assignment_id=res.assignment_id,
                   reservacion_id=res.id, vence_en=vence.isoformat() if vence else None)
         return {"reservacion": vista(res), "resumen": resumen}
+
+
+# ---------------------------------------------------------------- 3b. elegir día (POR_DIA)
+def seleccionar_dia(db: Database, res_id: int, user, now: datetime, fecha: str, sucursal: str | None = None) -> dict:
+    """Comprueba en el portal (calendario recién leído) que el día sigue DISPONIBLE y lo deja
+    elegido. El portal no aparta días: la unidad se gana o se pierde al confirmar."""
+    try:
+        date.fromisoformat(fecha or "")
+    except ValueError:
+        raise ErrorReservacion(422, "Fecha no válida (AAAA-MM-DD)") from None
+    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, FECHA_ELEGIDA))
+    if d["modo"] != "POR_DIA":
+        raise ErrorReservacion(409, "Esta reservación es por horario: usa 'seleccionar'")
+    suc = sucursal or d["sucursal"]
+    filtros = _filtros_dia(exp, d["permitidas"], suc, fecha[:7])
+    _tocar(db, d["aid"], user, now)
+    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db), modo="POR_DIA")
+    try:
+        cal = nav.calendario_dia(filtros)
+        nav.verificar_solo_lectura(cal, exp)
+    except SesionCaducada as e:
+        _guardar_error(db, res_id, e, now, PREPARADA)
+        raise ErrorReservacion(409, "La sesión del portal caducó: vuelve a enviar los datos", e.como_dict()) from e
+    except ErrorFormulario as e:
+        _guardar_error(db, res_id, e, now)
+        raise ErrorReservacion(502 if isinstance(e, ResultadoIncierto) else 409, e.mensaje, e.como_dict()) from e
+    finally:
+        nav.cerrar()
+    dia = next((x for x in cal["dias"] if x["fecha"] == fecha), None)
+    if dia is None or dia["estado"] != "DISPONIBLE":
+        with db.session() as s:
+            ex.evento(s, exp.id, "DIA_NO_DISPONIBLE", _actor(user), now, assignment_id=d["aid"], reservacion_id=res_id,
+                      fecha=fecha, sucursal=filtros["sucursal"], estado_portal=dia["estado"] if dia else "NO_HABILITADO")
+        raise ErrorReservacion(409, "Ese día ya no está disponible", {"codigo": "DIA_AGOTADO", "calendario": cal})
+    if not cal.get("clave"):
+        raise ErrorReservacion(502, "El portal no entregó la clave de confirmación del calendario")
+    with db.session() as s:
+        t = Reservacion.__table__
+        ok = s.execute(update(t).where(t.c.id == res_id, t.c.estado.in_([DATOS_ENVIADOS, FECHA_ELEGIDA])).values(
+            estado=FECHA_ELEGIDA, sucursal=filtros["sucursal"], fecha=fecha, hora=None, horario_id=None,
+            clave=cal["clave"], error_codigo=None, error=None, updated_at=now)).rowcount
+        if ok != 1:
+            raise ErrorReservacion(409, "La reservación cambió mientras tanto")
+        res = s.get(Reservacion, res_id)
+        s.refresh(res)
+        e_exp = s.get(Expediente, res.expediente_id)
+        ex.cambiar_estado(s, e_exp, ex.RES_PENDIENTE, _actor(user), now)
+        e_exp.ultimo_error = None
+        ex.evento(s, e_exp.id, "RECURSO_SELECCIONADO", _actor(user), now, assignment_id=res.assignment_id,
+                  reservacion_id=res.id, sucursal=res.sucursal, fecha=fecha, libres_vistas=dia.get("libres"))
+        ex.evento(s, e_exp.id, "RESERVACION_PENDIENTE", _actor(user), now, assignment_id=res.assignment_id,
+                  reservacion_id=res.id, fecha=fecha)
+        return {"reservacion": vista(res), "dia": dia, "calendario": cal}
 
 
 # ---------------------------------------------------------------- 4. confirmar (con evidencia)
@@ -266,29 +396,36 @@ def _evidencia_valida(rp: dict | None, clave: str) -> bool:
 
 
 def _finalizar(db: Database, res_id: int, rp: dict, fuente: str, actor: str, now: datetime) -> dict:
-    """Marca CONFIRMADA (solo desde CONFIRMANDO o RETENIDA) con la evidencia leída del portal."""
-    with db.session() as s:
-        res = s.get(Reservacion, res_id)
-        if res.estado == CONFIRMADA:
-            return vista(res)
-        t = Reservacion.__table__
-        evid = {"folio": rp["folio"], "estado_portal": rp["estado"], "clave_coincide": True, "fuente": fuente,
-                "horario_portal": rp.get("horario"), "confirmada_en_portal": rp.get("confirmada_en"),
-                "verificada_en": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"}
-        ok = s.execute(update(t).where(t.c.id == res_id, t.c.estado.in_([CONFIRMANDO, RETENIDA])).values(
-            estado=CONFIRMADA, folio=rp["folio"], evidencia=evid, horario_id=rp.get("horario") or res.horario_id,
-            fecha=rp.get("fecha") or res.fecha, hora=rp.get("hora") or res.hora, error=None, error_codigo=None,
-            confirmada_por=res.confirmada_por or actor, viva_expediente_id=res.expediente_id, updated_at=now)).rowcount
-        if ok != 1:
+    """Marca CONFIRMADA (desde CONFIRMANDO, EN_VERIFICACION o lista para confirmar) con la evidencia
+    leída del portal. Si el folio ya pertenece a OTRA reservación (folio duplicado del portal), NO
+    se confirma: queda EN_VERIFICACION y el expediente pasa a REQUIERE_REVISION."""
+    evid = {"folio": rp["folio"], "estado_portal": rp["estado"], "clave_coincide": True, "fuente": fuente,
+            "horario_portal": rp.get("horario"), "dia_portal": rp.get("dia"), "confirmada_en_portal": rp.get("confirmada_en"),
+            "verificada_en": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"}
+    desde = [CONFIRMANDO, EN_VERIFICACION, *LISTAS_PARA_CONFIRMAR]
+    try:
+        with db.session() as s:
+            res = s.get(Reservacion, res_id)
+            if res.estado == CONFIRMADA:
+                return vista(res)
+            t = Reservacion.__table__
+            ok = s.execute(update(t).where(t.c.id == res_id, t.c.estado.in_(desde)).values(
+                estado=CONFIRMADA, folio=rp["folio"], evidencia=evid, horario_id=rp.get("horario") or res.horario_id,
+                fecha=rp.get("fecha") or res.fecha, hora=rp.get("hora") or res.hora,
+                sucursal=rp.get("sucursal") or res.sucursal, error=None, error_codigo=None,
+                confirmada_por=res.confirmada_por or actor, viva_expediente_id=res.expediente_id,
+                updated_at=now)).rowcount
+            if ok != 1:
+                s.refresh(res)
+                return vista(res)
             s.refresh(res)
-            return vista(res)
-        s.refresh(res)
-        exp = s.get(Expediente, res.expediente_id)
-        ex.evento(s, exp.id, "RESERVACION_CONFIRMADA", actor, now, assignment_id=res.assignment_id,
-                  reservacion_id=res.id, folio=rp["folio"], evidencia=fuente)
-        ex.cerrar(s, exp, ex.CONFIRMADO, actor, now, nota=f"folio {rp['folio']}")
-        exp.ultimo_error = None
-        aid, out = res.assignment_id, vista(res)
+            exp = s.get(Expediente, res.expediente_id)
+            ex.evento(s, exp.id, "RESERVACION_CONFIRMADA", actor, now, assignment_id=res.assignment_id,
+                      reservacion_id=res.id, folio=rp["folio"], evidencia=fuente)
+            ex.confirmar(s, exp, actor, now, rp["folio"])
+            aid, out = res.assignment_id, vista(res)
+    except IntegrityError:
+        return _folio_duplicado(db, res_id, rp, fuente, actor, now)
     if aid:   # fuera de la transacción anterior (no se anidan sesiones)
         if not asg.complete_assignment(db, aid, None, now, actor):
             with db.session() as s:
@@ -298,8 +435,23 @@ def _finalizar(db: Database, res_id: int, rp: dict, fuente: str, actor: str, now
     return out
 
 
+def _folio_duplicado(db: Database, res_id: int, rp: dict, fuente: str, actor: str, now: datetime) -> dict:
+    with db.session() as s:
+        res = s.get(Reservacion, res_id)
+        otra = s.scalar(select(Reservacion.id).where(Reservacion.folio == rp["folio"]))
+        res.estado, res.error_codigo, res.updated_at = EN_VERIFICACION, "FOLIO_DUPLICADO", now
+        res.error = (f"El portal entregó el folio {rp['folio']}, que ya pertenece a otra reservación (#{otra}). "
+                     "No se confirma: un administrador debe revisarlo con el portal.")[:500]
+        res.evidencia = {**(res.evidencia or {}), "folio_duplicado": rp["folio"], "otra_reservacion": otra,
+                         "fuente": fuente}
+        exp = s.get(Expediente, res.expediente_id)
+        ex.evento(s, exp.id, "FOLIO_DUPLICADO", actor, now, reservacion_id=res.id, otra_reservacion=otra)
+        ex.a_revision(s, exp, actor, now, "FOLIO_DUPLICADO")
+        return vista(res)
+
+
 def _cerrar_intento(db: Database, res_id: int, estado: str, codigo: str, mensaje: str, actor: str, now: datetime,
-                    desde: tuple = (CONFIRMANDO, RETENIDA)) -> dict | None:
+                    desde: tuple = (CONFIRMANDO, EN_VERIFICACION, RETENIDA)) -> dict | None:
     with db.session() as s:
         t = Reservacion.__table__
         ok = s.execute(update(t).where(t.c.id == res_id, t.c.estado.in_(list(desde))).values(
@@ -310,8 +462,8 @@ def _cerrar_intento(db: Database, res_id: int, estado: str, codigo: str, mensaje
         if ok != 1:
             return None
         exp = s.get(Expediente, res.expediente_id)
-        if exp.estado in (ex.RESERVANDO, ex.EN_CAPTURA):
-            exp.estado = ex.EN_CAPTURA          # el operador puede intentar otro horario
+        if exp.estado == ex.RES_PENDIENTE:
+            ex.cambiar_estado(s, exp, ex.CAPTURA, actor, now, motivo=codigo)   # el operador puede intentar otro
         exp.ultimo_error, exp.updated_at = f"{codigo}: {mensaje}"[:500], now
         tipo = "RESERVACION_EXPIRADA" if estado == EXPIRADA else (
             "RESERVACION_RECHAZADA" if estado == RECHAZADA else "RESERVACION_DESCARTADA")
@@ -319,8 +471,38 @@ def _cerrar_intento(db: Database, res_id: int, estado: str, codigo: str, mensaje
         return vista(res)
 
 
+def _regresar(db: Database, res_id: int, estado: str, codigo: str, mensaje: str, actor: str, now: datetime) -> dict:
+    """POR_DIA: el día se agotó (DATOS_ENVIADOS, misma sesión) o la sesión caducó (PREPARADA)."""
+    with db.session() as s:
+        t = Reservacion.__table__
+        s.execute(update(t).where(t.c.id == res_id, t.c.estado == CONFIRMANDO).values(
+            estado=estado, error_codigo=codigo[:32], error=mensaje[:500], clave=None, fecha=None, updated_at=now))
+        res = s.get(Reservacion, res_id)
+        s.refresh(res)
+        exp = s.get(Expediente, res.expediente_id)
+        if exp.estado == ex.RES_PENDIENTE:
+            ex.cambiar_estado(s, exp, ex.CAPTURA, actor, now, motivo=codigo)
+        exp.ultimo_error = f"{codigo}: {mensaje}"[:500]
+        ex.evento(s, exp.id, "DIA_NO_DISPONIBLE" if codigo in DIA_NO_DISPONIBLE else "RESERVACION_REINICIADA", actor,
+                  now, assignment_id=res.assignment_id, reservacion_id=res.id, codigo=codigo)
+        return vista(res)
+
+
+def _a_verificacion(db: Database, res_id: int, actor: str, now: datetime, motivo: str, folio: str | None) -> dict:
+    with db.session() as s:
+        t = Reservacion.__table__
+        s.execute(update(t).where(t.c.id == res_id, t.c.estado == CONFIRMANDO).values(
+            estado=EN_VERIFICACION, updated_at=now, error_codigo=(motivo or "SIN_EVIDENCIA")[:32],
+            error="Resultado incierto: el motor lo verificará con el portal por la clave de confirmación"))
+        r = s.get(Reservacion, res_id)
+        s.refresh(r)
+        ex.evento(s, r.expediente_id, "CONFIRMACION_EN_VERIFICACION", actor, now, assignment_id=r.assignment_id,
+                  reservacion_id=r.id, folio_redireccion=folio, motivo=motivo)
+        return vista(r)
+
+
 def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) -> tuple[int, dict]:
-    """Devuelve (código HTTP, cuerpo). 200 CONFIRMADA; 202 CONFIRMANDO (resultado en verificación)."""
+    """Devuelve (código HTTP, cuerpo). 200 CONFIRMADA; 202 EN_VERIFICACION (resultado incierto)."""
     if not confirmo:
         raise ErrorReservacion(422, "La confirmación exige que el operador la marque expresamente")
     actor = _actor(user)
@@ -329,7 +511,7 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         if res.estado == CONFIRMADA:
             return 200, {"reservacion": vista(res), "repetida": True}
         t = Reservacion.__table__
-        cond = [t.c.id == res_id, t.c.estado == RETENIDA]
+        cond = [t.c.id == res_id, t.c.estado.in_(list(LISTAS_PARA_CONFIRMAR))]
         if not user.is_admin:
             cond.append(t.c.operator_id == user.operator_id)
         # Se GUARDA que se está confirmando ANTES de hablar con el portal: si el motor se cae a mitad,
@@ -339,18 +521,19 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
                                                      confirmada_por=actor, updated_at=now)).rowcount
         if ok != 1:
             s.refresh(res)
-            if res.estado == CONFIRMANDO:
-                raise ErrorReservacion(409, "Esta reservación ya se está confirmando (otro operador o pestaña)",
+            if res.estado in (CONFIRMANDO, EN_VERIFICACION):
+                raise ErrorReservacion(409, "Esta reservación ya se está confirmando o verificando",
                                        {"estado": res.estado})
             raise ErrorReservacion(409, f"No se puede confirmar: la reservación está {res.estado}",
                                    {"estado": res.estado})
-        clave, sesion, aid = res.clave, res.sesion_portal, res.assignment_id
+        clave, sesion, aid, modo = res.clave, res.sesion_portal, res.assignment_id, res.modo
+        sucursal, fecha = res.sucursal, res.fecha
     _tocar(db, aid, user, now)
-    nav = portal.navegador(sesion=sesion, timeout=_timeout(db))
+    nav = portal.navegador(sesion=sesion, timeout=_timeout(db), modo=modo)
     try:
         folio = None
         try:
-            folio = nav.confirmar(clave)
+            folio = nav.continuar_dia(clave, sucursal, fecha) if modo == "POR_DIA" else nav.confirmar(clave)
         except ResultadoIncierto as e:
             with db.session() as s:
                 r = s.get(Reservacion, res_id)
@@ -360,11 +543,29 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
             try:
                 rp = nav.buscar_por_clave(clave)
             except ResultadoIncierto:
-                rp = None
+                return 202, {"reservacion": _a_verificacion(db, res_id, actor, now, "SIN_VERIFICAR_RECHAZO", None),
+                             "aviso": "El portal rechazó la confirmación pero no se pudo comprobar por la clave."}
             if _evidencia_valida(rp, clave):
                 return 200, {"reservacion": _finalizar(db, res_id, rp, "api_por_clave", actor, now)}
+            if modo == "POR_DIA" and (e.codigo in DIA_NO_DISPONIBLE or isinstance(e, SesionCaducada)):
+                destino = PREPARADA if isinstance(e, SesionCaducada) else DATOS_ENVIADOS
+                v = _regresar(db, res_id, destino, e.codigo, e.mensaje, actor, now)
+                cal = None
+                if destino == DATOS_ENVIADOS:
+                    try:
+                        with db.session() as s:
+                            exp = s.get(Expediente, v["expediente_id"])
+                            s.expunge(exp)
+                        cal = nav.calendario_dia({"region": exp.region, "sucursal": sucursal, "mes": (fecha or "")[:7]})
+                    except ErrorFormulario:
+                        cal = None
+                raise ErrorReservacion(409, e.mensaje, {"codigo": e.codigo, "reservacion": v, "calendario": cal,
+                                                        "tipo": "SESION" if destino == PREPARADA else "DIA"}) from e
             estado = EXPIRADA if e.codigo in ("RETENCION_VENCIDA", "SESION_CADUCADA", "SESION_INEXISTENTE") else RECHAZADA
             v = _cerrar_intento(db, res_id, estado, e.codigo, e.mensaje, actor, now, desde=(CONFIRMANDO,))
+            if estado == RECHAZADA and modo == "POR_DIA":
+                with db.session() as s:   # p. ej. cita duplicada o folio anterior inválido: lo revisa una persona
+                    ex.a_revision(s, s.get(Expediente, v["expediente_id"]), actor, now, e.codigo)
             raise ErrorReservacion(409, e.mensaje, {"codigo": e.codigo, "reservacion": v}) from e
         # Evidencia: lo que el portal dice por su API (por folio si lo hubo, si no por clave).
         try:
@@ -375,14 +576,13 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         except ResultadoIncierto:
             rp, fuente = None, ""
         if _evidencia_valida(rp, clave):
-            return 200, {"reservacion": _finalizar(db, res_id, rp, fuente, actor, now)}
-        with db.session() as s:
-            r = s.get(Reservacion, res_id)
-            ex.evento(s, r.expediente_id, "CONFIRMACION_EN_VERIFICACION", actor, now, assignment_id=r.assignment_id,
-                      reservacion_id=r.id, folio_redireccion=folio)
-            return 202, {"reservacion": vista(r),
-                         "aviso": "No se pudo comprobar el resultado con el portal. El motor lo verificará por la "
-                                  "clave de confirmación; no repitas la reservación por otro medio."}
+            out = _finalizar(db, res_id, rp, fuente, actor, now)
+            if out["estado"] == CONFIRMADA:
+                return 200, {"reservacion": out}
+            return 202, {"reservacion": out, "aviso": out.get("error")}
+        return 202, {"reservacion": _a_verificacion(db, res_id, actor, now, "SIN_EVIDENCIA", folio),
+                     "aviso": "No se pudo comprobar el resultado con el portal. El motor lo verificará por la "
+                              "clave de confirmación; no repitas la reservación por otro medio."}
     finally:
         nav.cerrar()
 
@@ -392,17 +592,17 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
     actor = _actor(user)
     with db.session() as s:
         res = _res_visible(s, res_id, user)
-        estado, folio, sesion = res.estado, res.folio, res.sesion_portal
-    if estado in (PREPARADA, DATOS_ENVIADOS, RETENIDA):
-        # Descartar un intento sin confirmar: el apartado del portal vence solo.
+        estado, folio, sesion, modo = res.estado, res.folio, res.sesion_portal, res.modo
+    if estado in (PREPARADA, DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA):
+        # Descartar un intento sin confirmar: el apartado del portal (si lo hay) vence solo.
         v = _cerrar_intento(db, res_id, CANCELADA, "DESCARTADO", "intento descartado por el operador", actor, now,
-                            desde=(PREPARADA, DATOS_ENVIADOS, RETENIDA))
+                            desde=(PREPARADA, DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA))
         if v is None:
             raise ErrorReservacion(409, "La reservación cambió mientras tanto")
         return v
     if estado != CONFIRMADA:
         raise ErrorReservacion(409, f"No se puede cancelar una reservación {estado}")
-    nav = portal.navegador(sesion=sesion, timeout=_timeout(db))
+    nav = portal.navegador(sesion=sesion, timeout=_timeout(db), modo=modo)
     try:
         rp = nav.cancelar(folio)
     except ErrorFormulario as e:
@@ -419,42 +619,50 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
             evidencia={**(res.evidencia or {}), "cancelada_en_portal": now.isoformat() + "Z"}))
         s.refresh(res)
         exp = s.get(Expediente, res.expediente_id)
-        exp.estado, exp.updated_at = ex.CANCELADO, now
         ex.evento(s, exp.id, "RESERVACION_CANCELADA", actor, now, reservacion_id=res.id, folio=folio)
+        if exp.estado != ex.CERRADO:
+            ex.cerrar(s, exp, "CANCELADO", actor, now, nota="reservación cancelada en el portal")
         return vista(res)
 
 
 # ---------------------------------------------------------------- recuperación (la ejecuta el motor)
 def recuperar(db: Database, now: datetime) -> dict:
-    """Resuelve intentos que quedaron a medias: CONFIRMANDO (respuesta perdida o motor caído a
-    mitad) y RETENIDA vencidos. Siempre pregunta primero al portal por la clave."""
+    """Resuelve intentos que quedaron a medias: CONFIRMANDO (motor caído a mitad), EN_VERIFICACION
+    (respuesta perdida) y RETENIDA vencidos. Siempre pregunta primero al portal por la clave; si el
+    portal no responde, el intento SIGUE en verificación (nunca se da por confirmado ni por perdido)."""
     with db.session() as s:
         gracia = float(get_params(s)["captura_gracia_confirmando_s"])
         timeout = min(5.0, float(get_params(s)["captura_timeout_portal_s"]))
-        pend = [(r.id, r.estado, r.clave, r.confirmando_desde, r.vence_en) for r in s.scalars(
-            select(Reservacion).where((Reservacion.estado == CONFIRMANDO) |
+        pend = [(r.id, r.estado, r.clave, r.confirmando_desde, r.vence_en, r.modo) for r in s.scalars(
+            select(Reservacion).where((Reservacion.estado.in_([CONFIRMANDO, EN_VERIFICACION])
+                                       & ((Reservacion.error_codigo.is_(None))
+                                          | (Reservacion.error_codigo != "FOLIO_DUPLICADO"))) |
                                       ((Reservacion.estado == RETENIDA) & (Reservacion.vence_en <= now))))]
-    out = {"confirmadas": 0, "reabiertas": 0, "expiradas": 0, "sin_portal": 0}
+    out = {"confirmadas": 0, "reabiertas": 0, "expiradas": 0, "sin_portal": 0, "en_verificacion": 0}
     if not pend:
         return out
-    nav = portal.navegador(timeout=timeout)
+    navs: dict[str, object] = {}
     try:
-        for rid, estado, clave, desde, vence in pend:
+        for rid, estado, clave, desde, vence, modo in pend:
+            nav = navs.get(modo) or navs.setdefault(modo, portal.navegador(timeout=timeout, modo=modo))
             try:
                 rp = nav.buscar_por_clave(clave) if clave else None
             except ResultadoIncierto:
                 out["sin_portal"] += 1
                 break                               # el portal no responde: se reintenta en la siguiente pasada
             if _evidencia_valida(rp, clave):
-                _finalizar(db, rid, rp, "recuperacion_por_clave", "motor", now)
-                out["confirmadas"] += 1
-            elif estado == CONFIRMANDO and desde and (now - desde).total_seconds() >= gracia:
-                if vence and vence > now:
+                v = _finalizar(db, rid, rp, "recuperacion_por_clave", "motor", now)
+                out["confirmadas" if v["estado"] == CONFIRMADA else "en_verificacion"] += 1
+            elif estado in (CONFIRMANDO, EN_VERIFICACION) and desde and (now - desde).total_seconds() >= gracia:
+                # El portal responde y NO tiene una reservación con esa clave: es seguro reabrir.
+                if modo == "POR_DIA" or (vence and vence > now):
+                    destino = FECHA_ELEGIDA if modo == "POR_DIA" else RETENIDA
                     with db.session() as s:
                         t = Reservacion.__table__
-                        if s.execute(update(t).where(t.c.id == rid, t.c.estado == CONFIRMANDO).values(
-                                estado=RETENIDA, updated_at=now,
-                                error="El portal no registró la confirmación: puedes confirmarla de nuevo")).rowcount:
+                        if s.execute(update(t).where(t.c.id == rid, t.c.estado.in_([CONFIRMANDO, EN_VERIFICACION]))
+                                     .values(estado=destino, updated_at=now, error_codigo=None,
+                                             error="El portal no registró la confirmación: puedes confirmarla de nuevo"
+                                             )).rowcount:
                             r = s.get(Reservacion, rid)
                             ex.evento(s, r.expediente_id, "CONFIRMACION_REABIERTA", "motor", now,
                                       reservacion_id=rid, assignment_id=r.assignment_id)
@@ -466,6 +674,9 @@ def recuperar(db: Database, now: datetime) -> dict:
                 if _cerrar_intento(db, rid, EXPIRADA, "RETENCION_VENCIDA", "El apartado del horario venció",
                                    "motor", now, desde=(RETENIDA,)):
                     out["expiradas"] += 1
+            else:
+                out["en_verificacion"] += 1
     finally:
-        nav.cerrar()
+        for nav in navs.values():
+            nav.cerrar()
     return out

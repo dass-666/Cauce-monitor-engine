@@ -56,7 +56,7 @@ def expediente_api(c: httpx.Client, reg: dict, n: int) -> dict:
     return {"nombre": f"Demostracion Ficticia {letras.capitalize()}", "fecha_nacimiento": reg["fecha_nacimiento"],
             "telefono": f"555{n:07d}", "telefono_confirmacion": f"555{n:07d}", "correo": f"demo{n}@ejemplo.test",
             "correo_confirmacion": f"demo{n}@ejemplo.test", "region": "NORTE", "tipo_tramite": reg["tramite"],
-            "id_registro_previo": reg["identificador"], "prioridad": 2}
+            "id_registro_previo": reg["identificador"], "prioridad": 2, "modo": "POR_HORARIO"}
 
 
 def run(a) -> dict:
@@ -138,7 +138,7 @@ def run(a) -> dict:
         faltan = [t for t in ("DISPONIBILIDAD_DETECTADA", "FORMULARIO_PREPARADO", "RECURSO_SELECCIONADO",
                               "RESERVACION_PENDIENTE", "RESERVACION_CONFIRMADA") if t not in tipos]
         ck("trazabilidad: eventos normalizados en el historial del expediente", not faltan, faltan or tipos)
-        ck("el expediente queda CONFIRMADO", f["estado"] == "CONFIRMADO", f["estado"])
+        ck("el expediente queda CONFIRMADO", f["estado"] == "RESERVACION_CONFIRMADA", f["estado"])
 
     # ---------------------------------------------------------------- reinicio brusco de ambos procesos
     motor.proc.kill()
@@ -156,7 +156,7 @@ def run(a) -> dict:
         f = c.get(f"/api/expedientes/{exp['id']}").json()
         rp = api_portal.get(f"/api/reservaciones/{folio}").json()
         ck("tras el reinicio el folio sigue CONFIRMADO en motor y portal",
-           f["estado"] == "CONFIRMADO" and rp.get("estado") == "CONFIRMADA", (f["estado"], rp.get("estado")))
+           f["estado"] == "RESERVACION_CONFIRMADA" and rp.get("estado") == "CONFIRMADA", (f["estado"], rp.get("estado")))
     # otro expediente de principio a fin por la API después del reinicio
     r = c.post("/api/expedientes", json=expediente_api(c, portal.registro(13), 13))
     exp2 = r.json()

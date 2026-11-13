@@ -220,10 +220,17 @@ def allocate_slot(db: Database, slot_id: int, now: datetime, params: dict, chang
                 break
             req = cands[0]
             ops = candidate_operators(s, slot.region, (slot.attributes or {}).get("sucursal"))
+            # v1.6: quien ya rechazó o declinó esta solicitud no la vuelve a recibir
+            vetados = set(s.scalars(select(Assignment.operator_id).where(
+                Assignment.request_id == req.id, Assignment.status.in_(["RECHAZADA", "DECLINADA"]))))
+            hay_operadores = bool(ops)
+            ops = [o for o in ops if o.id not in vetados]
             req_id, region = req.id, slot.region
         tried.add(req_id)
-        if not ops:
+        if not hay_operadores:
             break  # nadie disponible: los recursos quedan libres y se reevalúan después
+        if not ops:
+            continue  # solo la rechazaron los disponibles: se prueba la siguiente solicitud
         for op in ops:
             out = try_assign(db, slot_id, req_id, op.id, now, params["ttl_asignacion_s"], change_event_id)
             if out.assignment_id:
@@ -349,16 +356,21 @@ def _consume_in_simulator(s: Session, a: Assignment) -> None:
 
 def reject_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str,
                       params: dict, reason: str = "rechazada por el operador", op: dict | None = None,
-                      only_status: tuple = ("ACTIVA", "EN_PROCESO")) -> bool:
+                      only_status: tuple = ("ACTIVA", "EN_PROCESO"), status: str = "RECHAZADA") -> bool:
+    """`status`: RECHAZADA (el recurso no sirve para esta solicitud: no se vuelve a ofrecer ese
+    recurso a esa solicitud) o DECLINADA (v1.6: el problema es del OPERADOR -no disponible,
+    conflicto de interés, carga-: la solicitud vuelve a la cola y no se le ofrece a ESE operador)."""
+    if status not in ("RECHAZADA", "DECLINADA"):
+        raise ValueError("estado de rechazo no válido")
     with db.session() as s:
         cond = [Assignment.id == assignment_id, Assignment.status.in_(list(only_status))]
         if operator_id is not None:
             cond.append(Assignment.operator_id == operator_id)
-        if s.execute(update(Assignment).where(and_(*cond)).values(status="RECHAZADA")).rowcount != 1:
+        if s.execute(update(Assignment).where(and_(*cond)).values(status=status)).rowcount != 1:
             return False
         record_operation(s, op, assignment_id, 200, {"ok": True})
         a = s.get(Assignment, assignment_id)
-        _release(s, a, "RECHAZADA", now, reason)
+        _release(s, a, status, now, reason)
         _back_to_queue(s, s.get(Request, a.request_id), params, actor, reason, now)
         return True
 

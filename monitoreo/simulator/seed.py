@@ -102,11 +102,17 @@ def _seed_file_sources(db: Database, port: int) -> None:
 def seed_captura(db: Database) -> None:
     """v1.5: fuente del portal de reservaciones de PRUEBA (idempotente; solo fuera de producción)."""
     import os
+    url = os.environ.get("MONITOREO_PORTAL_URL", "http://127.0.0.1:8200")
     with db.session() as s:
-        if s.scalar(select(Source.id).where(Source.code == "portal-lab")):
-            return
-        s.add(Source(code="portal-lab", name="Portal de reservaciones de prueba", region="CENTRO",
-                     category="calendario", availability_type="calendario", connector_type="portal_reservas",
-                     config={"url_base": os.environ.get("MONITOREO_PORTAL_URL", "http://127.0.0.1:8200"),
-                             "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5},
-                     interval_s=10, jitter_pct=0.1, rate_limit_per_min=12))
+        if not s.scalar(select(Source.id).where(Source.code == "portal-lab")):
+            s.add(Source(code="portal-lab", name="Portal de reservaciones de prueba", region="CENTRO",
+                         category="calendario", availability_type="calendario", connector_type="portal_reservas",
+                         config={"url_base": url, "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5},
+                         interval_s=10, jitter_pct=0.1, rate_limit_per_min=12))
+        # v1.6: calendario POR DÍA del mismo portal de prueba (mecanismo A: eventos, con respaldo B)
+        if not s.scalar(select(Source.id).where(Source.code == "portal-lab-dias")):
+            s.add(Source(code="portal-lab-dias", name="Portal de prueba · calendario por día", region="CENTRO",
+                         category="calendario", availability_type="calendario", connector_type="portal_dias",
+                         config={"url_base": url, "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5,
+                                 "mecanismo": os.environ.get("MONITOREO_CALENDARIO_MECANISMO", "eventos")},
+                         interval_s=10, jitter_pct=0.1, rate_limit_per_min=30))

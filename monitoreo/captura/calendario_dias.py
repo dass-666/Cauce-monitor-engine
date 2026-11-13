@@ -257,13 +257,18 @@ def vista(s: Session, now: datetime, frescura_s: float, region: str | None = Non
             "fuentes": out_f, "sucursales": list(sucs.values())}
 
 
-def cambios_desde(s: Session, desde_id: int = 0, limite: int = 200) -> list[dict]:
+def cambios_desde(s: Session, desde_id: int = 0, limite: int = 200, ultimos: bool = False) -> list[dict]:
+    """Cambios con id > desde_id (en orden). `ultimos=True`: los `limite` más recientes."""
     from ..api.serializers import iso
-    q = (select(CalendarioCambio).where(CalendarioCambio.id > desde_id).order_by(CalendarioCambio.id).limit(limite))
+    q = select(CalendarioCambio).where(CalendarioCambio.id > desde_id)
+    q = q.order_by(CalendarioCambio.id.desc() if ultimos else CalendarioCambio.id).limit(limite)
+    filas = list(s.scalars(q))
+    if ultimos:
+        filas.reverse()
     return [{"id": c.id, "tipo": c.tipo, "clave": c.clave, "sucursal": c.sucursal, "tramite": c.tramite,
              "fecha": c.fecha, "antes": c.antes, "despues": c.despues, "libres": c.libres, "mecanismo": c.mecanismo,
              "ts_portal": iso(c.ts_portal), "detectado_en": iso(c.detectado_en), "detalle": c.detalle}
-            for c in s.scalars(q)]
+            for c in filas]
 
 
 def resumen_recursos(s: Session, source_id: int, now: datetime) -> list[dict]:

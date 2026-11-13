@@ -24,6 +24,7 @@ class UserIn(Strict):
     role: Literal["admin", "operador"]
     operator_name: str | None = Field(default=None, max_length=128)
     regions: list[str] = Field(default_factory=list, max_length=10)
+    sucursales: list[str] = Field(default_factory=list, max_length=20)   # v1.6: vacío = todas las de sus regiones
 
 
 class PasswordIn(Strict):
@@ -91,6 +92,7 @@ class RequestPatch(Strict):
 class OperatorIn(Strict):
     name: str = Field(min_length=1, max_length=128)
     regions: list[str] = Field(default_factory=list, max_length=10)
+    sucursales: list[str] = Field(default_factory=list, max_length=20)   # v1.6: vacío = todas las de sus regiones
     max_concurrent: int = Field(default=3, ge=1, le=100)
     active: bool = True
 
@@ -98,6 +100,7 @@ class OperatorIn(Strict):
 class OperatorPatch(Strict):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     regions: list[str] | None = Field(default=None, max_length=10)
+    sucursales: list[str] | None = Field(default=None, max_length=20)
     max_concurrent: int | None = Field(default=None, ge=1, le=100)
     active: bool | None = None
 

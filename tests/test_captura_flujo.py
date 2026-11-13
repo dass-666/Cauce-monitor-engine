@@ -79,7 +79,7 @@ def test_recorrido_completo_hasta_folio_con_evidencia(lab):
     for t in ("DISPONIBILIDAD_DETECTADA", "FORMULARIO_PREPARADO", "RECURSO_SELECCIONADO", "RESERVACION_PENDIENTE",
               "RESERVACION_CONFIRMADA"):
         assert t in tipos, (t, tipos)
-    assert ficha["estado"] == "CONFIRMADO"
+    assert ficha["estado"] == "RESERVACION_CONFIRMADA"
     # trazabilidad: cada evento normalizado enlaza la asignación del motor y su evento de cambio
     with lab.db.session() as s:
         exp = s.get(Expediente, eid)
@@ -128,12 +128,21 @@ def test_identificador_inexistente(lab):
 
 
 def test_falta_dato_obligatorio_del_contrato(lab):
-    eid, u, h = asignado(lab, id_registro_previo=None)
-    r = lab.c.post(f"/api/expedientes/{eid}/preparar", headers=h)
-    assert r.json()["revision"]["faltan"] == ["identificador"] and not r.json()["revision"]["listo"]
-    rid = r.json()["reservacion"]["id"]
-    r = lab.c.post(f"/api/reservaciones/{rid}/enviar-datos", headers=h, json={"revisado": True})
-    assert r.status_code == 422 and r.json()["detail"]["codigo"] == "DATOS_INCOMPLETOS"
+    """v1.5: el expediente se asignaba y el envío fallaba con DATOS_INCOMPLETOS.
+    v1.6 (requisito "no asignar expedientes incompletos"): queda INCOMPLETO, no se asigna, y al
+    completarlo pasa a LISTO y entra a la cola."""
+    e = lab.crear(id_registro_previo=None)
+    assert e["estado"] == "INCOMPLETO" and e["faltan"] == ["id_registro_previo"] and e["request_id"] is None
+    lab.ciclo()
+    with lab.db.session() as s:
+        assert s.get(Expediente, e["id"]).estado == "INCOMPLETO" and s.get(Expediente, e["id"]).operator_id is None
+    assert lab.c.post(f"/api/expedientes/{e['id']}/preparar", headers=lab.h).status_code == 409
+    r = lab.c.patch(f"/api/expedientes/{e['id']}", headers=lab.h, json={"version": e["version"],
+                                                                         "id_registro_previo": "REG-COMPLETO-1"})
+    assert r.status_code == 200 and r.json()["estado"] == "LISTO", r.text
+    lab.ciclo()
+    with lab.db.session() as s:
+        assert s.get(Expediente, e["id"]).estado == "ASIGNADO"
 
 
 def test_reservacion_duplicada_en_el_portal(lab):
@@ -149,7 +158,7 @@ def test_reservacion_duplicada_en_el_portal(lab):
     assert r.status_code == 409 and r.json()["detail"]["codigo"] == "RESERVACION_DUPLICADA"
     with lab.db.session() as s:
         assert s.get(Reservacion, rid2).estado == "RECHAZADA"
-        assert s.get(Expediente, eid2).estado == "EN_CAPTURA"         # el operador decide qué hacer
+        assert s.get(Expediente, eid2).estado == "CAPTURA_EN_PROCESO"         # el operador decide qué hacer
     hist = lab.c.get(f"/api/expedientes/{eid2}", headers=h2).json()["historial"]
     assert "RESERVACION_RECHAZADA" in [x["tipo"] for x in hist]
 
@@ -193,7 +202,7 @@ def test_sesion_caducada_al_confirmar_expira_el_intento(lab):
     r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
     assert r.status_code == 409
     with lab.db.session() as s:
-        assert s.get(Reservacion, rid).estado == "EXPIRADA" and s.get(Expediente, eid).estado == "EN_CAPTURA"
+        assert s.get(Reservacion, rid).estado == "EXPIRADA" and s.get(Expediente, eid).estado == "CAPTURA_EN_PROCESO"
     # nuevo intento sobre el mismo expediente
     rid2, _ = lab.hasta_confirmar(eid, h)
     assert rid2 != rid
@@ -219,7 +228,7 @@ def test_error_interno_al_confirmar_y_reintento(lab):
     rid, _ = lab.hasta_confirmar(eid, h)
     lab.portal.fallos(modo="error_interno", restantes=1, pantallas=["confirmar"])
     r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
-    assert r.status_code == 202 and r.json()["reservacion"]["estado"] == "CONFIRMANDO"
+    assert r.status_code == 202 and r.json()["reservacion"]["estado"] == "EN_VERIFICACION"
     # mientras está CONFIRMANDO nadie puede volver a confirmar
     assert lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True}).status_code == 409
     import time
@@ -241,9 +250,9 @@ def test_nunca_confirmada_sin_evidencia(lab, monkeypatch):
         m.setattr(NavegadorHTTP, "verificar_folio", falsa)
         m.setattr(NavegadorHTTP, "buscar_por_clave", lambda self, clave: None)
         r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
-    assert r.status_code == 202 and r.json()["reservacion"]["estado"] == "CONFIRMANDO"
+    assert r.status_code == 202 and r.json()["reservacion"]["estado"] == "EN_VERIFICACION"
     with lab.db.session() as s:
-        assert s.get(Expediente, eid).estado != "CONFIRMADO"
+        assert s.get(Expediente, eid).estado != "RESERVACION_CONFIRMADA"
     # la recuperación consulta al portal de verdad y encuentra la reservación por su clave
     assert seguimiento.mantenimiento(lab.db, lab.clock.now())["recuperacion"]["confirmadas"] == 1
 
@@ -270,13 +279,13 @@ def test_reinicio_del_motor_a_mitad_de_confirmar(lab, tmp_path, monkeypatch):
     lab2.db = lab2.c.app.state.db
     try:
         with lab2.db.session() as s:
-            assert s.get(Reservacion, rid).estado == "CONFIRMANDO"
+            assert s.get(Reservacion, rid).estado == "EN_VERIFICACION"
         out = seguimiento.mantenimiento(lab2.db, lab.clock.now())
         assert out["recuperacion"]["confirmadas"] == 1
         with lab2.db.session() as s:
             res = s.get(Reservacion, rid)
             assert res.estado == "CONFIRMADA" and res.evidencia["fuente"] == "recuperacion_por_clave"
-            assert s.get(Expediente, eid).estado == "CONFIRMADO"
+            assert s.get(Expediente, eid).estado == "RESERVACION_CONFIRMADA"
     finally:
         lab2.c.__exit__(None, None, None)
         lab.c.__enter__()                                # para que el fixture pueda cerrar
@@ -354,7 +363,7 @@ def test_disponibilidad_que_desaparece_devuelve_el_expediente(lab):
         lab.ciclo()
         with lab.db.session() as s:
             exp = s.get(Expediente, e["id"])
-            assert exp.estado == "PENDIENTE" and exp.operator_id is None
+            assert exp.estado == "LISTO" and exp.operator_id is None
             tipos = [x.tipo for x in s.scalars(select(ExpedienteEvento).where(ExpedienteEvento.expediente_id == exp.id))]
             assert "ASIGNACION_LIBERADA" in tipos
     finally:
@@ -373,7 +382,7 @@ def test_cancelar_reservacion_libera_horario_y_permite_nuevo_expediente(lab):
                               headers={"Authorization": f"Bearer {lab.portal.token}"}).json()
     assert api["estado"] == "CANCELADA"
     with lab.db.session() as s:
-        assert s.get(Expediente, eid).estado == "CANCELADO" and s.get(Expediente, eid).dedup_activo is None
+        assert s.get(Expediente, eid).estado == "CERRADO" and s.get(Expediente, eid).motivo_cierre == "CANCELADO" and s.get(Expediente, eid).dedup_activo is None
     lab.crear(n=n)        # la huella de duplicado quedó libre
 
 

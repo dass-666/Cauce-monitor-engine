@@ -146,3 +146,33 @@ pre.json { background: var(--panel-2); border: 1px solid var(--border); border-r
 /* v1.5: casillas de confirmación humana */
 .check-line { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-weight: 500; cursor: pointer; }
 .check-line input { width: auto; }
+
+/* v1.6 · calendario por día y recorrido del expediente */
+.recorrido { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 8px 0 12px; counter-reset: paso; }
+.recorrido li { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.recorrido li.hecho { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.recorrido li.actual { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.recorrido li.aviso { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.recorrido.grande li { font-size: 14px; padding: 8px 14px; }
+.recorrido.grande li + li::before { content: "→ "; color: var(--muted); }
+.mes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.mes .dsem { text-align: center; font-size: 12px; color: var(--muted); }
+.mes .dia { min-height: 44px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-size: 13px; background: var(--panel-2); color: var(--muted); padding: 2px; }
+.mes .dia small { font-size: 11px; }
+.mes .dia.vacio { border: none; background: transparent; }
+.mes button.dia { cursor: pointer; font: inherit; }
+.e-disponible { background: var(--ok-soft) !important; color: var(--ok) !important; border-color: var(--ok) !important; }
+.e-agotado { background: var(--bad-soft) !important; color: var(--bad) !important; }
+.e-deshabilitado, .e-no_habilitado { opacity: .55; }
+.e-pendiente_actualizacion { background: var(--warn-soft) !important; color: var(--warn) !important; }
+.e-desconocido { background: repeating-linear-gradient(45deg, var(--panel-2), var(--panel-2) 4px, var(--bad-soft) 4px, var(--bad-soft) 8px) !important; color: var(--bad) !important; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; }
+.ficha { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.manual { margin: 8px 0; padding: 8px; border-left: 3px solid var(--warn); background: var(--warn-soft); border-radius: 6px; }
+details > summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 720px) {
+  .mes .dia { min-height: 38px; font-size: 12px; }
+  .recorrido li { font-size: 12px; padding: 3px 8px; }
+}

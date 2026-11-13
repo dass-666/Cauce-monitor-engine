@@ -23,5 +23,6 @@ os.environ["PORTAL_TOKEN"] = portal.token()
 os.environ.setdefault("PORTAL_TOKEN_CONTROL", secrets.token_urlsafe(24))
 from portal_reservas.__main__ import main  # noqa: E402
 
+zona = os.environ.get("MONITOREO_ZONA_HORARIA", "").strip()     # v1.6: misma zona que el motor
 sys.exit(main(["--puerto", str(u.port or 8200), "--datos", str(ROOT / "data" / "portal" / "estado.json"),
-               *sys.argv[1:]]))
+               *(["--zona-horaria", zona] if zona else []), *sys.argv[1:]]))

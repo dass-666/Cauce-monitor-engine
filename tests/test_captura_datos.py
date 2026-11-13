@@ -24,7 +24,7 @@ from monitoreo.models import Expediente, ExpedienteEvento, Request
 REG = {"NORTE", "SUR", "CENTRO"}
 BASE = {"nombre": "Laura Ficticia Pérez", "fecha_nacimiento": "1990-05-04", "telefono": "555 123 4567",
         "telefono_confirmacion": "5551234567", "correo": "Laura@Ejemplo.TEST", "correo_confirmacion": "laura@ejemplo.test",
-        "region": "norte", "tipo_tramite": "alta", "id_registro_previo": "reg000123"}
+        "region": "norte", "tipo_tramite": "alta", "id_registro_previo": "reg000123", "modo": "POR_HORARIO"}
 
 
 # ---------------------------------------------------------------- validación (pura)
@@ -180,7 +180,7 @@ def test_resumen_y_contrato(api):
     c.post("/api/expedientes", headers=h, json=BASE)
     r = c.get("/api/captura/resumen", headers=h).json()
     assert r["expedientes"]["por_grupo"]["pendiente"] == 1
-    k = c.get("/api/captura/contrato", headers=h).json()
+    k = c.get("/api/captura/contrato", params={"modo": "POR_HORARIO"}, headers=h).json()
     assert k["nombre"] == "portal_laboratorio" and len(k["campos"]) == 8
 
 
@@ -250,12 +250,12 @@ def test_respaldo_y_restauracion_conservan_expedientes(tmp_path, monkeypatch):
     copia = migrate.backup(url, "prueba")
     with d.session() as s:
         e = s.get(Expediente, out["id"])
-        ex.cerrar(s, e, ex.CANCELADO, "admin", utcnow())
+        ex.cerrar(s, e, "CANCELADO", "admin", utcnow())
     d.engine.dispose()
     migrate.restore(url, copia, force_running=True)
     d = Database(url)
     with d.session() as s:
-        assert s.get(Expediente, out["id"]).estado == "PENDIENTE"
+        assert s.get(Expediente, out["id"]).estado == "LISTO"
     d.engine.dispose()
 
 

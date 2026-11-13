@@ -634,7 +634,7 @@ def list_operators(user: CurrentUser = Depends(current_user), db: Database = Dep
 def create_operator(body: sc.OperatorIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     with db.session() as s:
         _check_regions(s, body.regions)
-        op = Operator(**body.model_dump())
+        op = Operator(**{**body.model_dump(), "sucursales": _check_sucursales(body.sucursales)})
         s.add(op)
         s.flush()
         security.audit(s, user.username, "crear_operador", op.name, body.model_dump())
@@ -647,6 +647,18 @@ def _check_regions(s, regions: list[str]):
         raise HTTPException(422, f"Regiones inexistentes: {bad}")
 
 
+def _check_sucursales(sucursales: list[str] | None) -> list[str]:
+    import re as _re
+    out = []
+    for x in sucursales or []:
+        x = str(x).strip().upper()
+        if not _re.fullmatch(r"[A-Z0-9-]{2,32}", x):
+            raise HTTPException(422, f"Sucursal no válida: {x[:40]}")
+        if x not in out:
+            out.append(x)
+    return out
+
+
 @router.patch("/operators/{oid}")
 def patch_operator(oid: int, body: sc.OperatorPatch, user: CurrentUser = Depends(require_admin),
                    db: Database = Depends(get_db)):
@@ -655,6 +667,8 @@ def patch_operator(oid: int, body: sc.OperatorPatch, user: CurrentUser = Depends
         changes = body.model_dump(exclude_none=True)
         if "regions" in changes:
             _check_regions(s, changes["regions"])
+        if "sucursales" in changes:
+            changes["sucursales"] = _check_sucursales(changes["sucursales"])
         for k, v in changes.items():
             setattr(op, k, v)
         security.audit(s, user.username, "editar_operador", op.name, changes)
@@ -715,8 +729,10 @@ def create_user(body: sc.UserIn, user: CurrentUser = Depends(require_admin), db:
         s.flush()
         if body.role == "operador":
             _check_regions(s, body.regions)
-            s.add(Operator(name=body.operator_name or body.username, user_id=u.id, regions=body.regions))
-        security.audit(s, user.username, "crear_usuario", u.username, {"role": body.role})
+            s.add(Operator(name=body.operator_name or body.username, user_id=u.id, regions=body.regions,
+                           sucursales=_check_sucursales(body.sucursales)))
+        security.audit(s, user.username, "crear_usuario", u.username,
+                       {"role": body.role, "regions": body.regions, "sucursales": body.sucursales})
         return {"id": u.id, "username": u.username, "role": u.role}
 
 
