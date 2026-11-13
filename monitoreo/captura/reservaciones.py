@@ -34,7 +34,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from .. import conexiones
+from .. import conexiones, proveedor
 from ..db import Database
 from ..engine import assignment as asg
 from ..engine.params import get_params
@@ -161,16 +161,24 @@ def preparar(db: Database, exp_id: int, user, now: datetime) -> dict:
     c = portal.contrato(modo)
     try:
         with db.session() as s:
+            if not proveedor.es_compatible(s):
+                # Una instancia con otro portal no crea trabajo nuevo: su recuperación quedaría a cargo de
+                # un líder que pregunta a un portal que no lo conoce.
+                raise ErrorReservacion(409, "Esta instancia apunta a un portal distinto del registrado en la base: "
+                                            "no se preparan reservaciones nuevas desde aquí",
+                                       {"codigo": "OTRO_PROVEEDOR"})
             exp = s.get(Expediente, exp_id)
             res = s.scalar(select(Reservacion).where(Reservacion.viva_expediente_id == exp_id))
             if res is None:
                 res = Reservacion(expediente_id=exp_id, viva_expediente_id=exp_id, assignment_id=aid,
                                   operator_id=exp.operator_id, estado=PREPARADA, contrato=c.nombre, modo=c.modo,
-                                  created_at=now, updated_at=now)
+                                  proveedor=proveedor.identidad_local()["id"], created_at=now, updated_at=now)
                 s.add(res)
                 s.flush()
             elif res.operator_id != exp.operator_id and not user.is_admin:
                 raise ErrorReservacion(409, "Otro operador tiene un intento abierto de este expediente")
+            else:
+                _exigir_proveedor(s, res)
             if exp.estado == ex.ASIGNADO:
                 ex.cambiar_estado(s, exp, ex.CAPTURA, _actor(user), now)
             revision = ct.preparar(c, exp)
@@ -183,9 +191,20 @@ def preparar(db: Database, exp_id: int, user, now: datetime) -> dict:
 
 
 # ---------------------------------------------------------------- 2. enviar datos y calendario
+OTRO_PROVEEDOR = ("Esta reservación pertenece a otro proveedor (portal) distinto del configurado en esta "
+                  "instancia; no se toca desde aquí")
+
+
+def _exigir_proveedor(s, res: Reservacion) -> None:
+    """v2.0: una instancia solo opera reservaciones creadas con SU portal (ver monitoreo/proveedor.py)."""
+    if proveedor.de_reservacion(s, res) != proveedor.identidad_local()["id"]:
+        raise ErrorReservacion(409, OTRO_PROVEEDOR, {"codigo": "OTRO_PROVEEDOR"})
+
+
 def _datos_intento(db: Database, res_id: int, user, estados: tuple) -> tuple[dict, Expediente]:
     with db.session() as s:
         res = _res_visible(s, res_id, user)
+        _exigir_proveedor(s, res)
         if res.estado not in estados:
             raise ErrorReservacion(409, f"La reservación está {res.estado}")
         exp = s.get(Expediente, res.expediente_id)
@@ -551,6 +570,7 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         res = _res_visible(s, res_id, user)
         if res.estado == CONFIRMADA:
             return 200, {"reservacion": vista(res), "repetida": True}
+        _exigir_proveedor(s, res)
         t = Reservacion.__table__
         cond = [t.c.id == res_id, t.c.estado.in_(list(LISTAS_PARA_CONFIRMAR))]
         if not user.is_admin:
@@ -635,6 +655,8 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
     with db.session() as s:
         res = _res_visible(s, res_id, user)
         estado, folio, sesion, modo = res.estado, res.folio, res.sesion_portal, res.modo
+        if estado == CONFIRMADA:
+            _exigir_proveedor(s, res)          # cancelar en el portal: solo desde la instancia de su proveedor
     if estado in (PREPARADA, DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA):
         # Descartar un intento sin confirmar: el apartado del portal (si lo hay) vence solo.
         v = _cerrar_intento(db, res_id, CANCELADA, "DESCARTADO", "intento descartado por el operador", actor, now,
@@ -675,12 +697,22 @@ def recuperar(db: Database, now: datetime) -> dict:
     with db.session() as s:
         gracia = float(get_params(s)["captura_gracia_confirmando_s"])
         timeout = min(5.0, float(get_params(s)["captura_timeout_portal_s"]))
-        pend = [(r.id, r.estado, r.clave, r.confirmando_desde, r.vence_en, r.modo) for r in s.scalars(
+        local = proveedor.identidad_local()["id"]
+        base = proveedor.asegurar_base(s)["id"]
+        todas = [(r.id, r.estado, r.clave, r.confirmando_desde, r.vence_en, r.modo, r.proveedor or base) for r in s.scalars(
             select(Reservacion).where((Reservacion.estado.in_([CONFIRMANDO, EN_VERIFICACION])
                                        & ((Reservacion.error_codigo.is_(None))
                                           | (Reservacion.error_codigo != "FOLIO_DUPLICADO"))) |
                                       ((Reservacion.estado == RETENIDA) & (Reservacion.vence_en <= now))))]
-    out = {"confirmadas": 0, "reabiertas": 0, "expiradas": 0, "sin_portal": 0, "en_verificacion": 0}
+    # v2.0: solo se recupera lo creado con ESTE portal. Preguntar a otro portal por una clave que no
+    # conoce reabriría (o expiraría) algo que el portal correcto sí confirmó.
+    pend = [r[:6] for r in todas if r[6] == local]
+    ajenas = [r[0] for r in todas if r[6] != local]
+    out = {"confirmadas": 0, "reabiertas": 0, "expiradas": 0, "sin_portal": 0, "en_verificacion": 0,
+           "bloqueadas_otro_proveedor": len(ajenas)}
+    if ajenas:
+        log.warning("recuperación: %d reservación(es) de otro proveedor (portal) no se tocan desde esta instancia: %s",
+                    len(ajenas), ajenas[:20])
     if not pend:
         return out
     navs: dict[str, object] = {}

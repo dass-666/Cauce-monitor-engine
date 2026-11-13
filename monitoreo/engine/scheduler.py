@@ -74,6 +74,7 @@ class Scheduler:
         # v1.6: oyentes de eventos de calendarios POR DÍA (mecanismo A); solo en la instancia líder
         self.eventos = None
         self.last_eventos_at = 0.0
+        self.last_proveedor_at = 0.0
         self._loop = None
         self.started_at = self.clock.now()
 
@@ -168,6 +169,16 @@ class Scheduler:
             self._error(f"mantenimiento de historial: {e}")
             log.exception("fallo en mantenimiento de historial")
 
+    def _anunciar_proveedor(self) -> None:
+        from .. import entorno
+        if entorno.is_production():
+            return
+        try:
+            from .. import proveedor
+            proveedor.registrar_instancia(self.db, self.lease.holder, self.clock.now())
+        except Exception as e:  # noqa: BLE001 - no debe parar al motor
+            log.warning("no se pudo anunciar el proveedor de esta instancia: %s", e)
+
     async def run(self) -> None:
         self.running = True
         self._loop = asyncio.get_running_loop()
@@ -193,6 +204,11 @@ class Scheduler:
                             leader or self.eventos is not None):
                         self.last_eventos_at = time.monotonic()
                         await asyncio.to_thread(self._revisar_eventos, leader)
+                    if time.monotonic() - self.last_proveedor_at >= 10:
+                        # v2.0: cada instancia (líder o en espera) anuncia a qué portal apunta, para que el
+                        # autodiagnóstico detecte instancias que comparten la base con otro portal.
+                        self.last_proveedor_at = time.monotonic()
+                        await asyncio.to_thread(self._anunciar_proveedor)
                     was_leader = leader
                     self.role = "LIDER" if leader else "EN_ESPERA"
                     if leader:

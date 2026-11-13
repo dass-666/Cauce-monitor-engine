@@ -175,11 +175,17 @@ Escenarios de resistencia (fase 6), estado actualizado:
 
 ## 6. Limitaciones (honestas)
 
-1. **Dos instancias del motor sobre la misma base deben apuntar al mismo portal.** Si no, el líder
-   puede «recuperar» una confirmación preguntando a un portal que no la conoce, y reabrirla
-   (lo dejó al descubierto el defecto 5). Hoy no hay ningún control que lo impida. Recomendación:
-   guardar una huella del portal configurado y que el autodiagnóstico avise si dos instancias
-   difieren (ESTIMADO: 1 día).
+1. **Dos instancias del motor sobre la misma base con portales distintos: CORREGIDO** (commit posterior
+   al informe, `monitoreo/proveedor.py`, migración 0012). Cada instancia calcula una huella del portal
+   configurado; la base registra la primera; cada reservación guarda la suya. Una instancia con otro
+   portal no recupera, no confirma, no cancela y no prepara reservaciones ajenas
+   (`bloqueadas_otro_proveedor`, 409 «otro proveedor») y el autodiagnóstico lo marca CRÍTICO. Cambiar
+   de portal es una acción de administrador auditada (`POST /api/proveedor/adoptar`) que se niega si
+   quedan reservaciones a medias. Regresión: `tests/test_proveedor.py` (falla con el código anterior).
+   **Límite que queda:** la recuperación la hace solo el líder; si el líder es la instancia con el
+   portal equivocado, las reservaciones a medias esperan (no se dañan) hasta que se corrija la
+   configuración. Mezclar portales en una misma base sigue sin estar soportado: ahora se detecta y se
+   bloquea en lugar de causar daño.
 2. La captura manual **no** cierra la atención ni cuenta en «citas del día» (es deliberado). Unirlas
    requiere una decisión de producto.
 3. El único adaptador con red es el de laboratorio. **Ningún proveedor real** está conectado ni probado.

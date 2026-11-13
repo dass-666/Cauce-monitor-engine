@@ -419,15 +419,40 @@ def check_conexiones(out: list[Item], db: Database, now: datetime, ctx: dict) ->
         out.append(Item("Conectividad", x["estado"], x["titulo"], x["detalle"], x["accion"], x["clave"]))
 
 
+def check_proveedor(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """v2.0: esta instancia (y las demás activas) apuntan al MISMO portal que registró la base."""
+    if entorno.is_production():
+        return
+    from . import proveedor
+    e = proveedor.estado(db, now)
+    base, local = e["identidad_base"], e["identidad_local"]
+    if not e["compatible"]:
+        out.append(Item("Proveedor", "CRITICO", "Esta instancia apunta a un portal distinto del registrado en la base",
+                        f"Base: {base.get('destino')} ({base['id']}); esta instancia: {local['destino']} ({local['id']}). "
+                        "No recuperará ni confirmará reservaciones del otro portal.",
+                        "Corrige MONITOREO_PORTAL_URL o, si el cambio de portal es intencional, adóptalo desde "
+                        "Proveedor (administrador) cuando no queden reservaciones a medias.", "proveedor:incompatible"))
+    elif e["instancias_discrepantes"]:
+        otras = ", ".join(f"{i['instancia']} ({i['destino']})" for i in e["instancias_discrepantes"][:5])
+        out.append(Item("Proveedor", "CRITICO", "Otra instancia activa comparte la base con un portal distinto",
+                        f"Base: {base.get('destino')}; discrepantes: {otras}.",
+                        "Detén esa instancia o corrige su MONITOREO_PORTAL_URL.", "proveedor:incompatible"))
+    else:
+        out.append(Item("Proveedor", "OK", "Todas las instancias activas usan el portal registrado",
+                        f"{base.get('destino')} ({base['id']}); activas: {len(e['instancias_activas'])}.", "", ""))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
          "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
-         "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad"}
+         "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad",
+         "check_proveedor": "Proveedor"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
-          check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones]
+          check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones,
+          check_proveedor]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

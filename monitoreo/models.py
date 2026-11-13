@@ -548,6 +548,7 @@ class Reservacion(Base):
     intentos_confirmacion: Mapped[int] = mapped_column(Integer, default=0)
     confirmada_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
     conexion: Mapped[str | None] = mapped_column(String(64), nullable=True)    # v2.0: conexión de red de su sesión
+    proveedor: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)   # v2.0: identidad del portal
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -640,3 +641,13 @@ class CapturaManual(Base):
     verificada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     detalle: Mapped[dict] = mapped_column(JSON, default=dict)
     __table_args__ = (UniqueConstraint("adaptador", "folio", name="uq_captura_manual_folio"),)
+
+
+class InstanciaMotor(Base):
+    """v2.0 · Cada instancia del motor que usa esta base, con la identidad del proveedor que tiene
+    configurado. Sirve para detectar instancias con portales distintos sobre la misma base."""
+    __tablename__ = "instancias_motor"
+    instancia: Mapped[str] = mapped_column(String(96), primary_key=True)
+    proveedor: Mapped[str] = mapped_column(String(32))
+    destino: Mapped[str] = mapped_column(String(160))
+    visto_en: Mapped[datetime] = mapped_column(DateTime, index=True)
