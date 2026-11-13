@@ -62,8 +62,15 @@ def transition(session: Session, req: Request, to: str, actor: str, note: str, n
     if to not in TRANSITIONS.get(req.status, set()):
         raise TransitionError(f"Transición no permitida: {req.status} -> {to}")
     seen = req.status
-    if session.execute(update(Request).where(Request.id == req.id, Request.status == seen)
-                       .values(status=to, updated_at=now)).rowcount != 1:
+    # UPDATE de tabla (Core) sin vaciado automático: el objeto se actualiza a mano justo debajo.
+    # Con el UPDATE del ORM, SQLAlchemy recorría todos los objetos de la sesión y vaciaba la sesión
+    # en CADA transición: en el mantenimiento (miles de solicitudes en una sesión) llegó a ser el
+    # 57 % de la CPU del servidor (perfil v1.4) y crecía con el cuadrado del número de solicitudes.
+    t = Request.__table__
+    with session.no_autoflush:
+        changed = session.execute(update(t).where(t.c.id == req.id, t.c.status == seen)
+                                  .values(status=to, updated_at=now)).rowcount
+    if changed != 1:
         raise ConcurrentChange(f"la solicitud {req.id} cambió de estado mientras tanto (se leyó {seen})")
     set_committed_value(req, "status", to)
     set_committed_value(req, "updated_at", now)

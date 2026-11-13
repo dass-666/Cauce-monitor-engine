@@ -124,19 +124,27 @@ def change_password(body: sc.PasswordIn, user: CurrentUser = Depends(current_use
 def dashboard(request: HttpRequest, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     since = utcnow() - timedelta(hours=1)
     with db.session() as s:
+        # v1.4 (optimización medida): 4 consultas agrupadas en lugar de 4 por región (con 10 regiones,
+        # 40 consultas por cada refresco del panel, que se repite cada 4 s por usuario).
+        src_rows = s.execute(select(Source.region, Source.status, Source.circuit_state, func.count())
+                             .group_by(Source.region, Source.status, Source.circuit_state)).all()
+        free = dict(s.execute(select(SlotState.region, func.coalesce(func.sum(SlotState.available - SlotState.held), 0))
+                              .where(SlotState.status == "ACTIVO").group_by(SlotState.region)).all())
+        queue_st, busy_st = asg.MATCHABLE + (asg.PENDIENTE,), (asg.ASIGNADO, asg.EN_PROCESO)
+        req_rows = s.execute(select(Request.region, Request.status, func.count())
+                             .where(Request.status.in_(queue_st + busy_st))
+                             .group_by(Request.region, Request.status)).all()
         regions = []
         for r in s.scalars(select(Region).order_by(Region.code)):
-            srcs = list(s.scalars(select(Source).where(Source.region == r.code)))
+            mine = [x for x in src_rows if x[0] == r.code]
             regions.append({
                 "code": r.code, "name": r.name,
-                "fuentes": len(srcs), "fuentes_activas": sum(1 for x in srcs if x.status == "ACTIVA"),
-                "fuentes_con_error": sum(1 for x in srcs if x.status == "ERROR" or x.circuit_state != "CERRADO"),
-                "unidades_libres": s.scalar(select(func.coalesce(func.sum(SlotState.available - SlotState.held), 0))
-                                            .where(SlotState.region == r.code, SlotState.status == "ACTIVO")),
-                "solicitudes_en_cola": s.scalar(select(func.count()).select_from(Request).where(
-                    Request.region == r.code, Request.status.in_(asg.MATCHABLE + (asg.PENDIENTE,)))),
-                "asignadas": s.scalar(select(func.count()).select_from(Request).where(
-                    Request.region == r.code, Request.status.in_([asg.ASIGNADO, asg.EN_PROCESO]))),
+                "fuentes": sum(n for *_, n in mine),
+                "fuentes_activas": sum(n for _, st, _c, n in mine if st == "ACTIVA"),
+                "fuentes_con_error": sum(n for _, st, c, n in mine if st == "ERROR" or c != "CERRADO"),
+                "unidades_libres": int(free.get(r.code) or 0),
+                "solicitudes_en_cola": sum(n for reg, st, n in req_rows if reg == r.code and st in queue_st),
+                "asignadas": sum(n for reg, st, n in req_rows if reg == r.code and st in busy_st),
             })
         sch = getattr(request.app.state, "scheduler", None)
         return {
