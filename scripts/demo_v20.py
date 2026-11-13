@@ -122,10 +122,20 @@ def run(a) -> dict:
     ok, sc, err = fase(node, motor, caps, out, "sin_cita", personas[6:7])
     ck("atención SIN disponibilidad: termina sin cita y sin folio", ok and sc.get("estado") == "SIN_DISPONIBILIDAD"
        and not sc.get("folio_visible"), err if not ok else sc.get("estado"))
+    # Vuelve a la cola: LISTO sin operador. El motor puede volver a asignarlo enseguida (sigue buscando
+    # por la persona), así que se comprueba por su HISTORIAL y no por el estado del instante
+    # (antes era una carrera: falló una vez en Windows, corrida 43403982589, con el motor ya reasignándolo).
     exps = {e["codigo"]: e for e in c.get("/api/expedientes", params={"limit": 200}).json()}
-    sin = [e for e in exps.values() if e["estado"] == "LISTO"]
-    ck("su expediente vuelve a la cola del motor (LISTO, sin operador)", len(sin) == 1 and not sin[0].get("operador"),
-       [(e["codigo"], e["estado"]) for e in sin])
+    devueltos = []
+    for e in exps.values():
+        if e["estado"] in ("RESERVACION_CONFIRMADA", "CERRADO"):
+            continue
+        hist = c.get(f"/api/expedientes/{e['id']}").json().get("historial", [])
+        if any(x["tipo"] == "ESTADO" and x["detalle"].get("despues") == "LISTO"
+               and x["detalle"].get("motivo") == "atencion_sin_cita" for x in hist):
+            devueltos.append((e["codigo"], e["estado"]))
+    ck("su expediente vuelve a la cola del motor (LISTO, sin operador; el motor puede volver a tomarlo)",
+       len(devueltos) == 1 and devueltos[0][1] not in ("EN_VENTANILLA",), devueltos)
 
     p8 = personas[7]
     antes = len(c.get("/api/expedientes", params={"limit": 500}).json())

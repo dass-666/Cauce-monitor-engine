@@ -365,3 +365,135 @@ INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
 INFO:     Finished server process [4979]
+INFO:     Started server process [8499]
+INFO:     Waiting for application startup.
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.schemas
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.tables
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.types
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.constraints
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.defaults
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.autogenerate.comments
+2026-11-13 22:49:43,371 INFO alembic.runtime.plugins: setup plugin alembic.ext.checkconstraint_byname
+2026-11-13 22:49:43,388 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:49:43,388 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+2026-11-13 22:49:43,407 INFO alembic.runtime.migration: Context impl SQLiteImpl.
+2026-11-13 22:49:43,407 INFO alembic.runtime.migration: Will assume non-transactional DDL.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:36447 (Press CTRL+C to quit)
+INFO:     127.0.0.1:41146 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41154 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41174 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41154 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41180 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla/atenciones/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/expedientes/9 HTTP/1.1" 200 OK
+2026-11-13 22:49:44,880 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41164 - "GET /api/reservaciones/9/calendario?sucursal=NOR-1 HTTP/1.1" 200 OK
+2026-11-13 22:49:44,983 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41164 - "POST /api/reservaciones/9/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:49:45,156 INFO httpx: HTTP Request: POST http://127.0.0.1:58371/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:49:45,158 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/reservaciones/DIA-20261119-00008C "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41164 - "POST /api/reservaciones/9/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla/atenciones/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/expedientes/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "POST /api/ventanilla/atenciones/9/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41164 - "GET /api/ventanilla/atenciones/9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41182 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41182 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41192 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41208 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "POST /api/ventanilla/atenciones HTTP/1.1" 201 Created
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla HTTP/1.1" 200 OK
+2026-11-13 22:49:47,494 WARNING monitoreo.planificador: Instancia vm:8499:1bcff7 es LÍDER del planificador
+2026-11-13 22:49:47,530 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla/atenciones/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "POST /api/ventanilla/atenciones/10/expediente HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla/atenciones/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/expedientes/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "POST /api/expedientes/10/preparar HTTP/1.1" 200 OK
+2026-11-13 22:49:51,339 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/cita "HTTP/1.1 200 OK"
+2026-11-13 22:49:51,345 INFO httpx: HTTP Request: POST http://127.0.0.1:58371/cita/datos "HTTP/1.1 303 See Other"
+2026-11-13 22:49:51,348 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/cita/calendario?estado=norte&sucursal=NOR-1 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41188 - "POST /api/reservaciones/10/enviar-datos HTTP/1.1" 200 OK
+2026-11-13 22:49:51,514 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/cita/calendario?estado=norte&sucursal=NOR-1&mes=2026-11 "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41188 - "POST /api/reservaciones/10/seleccionar-dia HTTP/1.1" 200 OK
+2026-11-13 22:49:51,640 INFO httpx: HTTP Request: POST http://127.0.0.1:58371/cita/continuar "HTTP/1.1 303 See Other"
+2026-11-13 22:49:51,643 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/reservaciones/DIA-20261120-00009W "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:41188 - "POST /api/reservaciones/10/confirmar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla/atenciones/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/expedientes/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "POST /api/ventanilla/atenciones/10/cerrar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41188 - "GET /api/ventanilla/atenciones/10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38124 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38160 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38124 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38152 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38152 - "GET /api/operators HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "GET /api/ventanilla HTTP/1.1" 200 OK
+2026-11-13 22:49:52,741 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38140 - "GET /api/conexiones HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38140 - "POST /api/conexiones/sondear HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38164 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38188 - "GET /static/ventanilla.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38172 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38164 - "GET /static/app.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /static/captura.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/centro?periodo=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/adaptadores HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38172 - "GET /api/capturas-manuales HTTP/1.1" 200 OK
+2026-11-13 22:49:54,002 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/reservaciones/DIA-20261116-00001R "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38172 - "POST /api/capturas-manuales HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38174 - "GET /api/capturas-manuales HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38172 - "GET /api/adaptadores HTTP/1.1" 200 OK
+2026-11-13 22:49:55,035 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/reservaciones/DIA-20991231-99999Z "HTTP/1.1 404 Not Found"
+INFO:     127.0.0.1:38172 - "POST /api/capturas-manuales HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38172 - "GET /api/adaptadores HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "GET /api/capturas-manuales HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38174 - "POST /api/capturas-manuales HTTP/1.1" 201 Created
+INFO:     127.0.0.1:38174 - "GET /api/adaptadores HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38172 - "GET /api/capturas-manuales HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38172 - "POST /api/capturas-manuales HTTP/1.1" 422 Unprocessable Content
+2026-11-13 22:49:57,930 INFO httpx: HTTP Request: GET http://127.0.0.1:58371/api/dias "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:38192 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38196 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38196 - "GET /api/ventanilla HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38192 - "GET /api/captura/coherencia HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8499]

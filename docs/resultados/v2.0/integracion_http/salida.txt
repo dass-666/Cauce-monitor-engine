@@ -1,0 +1,23 @@
+[22:47:12] OK  el motor arranca como proceso independiente  1.18 s
+[22:47:17] OK  500 solicitudes creadas por la API  4.4 s
+[22:47:17] === fase: linea_base
+[22:47:21] === fase: liberaciones_controladas
+[22:47:46] === fase: carga
+[22:48:26] === fase: fallos
+[22:48:56] === fase: reinicio_motor
+[22:49:01] OK  el motor se recupera tras un corte brusco (kill)  {'corte': '2026-11-13T22:48:56.398874Z', 'listo_tras_arrancar_s': 1.17, 'primera_consulta_ok_s': 0.28}
+[22:49:01] === fase: reinicio_proveedor
+[22:49:05] OK  el motor se recupera tras un corte brusco del proveedor  {'corte': '2026-11-13T22:49:01.888785Z', 'primera_consulta_ok_s': 0.55}
+[22:49:11] === fase: drenaje
+[22:49:11] OK  todas las fuentes vuelven a estar al día tras los fallos  {'segundos': 0.0, 'limite_s': 330.0, 'circuito_modo': 'adaptable', 'circuito_enfriamiento_s': 60}
+[22:49:17] OK  la API devuelve el recorrido de un evento  8
+[22:49:17] OK  convergencia: el motor ve exactamente lo que publica el proveedor  {'distintos': 0, 'ejemplos': []}
+[22:49:17] OK  integridad de la base del motor (sin asignaciones incompatibles)  []
+[22:49:17] OK  ninguna solicitud con dos asignaciones vivas  0
+[22:49:17] OK  ningún recurso con más unidades retenidas (sin tomar) que disponibles  0
+[22:49:17] OK  ninguna asignación quedó a medias (EN_PROCESO) al terminar  0
+[22:49:17] OK  dos operadores nunca toman la misma asignación  {'competencias': 82, 'resultados': {'[200, 409]': 79, '[409, 409]': 3}}
+[22:49:17] OK  Telegram (emulador): cada entrega ENVIADA llegó a los 2 chats (repetidos solo por un corte)  {'entregas_enviadas': 513, 'entregas_totales': 513, 'mensajes_en_emulador': 1026, 'mensajes_distintos': 1026, 'repetidos': 0, 'cortes_del_motor': 1}
+[22:49:17] OK  cambios duraderos del proveedor no detectados FUERA de ventanas de fallo  {'total_cambios': 1019, 'detectados': 518, 'coalescidos': 237, 'no_detectados_fuera_de_fallos': 0, 'no_detectados_en_fallos': 5, 'no_detectados_fuente_sin_datos': 0, 'anticipados_por_el_motor': 206, 'coincide_con_descuento_local': 1, 'sin_cambio_neto': 51, 'motor_tenia_el_valor': 1, 'ejemplos_no_detectados': []}
+[22:49:17] OK  todas las liberaciones controladas se detectaron (salvo las tapadas por otro cambio del recurso antes de la siguiente consulta, que se cuentan aparte)  {'total': 21, 'detectadas': 21, 'mezcladas_con_otro_cambio': 0, 'deteccion_ms': {'n': 21, 'p50': 612.3, 'p95': 1109.6, 'p99': 1114.1, 'max': 1114.1}, 'hasta_asignacion_ms': {'n': 20, 'p50': 617.3, 'p95': 1200.1, 'p99': 1200.1, 'max': 1200.1}, 'hasta_telegram_ms': {'n': 20, 'p50': 629.1, 'p95': 1211.2, 'p99': 1211.2, 'max': 1211.2}}
+[22:49:17] resultado en docs/resultados/v2.0/integracion_http/integracion_http_sqlite_rapido.json: 15/15 comprobaciones correctas
