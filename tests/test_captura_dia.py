@@ -451,3 +451,33 @@ def test_sin_datos_personales_en_alertas_ni_auditoria(lab):
     blob = "\n".join(textos)
     for v in secretos:
         assert v not in blob, v
+
+
+def test_reasignacion_entre_dos_pasadas_sigue_a_la_asignacion_viva(lab):
+    """Defecto hallado en el laboratorio: el motor cancela la asignación (el recurso se agotó) y,
+    antes de la siguiente sincronización, asigna la misma solicitud a OTRO operador. El expediente
+    debe pasar al operador nuevo; el anterior deja de verlo y el nuevo puede prepararlo."""
+    from datetime import timedelta
+    from monitoreo.models import User
+    eid, u, h = asignado(lab)
+    otro = next(x for x in lab.ops if x != u)
+    with lab.db.session() as s:
+        e = s.get(Expediente, eid)
+        viejo = s.scalar(select(Assignment).where(Assignment.request_id == e.request_id,
+                                                  Assignment.status == "ACTIVA"))
+        op_nuevo = s.scalar(select(Operator.id).join(User, User.id == Operator.user_id).where(User.username == otro))
+        now = lab.clock.now()
+        viejo.status, viejo.closed_at, viejo.live_request_id = "CANCELADA", now, None
+        s.flush()
+        s.add(Assignment(request_id=e.request_id, slot_id=viejo.slot_id, operator_id=op_nuevo, quantity=1,
+                         status="ACTIVA", live_request_id=e.request_id, created_at=now,
+                         expires_at=now + timedelta(minutes=15)))
+    assert lab.c.post(f"/api/expedientes/{eid}/preparar", headers=h).status_code in (404, 409)   # antes del arreglo: para siempre
+    seguimiento.sincronizar(lab.db, lab.clock.now())
+    assert lab.operador_de(eid) == otro
+    assert lab.c.get(f"/api/expedientes/{eid}", headers=h).status_code == 404                     # el anterior ya no lo ve
+    r = lab.c.post(f"/api/expedientes/{eid}/preparar", headers=lab.ops[otro])
+    assert r.status_code == 200, r.text
+    with lab.db.session() as s:
+        assert [x.tipo for x in s.scalars(select(ExpedienteEvento).where(
+            ExpedienteEvento.expediente_id == eid, ExpedienteEvento.tipo == "ASIGNACION_CAMBIADA"))] == ["ASIGNACION_CAMBIADA"]

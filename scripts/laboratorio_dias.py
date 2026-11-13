@@ -416,7 +416,7 @@ def escenario(a, mecanismo: str, out: Path) -> dict:
     # tiempo para terminar lo que estaba en curso
     def en_curso():
         ex = adm.get("/api/expedientes", params={"limit": 2000}).json()
-        return not any(e["estado"] in ("CAPTURA_EN_PROCESO", "RESERVACION_PENDIENTE") for e in ex)
+        return not any(e["estado"] in ACTIVOS_OP for e in ex)
     _, t_drenado = esperar(en_curso, a.drenado_s, 1.0)
     parar.set()
     for h in hilos:

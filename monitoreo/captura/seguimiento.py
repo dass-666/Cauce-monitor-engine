@@ -5,6 +5,8 @@ lógica de siempre (prioridad, antigüedad, preferencia de sucursal, carga y suc
 operador, UPDATE condicionales). Aquí solo se refleja el resultado en el expediente:
 
 - LISTO + asignación viva nueva            -> ASIGNADO + DISPONIBILIDAD_DETECTADA
+- ASIGNADO + asignación viva de OTRO operador (cancelada y reasignada entre dos pasadas)
+                                           -> el expediente pasa al operador nuevo
 - asignación perdida sin confirmar          -> LISTO (vuelve a la cola, sin operador)
 - solicitud EXPIRADA (intentos agotados)    -> REQUIERE_REVISION (lo decide una persona)
 - expediente que ya no espera (confirmado, cerrado, en revisión) -> su solicitud se cancela
@@ -70,6 +72,18 @@ def sincronizar(db: Database, now: datetime) -> dict:
                           sucursal=(slot.attributes or {}).get("sucursal") if slot else None,
                           libres=(slot.available - slot.held) if slot else None, operador=live.operator_id)
                 out["asignados"] += 1
+            elif exp.estado == ex.ASIGNADO and live is not None and live.operator_id != exp.operator_id:
+                # v1.6 (defecto del laboratorio): entre dos pasadas el motor canceló la asignación
+                # (el recurso se agotó) y volvió a asignar la solicitud a OTRO operador. El expediente
+                # debe seguir a la asignación viva; si no, el anterior lo ve sin poder tomarlo y el
+                # nuevo no lo ve. Solo en ASIGNADO: nadie ha empezado a capturarlo todavía.
+                if rs.viva_bloquea(s, exp.id):
+                    continue
+                _descartar_viva(s, exp.id, now, "ASIGNACION_CAMBIADA", "la asignación pasó a otro operador")
+                ex.evento(s, exp.id, "ASIGNACION_CAMBIADA", "motor", now, assignment_id=live.id,
+                          operador_anterior=exp.operator_id, operador=live.operator_id)
+                exp.operator_id, exp.updated_at = live.operator_id, now
+                out["reasignados"] = out.get("reasignados", 0) + 1
             elif exp.estado in ex.OPERACION_ACTIVA and live is None:
                 if rs.viva_bloquea(s, exp.id):
                     continue      # hay una confirmación en curso o en verificación: no se le quita al operador
