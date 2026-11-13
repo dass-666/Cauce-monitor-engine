@@ -37,7 +37,7 @@ async def leer_formulario(request: Request) -> dict:
     return dict(parse_qsl(cuerpo.decode("utf-8", "replace"), keep_blank_values=True))
 
 COOKIE = "portal_sesion"
-MODOS = {"normal", "error_interno", "cortar", "cortar_tras_confirmar", "lento", "renombrar_campo"}
+MODOS = {"normal", "error_interno", "cortar", "cortar_tras_confirmar", "lento", "renombrar_campo", "limite"}
 CAMPOS_DATOS = ["operacion", "tramite", "identificador", "fecha_nacimiento", "telefono", "telefono_confirmacion",
                 "correo", "correo_confirmacion"]
 
@@ -276,6 +276,9 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
             pantalla = p.split("/")[2] if p.count("/") >= 2 else "datos"
             if fallos.latencia_ms:
                 await asyncio.sleep(fallos.latencia_ms / 1000)
+            if fallos.activo(pantalla, {"limite"}):           # v2.0: el proveedor limita (cuota, demasiadas peticiones)
+                return HTMLResponse(pagina("datos", "", "Demasiadas solicitudes: inténtalo más tarde.", "LIMITE"),
+                                    status_code=429, headers={"Retry-After": "600"})
             if request.method == "POST":
                 modo = fallos.activo(pantalla, {"error_interno", "cortar"})
                 if modo == "error_interno":

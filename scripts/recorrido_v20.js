@@ -179,6 +179,18 @@ let paginaActual = null;
     await shot("58_ventanilla_folio_tras_reinicio.png");
   }
 
+  if (fase === "conexiones") {                          // administrador: conexiones de red del motor
+    await page.goto(base + "/#conexiones");
+    await page.waitForSelector("#conexiones");
+    const txt = await page.textContent("#conexiones");
+    res.local = /Este equipo/.test(txt);
+    res.usos = (txt.match(/Operación con el portal/g) || []).length;
+    await page.click("#btn-medir");
+    await page.waitForFunction(() => !/Midiendo/.test(document.getElementById("sondeo").textContent));
+    res.sondeo = await page.textContent("#sondeo");
+    await shot("64_conexiones.png");
+  }
+
   res.errores_js = errores;
   res.http_errores = http;
   res.http_mensajes = detalle;

@@ -218,3 +218,48 @@ function registrarPersona(a) {
     h("button", { class: "btn primary" }, "Registrar y continuar"), errs, dup);
   return card("Persona nueva", form);
 }
+
+// ---------------------------------------------------------------- v2.0 · conexiones de red del motor
+const TIPO_CONEXION = { ETHERNET: "Cable (Ethernet)", WIFI: "Wi-Fi", USB: "USB (teléfono o adaptador)", MODEM: "Módem móvil",
+  LOOPBACK: "Este equipo", VIRTUAL: "Virtual", DESCONOCIDO: "Desconocida" };
+const EVENTO_CONEXION = { CAMBIO: "Cambio de conexión", CAIDA: "Conexión caída", RECUPERADA: "Recuperada",
+  RESTRICCION: "Restricción del proveedor (operación detenida)", USO: "Operación con el portal" };
+
+async function viewConexiones() {
+  const d = await api("/api/conexiones");
+  const res = h("div", { id: "sondeo" });
+  const medir = async () => {
+    res.textContent = "Midiendo…";
+    try {
+      const r = await api("/api/conexiones/sondear", { method: "POST" });
+      res.textContent = r.nota || r.resultados.map((x) => `${x.conexion}: ${x.ok ? x.latencia_ms + " ms" : "sin respuesta (" + x.error + ")"}`).join(" · ");
+      setTimeout(() => refresh(true), 800);
+    } catch (e) { res.textContent = e.message; }
+  };
+  const pol = d.politica;
+  return h("div", { id: "conexiones" },
+    h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Conexiones de red"),
+      h("div", { class: "muted" }, "Por qué red sale el motor hacia el portal. Solo se cambia de conexión cuando la actual falla (no conecta o se corta). ",
+        h("b", {}, "Una restricción del proveedor (límite de solicitudes, acceso negado) detiene la operación y nunca se intenta por otra conexión.")))),
+    h("div", { class: "grid kpis" },
+      kpi("Conexión en uso", d.destino.local ? "Este equipo" : (d.activa || "—"),
+        d.destino.local ? "el portal de prueba está en este mismo equipo" : "elegida por preferencia y estado"),
+      kpi("Destino", `${d.destino.host}:${d.destino.puerto}`, d.destino.local ? "laboratorio (127.0.0.1)" : "portal configurado"),
+      kpi("Preferencia", pol.conexion_orden_tipos.map((t) => TIPO_CONEXION[t] || t).join(" › "),
+        `caída tras ${pol.conexion_umbral_fallos} fallos de red · se reintenta a los ${fmtDur(pol.conexion_reintento_s)}`)),
+    h("div", { class: "section" }, card("Conexiones del equipo", table([
+      { t: "Interfaz", f: (c) => h("div", {}, h("b", {}, c.nombre), c.activa ? h("span", { class: "badge b-ok" }, "EN USO") : null,
+        h("div", { class: "muted" }, c.descripcion || c.clasificado_por)) },
+      { t: "Tipo", f: (c) => TIPO_CONEXION[c.tipo] || c.tipo },
+      { t: "Estado", f: (c) => c.deshabilitada ? badge("DESHABILITADA") : !c.candidata ? h("span", { class: "muted" }, c.activa === false && !c.ipv4.length ? "sin dirección" : "no se usa") : badge(c.estado) },
+      { t: "Latencia p50 / p95", num: true, f: (c) => c.latencia_ms.n ? `${num(c.latencia_ms.p50, 1)} / ${num(c.latencia_ms.p95, 1)} ms` : "—" },
+      { t: "Éxitos", num: true, f: (c) => c.exitos }, { t: "Fallos de red", num: true, f: (c) => c.fallos },
+      { t: "Restricciones", num: true, f: (c) => c.restricciones ? h("span", { class: "badge b-warn" }, c.restricciones) : "0" },
+      { t: "Último error", f: (c) => c.ultimo_error || "—" }], d.conexiones),
+      h("div", { class: "actions" }, h("button", { class: "btn", id: "btn-medir", onclick: medir }, "Medir ahora"), res))),
+    h("div", { class: "section" }, card("Últimos eventos", table([
+      { t: "Cuándo", f: (e) => fmtTime(e.ts) }, { t: "Evento", f: (e) => EVENTO_CONEXION[e.evento] || e.evento },
+      { t: "Conexión", f: (e) => e.conexion || "—" }, { t: "Operación", f: (e) => (e.operacion || "—").replace(/_/g, " ") },
+      { t: "Detalle", f: (e) => e.detalle.motivo || (e.detalle.peticiones ? Object.entries(e.detalle.peticiones).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(", ") : "") }],
+      d.eventos))));
+}

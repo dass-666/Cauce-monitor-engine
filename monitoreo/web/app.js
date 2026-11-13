@@ -207,6 +207,7 @@ const VIEWS = {
   captura: { t: "Captura", f: () => viewCaptura(), lab: true },   // v1.5: laboratorio (captura.js); no existe en producción
   alertas: { t: "Notificaciones", f: viewNotificaciones },
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
+  conexiones: { t: "Conexiones", f: () => viewConexiones(), admin: true, lab: true },   // v2.0: gestor de conexiones (ventanilla.js)
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
   config: { t: "Configuración", f: viewConfig, admin: true },
 };

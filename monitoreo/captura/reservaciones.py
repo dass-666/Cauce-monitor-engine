@@ -33,6 +33,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
+from .. import conexiones
 from ..db import Database
 from ..engine import assignment as asg
 from ..engine.params import get_params
@@ -70,6 +71,26 @@ def _naive(dt: datetime | None) -> datetime | None:
     if dt is not None and dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
+
+
+def _nav(db: Database, sesion: str | None = None, modo: str | None = None, operacion: str | None = None,
+         conexion: str | None = None, ref: dict | None = None, timeout: float | None = None):
+    """v2.0: navegador del portal por la conexión que decide el gestor de conexiones."""
+    with db.session() as s:
+        p = get_params(s)
+    try:
+        return portal.navegador(sesion=sesion, timeout=timeout or float(p["captura_timeout_portal_s"]), modo=modo,
+                                operacion=operacion, conexion=conexion, params=p, ref=ref)
+    except conexiones.SinConexion as e:
+        raise ErrorReservacion(503, f"Sin conexión de red utilizable: {e}", {"tipo": "SIN_CONEXION"}) from e
+
+
+def _cerrar(db: Database, nav) -> None:
+    nav.cerrar()
+    try:
+        conexiones.volcar(db)
+    except Exception:          # noqa: BLE001 - el registro de conexiones no debe tumbar la operación
+        pass
 
 
 def _timeout(db: Database) -> float:
@@ -168,7 +189,7 @@ def _datos_intento(db: Database, res_id: int, user, estados: tuple) -> tuple[dic
         s.expunge(exp)
         return {"id": res.id, "sesion": res.sesion_portal, "estado": res.estado, "aid": res.assignment_id,
                 "clave": res.clave, "vence_en": res.vence_en, "folio": res.folio, "modo": res.modo,
-                "sucursal": res.sucursal, "fecha": res.fecha,
+                "sucursal": res.sucursal, "fecha": res.fecha, "conexion": res.conexion,
                 "permitidas": _sucursales_permitidas(s, exp, res.assignment_id)}, exp
 
 
@@ -244,7 +265,7 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
                                                                              "errores": errores})
     filtros = _filtros_dia(exp, d["permitidas"], sucursal, mes) if d["modo"] == "POR_DIA" else _filtros(exp)
     _tocar(db, d["aid"], user, now)
-    nav = portal.navegador(timeout=_timeout(db), modo=d["modo"])   # sesión nueva del portal en cada envío
+    nav = _nav(db, modo=d["modo"], ref={"reservacion_id": res_id})   # sesión nueva del portal en cada envío
     try:
         nav.enviar_datos({**auto, **limpios})
         del limpios, manuales                           # los manuales no sobreviven a esta llamada
@@ -260,13 +281,14 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
         _guardar_error(db, res_id, e, now)
         raise ErrorReservacion(502 if isinstance(e, ResultadoIncierto) else 409, e.mensaje, e.como_dict()) from e
     finally:
-        sesion = nav.sesion
-        nav.cerrar()
+        sesion, conexion_usada = nav.sesion, nav.conexion
+        _cerrar(db, nav)
     with db.session() as s:
         res = s.get(Reservacion, res_id)
         if res.estado not in (PREPARADA, DATOS_ENVIADOS, FECHA_ELEGIDA):
             raise ErrorReservacion(409, f"La reservación cambió a {res.estado} mientras tanto")
         res.estado, res.sesion_portal, res.error_codigo, res.error, res.updated_at = DATOS_ENVIADOS, sesion, None, None, now
+        res.conexion = conexion_usada                  # el resto de la sesión sigue por esta conexión
         if res.modo == "POR_DIA":
             res.clave, res.sucursal, res.fecha = None, cal.get("sucursal"), None
         s.get(Expediente, res.expediente_id).ultimo_error = None
@@ -281,7 +303,7 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
 def calendario(db: Database, res_id: int, user, now: datetime, region: str | None = None,
                sucursal: str | None = None, mes: str | None = None) -> dict:
     d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA))
-    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db), modo=d["modo"])
+    nav = _nav(db, sesion=d["sesion"], modo=d["modo"], conexion=d["conexion"], ref={"reservacion_id": res_id})
     try:
         if d["modo"] == "POR_DIA":
             cal = _calendario_con_libres(nav, _filtros_dia(exp, d["permitidas"], sucursal, mes), mes)
@@ -294,7 +316,7 @@ def calendario(db: Database, res_id: int, user, now: datetime, region: str | Non
     except ErrorFormulario as e:
         raise ErrorReservacion(502 if isinstance(e, ResultadoIncierto) else 409, e.mensaje, e.como_dict()) from e
     finally:
-        nav.cerrar()
+        _cerrar(db, nav)
 
 
 # ---------------------------------------------------------------- 3. seleccionar horario
@@ -304,7 +326,7 @@ def seleccionar(db: Database, res_id: int, user, now: datetime, horario_id: str,
         raise ErrorReservacion(422, "Horario no válido")
     d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA))
     _tocar(db, d["aid"], user, now)
-    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db))
+    nav = _nav(db, sesion=d["sesion"], conexion=d["conexion"], ref={"reservacion_id": res_id})
     filtros = _filtros(exp, region, sucursal)
     try:
         conf = nav.seleccionar(horario_id, filtros)
@@ -314,20 +336,20 @@ def seleccionar(db: Database, res_id: int, user, now: datetime, horario_id: str,
             cal = nav.calendario(filtros)
         except ErrorFormulario:
             cal = None
-        nav.cerrar()
+        _cerrar(db, nav)
         with db.session() as s:
             ex.evento(s, exp.id, "HORARIO_NO_DISPONIBLE", _actor(user), now, assignment_id=d["aid"],
                       reservacion_id=res_id, horario=horario_id, codigo=e.codigo)
         raise ErrorReservacion(409, e.mensaje, {**e.como_dict(), "calendario": cal}) from e
     except SesionCaducada as e:
-        nav.cerrar()
+        _cerrar(db, nav)
         _guardar_error(db, res_id, e, now, PREPARADA)
         raise ErrorReservacion(409, "La sesión del portal caducó: vuelve a enviar los datos", e.como_dict()) from e
     except ErrorFormulario as e:
-        nav.cerrar()
+        _cerrar(db, nav)
         _guardar_error(db, res_id, e, now)
         raise ErrorReservacion(502 if isinstance(e, ResultadoIncierto) else 409, e.mensaje, e.como_dict()) from e
-    nav.cerrar()
+    _cerrar(db, nav)
     resumen = conf["resumen"]
     try:
         vence = _naive(datetime.fromisoformat(resumen.get("vence", "").replace("Z", "+00:00")))
@@ -367,7 +389,7 @@ def seleccionar_dia(db: Database, res_id: int, user, now: datetime, fecha: str, 
     suc = sucursal or d["sucursal"]
     filtros = _filtros_dia(exp, d["permitidas"], suc, fecha[:7])
     _tocar(db, d["aid"], user, now)
-    nav = portal.navegador(sesion=d["sesion"], timeout=_timeout(db), modo="POR_DIA")
+    nav = _nav(db, sesion=d["sesion"], modo="POR_DIA", conexion=d["conexion"], ref={"reservacion_id": res_id})
     try:
         cal = nav.calendario_dia(filtros)
         nav.verificar_solo_lectura(cal, exp)
@@ -378,7 +400,7 @@ def seleccionar_dia(db: Database, res_id: int, user, now: datetime, fecha: str, 
         _guardar_error(db, res_id, e, now)
         raise ErrorReservacion(502 if isinstance(e, ResultadoIncierto) else 409, e.mensaje, e.como_dict()) from e
     finally:
-        nav.cerrar()
+        _cerrar(db, nav)
     dia = next((x for x in cal["dias"] if x["fecha"] == fecha), None)
     if dia is None or dia["estado"] != "DISPONIBLE":
         with db.session() as s:
@@ -543,9 +565,10 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
             raise ErrorReservacion(409, f"No se puede confirmar: la reservación está {res.estado}",
                                    {"estado": res.estado})
         clave, sesion, aid, modo = res.clave, res.sesion_portal, res.assignment_id, res.modo
+        conexion = res.conexion
         sucursal, fecha = res.sucursal, res.fecha
     _tocar(db, aid, user, now)
-    nav = portal.navegador(sesion=sesion, timeout=_timeout(db), modo=modo)
+    nav = _nav(db, sesion=sesion, modo=modo, operacion="confirmar", conexion=conexion, ref={"reservacion_id": res_id})
     try:
         folio = None
         try:
@@ -600,7 +623,7 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
                      "aviso": "No se pudo comprobar el resultado con el portal. El motor lo verificará por la "
                               "clave de confirmación; no repitas la reservación por otro medio."}
     finally:
-        nav.cerrar()
+        _cerrar(db, nav)
 
 
 # ---------------------------------------------------------------- cancelación
@@ -618,13 +641,13 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
         return v
     if estado != CONFIRMADA:
         raise ErrorReservacion(409, f"No se puede cancelar una reservación {estado}")
-    nav = portal.navegador(sesion=sesion, timeout=_timeout(db), modo=modo)
+    nav = _nav(db, modo=modo, operacion="nueva_sesion", ref={"reservacion_id": res_id})      # cancelación: petición nueva a la API
     try:
         rp = nav.cancelar(folio)
     except ErrorFormulario as e:
         raise ErrorReservacion(502, f"El portal no confirmó la cancelación: {e.mensaje}") from e
     finally:
-        nav.cerrar()
+        _cerrar(db, nav)
     if rp.get("estado") != "CANCELADA":
         raise ErrorReservacion(502, "El portal no confirmó la cancelación")
     with db.session() as s:
@@ -660,7 +683,12 @@ def recuperar(db: Database, now: datetime) -> dict:
     navs: dict[str, object] = {}
     try:
         for rid, estado, clave, desde, vence, modo in pend:
-            nav = navs.get(modo) or navs.setdefault(modo, portal.navegador(timeout=timeout, modo=modo))
+            try:
+                nav = navs.get(modo) or navs.setdefault(modo, _nav(db, modo=modo, operacion="verificacion",
+                                                                   timeout=timeout))
+            except ErrorReservacion:
+                out["sin_portal"] += 1                  # sin conexión utilizable: se reintenta en la siguiente pasada
+                break
             try:
                 rp = nav.buscar_por_clave(clave) if clave else None
             except ResultadoIncierto:
@@ -694,5 +722,5 @@ def recuperar(db: Database, now: datetime) -> dict:
                 out["en_verificacion"] += 1
     finally:
         for nav in navs.values():
-            nav.cerrar()
+            _cerrar(db, nav)
     return out

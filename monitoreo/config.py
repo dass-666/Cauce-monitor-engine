@@ -87,8 +87,15 @@ ENGINE_DEFAULTS: dict = {
     "alerta_minimo_aumento": 1,        # unidades mínimas de aumento para alertar
     "reintentos_notificacion": 5,
     "despacho_presupuesto_s": 10,       # v1.4: tiempo máximo de cada pasada de envío de alertas
-    "despacho_canal_presupuesto_s": 3,
-    "meta_citas_dia": 6,                # v2.0: meta diaria de citas CONFIRMADAS (panel de ventanilla)  # v1.7: tiempo máximo de UN canal por pasada (un canal lento no frena a otros)
+    "despacho_canal_presupuesto_s": 3,  # v1.7: tiempo máximo de UN canal por pasada (un canal lento no frena a otros)
+    "meta_citas_dia": 6,                # v2.0: meta diaria de citas CONFIRMADAS (panel de ventanilla)
+    # --- v2.0: gestor de conexiones (salida a red del motor). Nunca se cambia de conexión por una
+    # restricción del proveedor (429/403/límite): solo por fallos de RED, y solo en operaciones permitidas.
+    "conexion_orden_tipos": ["ETHERNET", "WIFI", "USB", "MODEM"],
+    "conexion_deshabilitadas": [],      # nombres de interfaz que el motor no debe usar
+    "conexion_umbral_fallos": 2,        # fallos de red seguidos para dar una conexión por caída
+    "conexion_reintento_s": 60,         # tras caer, cuánto esperar para volver a probarla
+    "conexion_estable_s": 120,          # la preferida vuelve a usarse tras estar bien este tiempo
     "backoff_notificacion_s": 2,
     # --- v1.1: retención del historial (valores conservadores; 0 = no borrar nunca)
     "retencion_consultas_dias": 14,             # poll_log detallado (ya resumido en agregados)

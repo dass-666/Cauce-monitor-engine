@@ -12,6 +12,8 @@ navegador NO adivina: se detiene con `RevisionRequerida` para que una persona lo
 """
 from __future__ import annotations
 
+import time
+
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urlparse
@@ -54,6 +56,12 @@ class SesionCaducada(ErrorFormulario):
 class Rechazo(ErrorFormulario):
     """Rechazo de negocio definitivo para este intento (horario agotado, duplicada...)."""
     tipo = "RECHAZO"
+
+
+class RestriccionProveedor(ErrorFormulario):
+    """v2.0: el proveedor limita o niega el acceso (HTTP 429/403). Se registra el motivo y se DETIENE
+    la operación: no se reintenta, ni por esta conexión ni por otra."""
+    tipo = "RESTRICCION"
 
 
 class ResultadoIncierto(ErrorFormulario):
@@ -172,17 +180,25 @@ def leer(html: str, status: int, marcadores: dict, ubicacion: str | None = None)
 # ---------------------------------------------------------------- navegador
 class NavegadorHTTP:
     def __init__(self, base: str, contrato: Contrato, token_api: str | None = None, sesion: str | None = None,
-                 timeout: float = 10, allowed_hosts=None, client: httpx.Client | None = None):
+                 timeout: float = 10, allowed_hosts=None, client: httpx.Client | None = None,
+                 local_address: str | None = None, informar=None, cambiar_conexion=None):
+        """v2.0: `local_address` = dirección de origen (la conexión que eligió el gestor de conexiones);
+        `informar(resultado, ms, detalle)` recibe el resultado de cada petición (OK, RED, RESTRICCION, PORTAL)."""
         check_url(base, allowed_hosts)
         self.base, self.contrato, self.token_api = base.rstrip("/"), contrato, token_api
         self.m = contrato.marcadores
         host = urlparse(self.base).hostname
-        self.http = client or httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False,
-                                           headers={"User-Agent": USER_AGENT})
+        self.informar, self.cambiar_conexion, self._timeout = informar, cambiar_conexion, timeout
+        self.http = client or self._cliente(local_address)
         self._propio = client is None
         if sesion:
             self.http.cookies.set(COOKIE_SESION, sesion, domain=host)
         self._host = host
+
+    def _cliente(self, local_address: str | None) -> httpx.Client:
+        return httpx.Client(timeout=self._timeout, follow_redirects=False, trust_env=False,
+                            headers={"User-Agent": USER_AGENT},
+                            transport=httpx.HTTPTransport(local_address=local_address) if local_address else None)
 
     def cerrar(self) -> None:
         if self._propio:
@@ -196,13 +212,39 @@ class NavegadorHTTP:
         return None
 
     # -------------------------------------------------------------- transporte
-    def _pedir(self, metodo: str, ruta: str, **kw) -> httpx.Response:
+    def _informe(self, resultado: str, t0: float, detalle: str = "") -> None:
+        if self.informar:
+            self.informar(resultado, (time.perf_counter() - t0) * 1000, detalle)
+
+    def _pedir(self, metodo: str, ruta: str, _respaldo: bool = True, **kw) -> httpx.Response:
+        t0 = time.perf_counter()
         try:
             r = self.http.request(metodo, self.base + ruta, **kw)
+        except httpx.ConnectError as e:
+            # v2.0: la conexión NO llegó a establecerse: nada alcanzó al portal, así que repetir la
+            # petición por la conexión de respaldo es seguro (solo antes de abrir sesión y una vez).
+            self._informe("RED", t0, e.__class__.__name__)
+            nueva = (self.cambiar_conexion(e.__class__.__name__)
+                     if _respaldo and self.cambiar_conexion and self._propio and self.sesion is None else None)
+            if nueva is not None:
+                self.http.close()
+                self.http = self._cliente(nueva or None)
+                return self._pedir(metodo, ruta, _respaldo=False, **kw)
+            raise ResultadoIncierto("RED", f"no se pudo conectar con el portal ({e.__class__.__name__})") from e
         except (httpx.TimeoutException, httpx.TransportError) as e:
+            self._informe("RED", t0, e.__class__.__name__)
             raise ResultadoIncierto("RED", f"se perdió la comunicación con el portal ({e.__class__.__name__})") from e
+        if r.status_code in (403, 429):
+            espera = r.headers.get("retry-after")
+            motivo = (f"el portal limitó las solicitudes (HTTP 429{', pide esperar ' + espera + ' s' if espera else ''})"
+                      if r.status_code == 429 else "el portal negó el acceso (HTTP 403)")
+            self._informe("RESTRICCION", t0, motivo)
+            raise RestriccionProveedor("RESTRICCION_PROVEEDOR", motivo + ": la operación se detiene y no se reintenta "
+                                       "por otra conexión", http=r.status_code)
         if r.status_code >= 500:
+            self._informe("PORTAL", t0, f"HTTP {r.status_code}")
             raise ResultadoIncierto("ERROR_INTERNO", f"el portal respondió HTTP {r.status_code}", http=r.status_code)
+        self._informe("OK", t0)
         return r
 
     def _pagina(self, r: httpx.Response) -> Pagina:

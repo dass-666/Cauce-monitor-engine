@@ -327,6 +327,7 @@ def cerrar(db: Database, user, aid: int, now: datetime, resultado: str | None = 
         exp_id = a.expediente_id
         res = _reservacion(s, a)
         res_id, res_estado, folio = (res.id, res.estado, res.folio) if res else (None, None, None)
+        conexion_portal = res.conexion if res else None     # v2.0: por qué red salió la sesión con el portal
     if res_estado == rs.CONFIRMADA:
         final, codigo = CONFIRMADA, "CITA_CONFIRMADA"
     elif res_estado in (rs.CONFIRMANDO, rs.EN_VERIFICACION):
@@ -351,6 +352,7 @@ def cerrar(db: Database, user, aid: int, now: datetime, resultado: str | None = 
             return vista(s, a)
         a.estado, a.resultado, a.cerrada_en, a.updated_at = final, codigo, now, now
         a.reservacion_id = res_id or a.reservacion_id
+        a.conexion = conexion_portal or a.conexion
         a.folio = folio if final == CONFIRMADA else None
         if final != PENDIENTE:
             a.viva_expediente_id = None

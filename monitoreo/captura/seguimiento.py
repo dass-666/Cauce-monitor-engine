@@ -187,6 +187,11 @@ def mantenimiento(db: Database, now: datetime) -> dict:
     except Exception as e:  # noqa: BLE001 - no debe parar al motor
         log.warning("seguimiento de ventanilla falló: %s", e)
     try:
+        from .. import conexiones
+        res["conexion_eventos"] = conexiones.volcar(db)
+    except Exception as e:  # noqa: BLE001 - no debe parar al motor
+        log.warning("registro de eventos de conexión falló: %s", e)
+    try:
         with db.session() as s:
             cada = float(get_params(s)["retencion_expedientes_cada_s"])
         if cada > 0 and time.monotonic() - _ultima_retencion["t"] >= cada:

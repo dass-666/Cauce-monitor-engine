@@ -19,7 +19,8 @@ LIMITS = {
     "enfriamiento_min_s": (1, 86400), "enfriamiento_max_s": (1, 86400), "minutos_sin_exito_hasta_error": (0, 100000),
     "backoff_max_s": (1, 86400), "ausencias_para_cancelar": (1, 1000), "ttl_asignacion_s": (10, 7 * 86400), "operador_ausente_s": (0, 7 * 86400),
     "operador_conexion_perdida_s": (10, 86400), "operador_inactivo_s": (30, 7 * 86400), "alertas_agrupar_s": (0, 86400),
-    "max_intentos_solicitud": (1, 1000), "reintentos_notificacion": (0, 100), "despacho_presupuesto_s": (0.5, 600), "despacho_canal_presupuesto_s": (0.1, 600), "meta_citas_dia": (1, 10000), "backoff_notificacion_s": (0.1, 3600),
+    "max_intentos_solicitud": (1, 1000), "reintentos_notificacion": (0, 100), "despacho_presupuesto_s": (0.5, 600), "despacho_canal_presupuesto_s": (0.1, 600), "meta_citas_dia": (1, 10000),
+    "conexion_umbral_fallos": (1, 20), "conexion_reintento_s": (5, 3600), "conexion_estable_s": (0, 86400), "backoff_notificacion_s": (0.1, 3600),
     "retencion_lote": (1, 100000), "retencion_lotes_por_pasada": (1, 100000), "retencion_pausa_lote_s": (0, 10),
     "mantenimiento_historial_cada_s": (10, 7 * 86400), "lease_duracion_s": (3, 3600),
     "entrega_reclamo_vence_s": (10, 86400), "inactividad_en_proceso_min": (0, 7 * 24 * 60),
@@ -48,6 +49,13 @@ def set_params(session: Session, changes: dict) -> dict:
         if isinstance(default, list):
             if not isinstance(v, list):
                 raise ValueError(f"{k} debe ser una lista")
+            if k == "conexion_orden_tipos":
+                from ..conexiones.descubrimiento import TIPOS_USABLES
+                malas = [t for t in v if t not in TIPOS_USABLES]
+                if malas or not v or len(set(v)) != len(v):
+                    raise ValueError(f"conexion_orden_tipos: lista sin repetir de {list(TIPOS_USABLES)}")
+            if k == "conexion_deshabilitadas" and not all(isinstance(x, str) and 0 < len(x) <= 64 for x in v):
+                raise ValueError("conexion_deshabilitadas: nombres de interfaz (texto, 1 a 64 caracteres)")
             if k == "alertas_silenciadas":
                 from .alerts import SILENCIABLES
                 malas = [c for c in v if c not in SILENCIABLES]

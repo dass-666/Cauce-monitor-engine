@@ -457,6 +457,19 @@ class Expediente(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class ConexionEvento(Base):
+    """v2.0: cambios de conexión, caídas, recuperaciones, RESTRICCIONES del proveedor y el uso de
+    cada operación con el portal (qué conexión, qué resultado). Sin datos de personas."""
+    __tablename__ = "conexion_eventos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    evento: Mapped[str] = mapped_column(String(16), index=True)      # CAMBIO|CAIDA|RECUPERADA|RESTRICCION|USO
+    conexion: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tipo: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    operacion: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class Atencion(Base):
     """v2.0 · Atención PRESENCIAL (modo ventanilla): una persona frente al operador, de principio a fin.
 
@@ -534,6 +547,7 @@ class Reservacion(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     intentos_confirmacion: Mapped[int] = mapped_column(Integer, default=0)
     confirmada_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conexion: Mapped[str | None] = mapped_column(String(64), nullable=True)    # v2.0: conexión de red de su sesión
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

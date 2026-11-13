@@ -158,6 +158,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v2.0: modo ventanilla (atención presencial) sobre la captura de laboratorio
         from .api.ventanilla import router as ventanilla_router
         app.include_router(ventanilla_router)
+        # v2.0: gestor de conexiones (por qué red sale el motor hacia el portal de prueba)
+        from .api.conexiones import router as conexiones_router
+        app.include_router(conexiones_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

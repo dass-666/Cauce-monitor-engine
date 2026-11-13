@@ -52,10 +52,10 @@ def persona(portal, n: int) -> dict:
             "region": "NORTE", "sucursal": "NOR-1"}
 
 
-def fase(node, motor, caps, out, nombre, personas) -> tuple[bool, dict, str]:
+def fase(node, motor, caps, out, nombre, personas, usuario="operador1", clave=None) -> tuple[bool, dict, str]:
     pj = out / f"personas_{nombre}.json"
     pj.write_text(json.dumps(personas, ensure_ascii=False), encoding="utf-8")
-    p = subprocess.run([node, str(ROOT / "scripts" / "recorrido_v20.js"), motor.base, "operador1", OP_PWD, str(caps),
+    p = subprocess.run([node, str(ROOT / "scripts" / "recorrido_v20.js"), motor.base, usuario, clave or OP_PWD, str(caps),
                         nombre, str(pj)], cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=600)
     pj.unlink()                     # datos ficticios, pero no se dejan en los resultados
@@ -161,6 +161,9 @@ def run(a) -> dict:
     ck("ventanilla en teléfono: atención completa y sin desborde horizontal", ok and mv.get("desborde") is False
        and len(mv.get("atenciones", [])) == 1, err if not ok else mv.get("desborde"))
 
+    ok, cx, err = fase(node, motor, caps, out, "conexiones", [], usuario="admin", clave=PWD)
+    ck("pantalla «Conexiones»: el portal de prueba es local y no se aparenta probar redes físicas",
+       ok and cx.get("local") is True and cx.get("usos", 0) >= 1, err if not ok else cx)
     c = login(motor.base, "admin", PWD)
     with httpx.Client(base_url=motor.base, timeout=30, trust_env=False) as co:
         co.headers["Authorization"] = "Bearer " + co.post("/api/auth/login", json={"username": "operador1", "password": OP_PWD}).json()["token"]
@@ -169,7 +172,7 @@ def run(a) -> dict:
        and not dia["abiertas"], (dia["mias"]["con_cita"], dia["mias"]["sin_cita"], len(dia["abiertas"])))
     integ = c.get("/api/captura/coherencia").json()
     ck("coherencia del motor (sin estados contradictorios)", not integ.get("problemas"), (integ.get("problemas") or [])[:3])
-    errores = sum((x.get("errores_js", []) for x in (seis, sc, du, me, rt, mv)), [])
+    errores = sum((x.get("errores_js", []) for x in (seis, sc, du, me, rt, mv, cx)), [])
     ck("sin errores de JavaScript en el panel", not errores, errores[:5])
     http_err = {k: x.get("http_errores", []) for k, x in (("seis", seis), ("sin_cita", sc), ("duplicado", du), ("medias", me),
                                                            ("retomar", rt), ("movil", mv))}
