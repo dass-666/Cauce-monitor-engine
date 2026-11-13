@@ -101,11 +101,21 @@ integridad. Los tres se corrigieron en los scripts y las mediciones se repitiero
 
 ## 8. Resultado de la suite
 
-{{SUITE}}
+**513 pasan, 4 omitidas a propósito, 0 fallan** en SQLite y PostgreSQL 16 juntos (8 min 17 s).
+Archivo: `docs/resultados/v1.7/pytest_sqlite_y_postgresql.txt` (MEDIDO). Las 4 omitidas son carreras
+que solo existen en PostgreSQL. La v1.6 terminó con 470.
 
 ## 9. Resultado del CI
 
-{{CI}}
+Corrida 43389538322 (commit `cc0b4b7`): **20 de 22**. Fallaron *Linux · Python 3.13* y
+*Windows · Python 3.13* en la prueba del panel `e2e_panel.js`: seguía esperando el indicador
+«Asignaciones sin actividad» del Inicio de la v1.6, que en la v1.7 es el centro de operaciones y lo
+llama «Operaciones abandonadas». Era la prueba, no el producto; se actualizó (pasa en local 37/37).
+
+**Corrida final 43399158677 (commit `1470d2e`): 22 de 22 trabajos en verde** (MEDIDO): Windows
+3.11, 3.12 y 3.13 (incluido `demo_v17.py` y el laboratorio reducido); Linux 3.11, 3.12 y 3.13;
+PostgreSQL en Windows; reservaciones de laboratorio en Linux y Windows ×3; integración HTTP;
+instalación; PowerShell 5.1 y 7; actualización desde v1.1, v1.2, v1.3, v1.4, v1.5 y **v1.6**.
 
 ## 10. Laboratorio integrado (`docs/resultados/v1.7/laboratorio/A/laboratorio.json`)
 
@@ -204,7 +214,7 @@ la actualización desde v1.1, v1.2, v1.3, v1.4, v1.5 y v1.6 en Windows PowerShel
 ## 16. ZIP
 
 `/mnt/project-files/motor-monitoreo/motor-monitoreo-v1.7.0.zip` (código, guías, scripts, capturas y
-resultados; sin bases de datos, entornos virtuales ni secretos). {{ZIP}}
+resultados; sin bases de datos, entornos virtuales ni secretos).
 
 ## 17. Recomendaciones para la siguiente fase
 
@@ -223,12 +233,12 @@ resultados; sin bases de datos, entornos virtuales ni secretos). {{ZIP}}
 
 | Parte | Implementado | Probado en Linux | Probado en Windows CI | Pendiente de probar en el MSI | Pendiente de validar con una integración externa |
 |---|---|---|---|---|---|
-| Centro de operaciones y filtros | Sí | Sí (pruebas + navegador) | Sí (pruebas) {{CIW}} | Sí | — |
-| Mi trabajo (12 pasos, retomar) | Sí | Sí (pruebas + navegador + reinicio) | Sí (pruebas + `demo_v17.py`) {{CIW}} | Sí | — |
-| Supervisión y redistribución | Sí | Sí (pruebas, laboratorio, paridad) | Sí (pruebas + laboratorio reducido) {{CIW}} | Sí | — |
-| Notificaciones (10 categorías) | Sí | Sí | Sí {{CIW}} | Sí | **Telegram real** |
-| Presupuesto por canal | Sí | Sí (prueba que fallaba antes) | Sí {{CIW}} | Sí | Canales reales |
-| Reparaciones seguras | Sí | Sí (SQLite y PostgreSQL) | Sí (SQLite) {{CIW}} | Sí | — |
+| Centro de operaciones y filtros | Sí | Sí (pruebas + navegador) | Sí (pruebas) (CI 22/22) | Sí | — |
+| Mi trabajo (12 pasos, retomar) | Sí | Sí (pruebas + navegador + reinicio) | Sí (pruebas + `demo_v17.py`) (CI 22/22) | Sí | — |
+| Supervisión y redistribución | Sí | Sí (pruebas, laboratorio, paridad) | Sí (pruebas + laboratorio reducido) (CI 22/22) | Sí | — |
+| Notificaciones (10 categorías) | Sí | Sí | Sí (CI 22/22) | Sí | **Telegram real** |
+| Presupuesto por canal | Sí | Sí (prueba que fallaba antes) | Sí (CI 22/22) | Sí | Canales reales |
+| Reparaciones seguras | Sí | Sí (SQLite y PostgreSQL) | Sí (SQLite) (CI 22/22) | Sí | — |
 | Rendimiento a 3 escalas | Medido | Sí (este informe) | No | Sí | — |
-| Actualización desde v1.6 | Sí | — | Sí (PowerShell 5.1) {{CIW}} | Sí | — |
+| Actualización desde v1.6 | Sí | — | Sí (PowerShell 5.1) (CI 22/22) | Sí | — |
 | Portal de reservaciones | Solo el de prueba | Sí | Sí | Sí | **Cualquier portal real** (requiere autorización) |
