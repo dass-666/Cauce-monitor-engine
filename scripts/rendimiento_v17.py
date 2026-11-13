@@ -102,7 +102,7 @@ def sembrar(url: str, e: dict, rng: random.Random) -> dict:
             for j in range(3):
                 suc = (sucursales[src.region] or [None])[j % max(1, len(sucursales[src.region]))]
                 st = SlotState(source_id=src.id, resource_key=f"K{i}-{j}", region=src.region, resource_type="cita_dia",
-                               name=f"Día ficticio {i}-{j}", available=0, held=0, status="ACTIVO", fingerprint="f",
+                               name=f"Día ficticio {i}-{j}", available=200, held=0, status="ACTIVO", fingerprint="f",
                                attributes={"sucursal": suc} if suc else {})
                 s.add(st)
                 slots.append(st)
@@ -114,7 +114,9 @@ def sembrar(url: str, e: dict, rng: random.Random) -> dict:
             s.add(u)
             s.flush()
             regs = [regiones[(i + k) % len(regiones)] for k in range(max(1, len(regiones) // max(1, e["operadores"]) + 1))]
-            o = Operator(name=f"Operador {LETRAS[i // 26]}{LETRAS[i % 26]}", user_id=u.id, regions=regs, max_concurrent=50)
+            # capacidad suficiente para el trabajo sembrado (10 % ASIGNADO repartido entre los operadores)
+            o = Operator(name=f"Operador {LETRAS[i // 26]}{LETRAS[i % 26]}", user_id=u.id, regions=regs,
+                         max_concurrent=max(50, e["expedientes"] // e["operadores"]))
             s.add(o)
             ops.append((o, u.username))
         s.flush()
@@ -147,6 +149,7 @@ def sembrar(url: str, e: dict, rng: random.Random) -> dict:
                                explicacion={"criterio": "menor carga actual", "resumen": f"Se eligió a {o.name}."})
                 s.add(a)
                 o.current_load += 1
+                sl.held += 1          # lo retenido en el recurso cuadra con las asignaciones vivas
             s.add(x)
             s.flush()
             for k, (antes, despues) in enumerate([("NUEVO", "EN_VALIDACION"), ("EN_VALIDACION", est)]):

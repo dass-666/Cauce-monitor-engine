@@ -20,7 +20,7 @@ from .security import hash_password
 
 log = logging.getLogger("monitoreo")
 WEB_DIR = Path(__file__).parent / "web"
-VERSION = "1.6.0"
+VERSION = "2.0.0-dev"
 
 
 BOOTSTRAP_LOCK_ID = 727275  # candado consultivo de PostgreSQL para la siembra inicial

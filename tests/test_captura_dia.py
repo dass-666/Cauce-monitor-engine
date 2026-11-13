@@ -608,3 +608,47 @@ def test_v17_redistribuir_no_toca_una_confirmacion_en_verificacion(lab):
     with lab.db.session() as s:
         assert s.get(Assignment, aid).status in ("ACTIVA", "EN_PROCESO")
         assert s.get(Expediente, eid).operator_id == oid
+
+
+def test_v17_supervision_agrupada_da_las_mismas_cifras_que_por_operador(lab):
+    """v1.7 (rendimiento): /api/supervision calcula cada cifra con UNA consulta agrupada. Esta prueba
+    rehace el cálculo de antes (consultas por operador) sobre datos variados (asignaciones en varios
+    estados, reasignación, error de captura, expedientes) y exige las mismas cifras."""
+    from datetime import timedelta
+    from sqlalchemy import func, or_
+    from monitoreo.db import utcnow
+    from monitoreo.engine.params import get_params
+    from monitoreo.models import ExpedienteEvento, Reservacion
+    eid, u, h = asignado(lab)
+    lab.hasta_fecha(eid, h)
+    eid2, u2, h2 = asignado(lab)
+    with lab.db.session() as s:                              # un error de captura y una reasignación
+        r = s.scalar(select(Reservacion).where(Reservacion.expediente_id == eid))
+        r.error_codigo = "RED"
+        oid = s.get(Expediente, eid2).operator_id
+    lab.c.post(f"/api/supervision/operadores/{oid}/redistribuir", headers=lab.h,
+               json={"confirmo": True, "motivo": "prueba de cifras"})
+    lab.ciclo()
+    ops = {o["id"]: o for o in lab.c.get("/api/supervision", headers=lab.h).json()["operadores"]}
+    now = utcnow()
+    with lab.db.session() as s:
+        params = get_params(s)
+        for o in s.scalars(select(Operator)):
+            A = Assignment
+            est = dict(s.execute(select(A.status, func.count()).where(A.operator_id == o.id).group_by(A.status)).all())
+            sin = s.scalar(select(func.count()).select_from(A).where(A.operator_id == o.id, or_(
+                (A.status == "EN_PROCESO") & A.inactive_alerted_at.is_not(None),
+                (A.status == "ACTIVA") & (A.created_at <= now - timedelta(seconds=float(params["operador_conexion_perdida_s"])))))) or 0
+            exps = dict(s.execute(select(Expediente.estado, func.count()).where(Expediente.operator_id == o.id)
+                                  .group_by(Expediente.estado)).all())
+            reas = s.scalar(select(func.count()).select_from(ExpedienteEvento).where(
+                ExpedienteEvento.tipo.in_(["ASIGNACION_CAMBIADA", "ASIGNACION_LIBERADA", "REDISTRIBUIDO"]),
+                ExpedienteEvento.detalle["operador_anterior"].as_integer() == o.id)) or 0
+            errs = s.scalar(select(func.count()).select_from(Reservacion).where(
+                Reservacion.operator_id == o.id, Reservacion.error_codigo.is_not(None))) or 0
+            f = ops[o.id]
+            assert (f["asignadas"], f["en_proceso"], f["completadas"], f["rechazos"], f["expiradas"], f["canceladas"]) == (
+                est.get("ACTIVA", 0), est.get("EN_PROCESO", 0), est.get("COMPLETADA", 0),
+                est.get("RECHAZADA", 0) + est.get("DECLINADA", 0), est.get("EXPIRADA", 0), est.get("CANCELADA", 0)), o.name
+            assert (f["sin_atencion"], f["expedientes"], f["reasignaciones"], f["errores"]) == (sin, exps, reas, errs), o.name
+    assert sum(f["reasignaciones"] for f in ops.values()) >= 1 and sum(f["errores"] for f in ops.values()) == 1

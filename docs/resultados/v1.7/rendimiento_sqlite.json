@@ -1,0 +1,446 @@
+{
+ "generado": "2026-11-13T08:53:02",
+ "motor": "sqlite",
+ "plataforma": "Linux 6.18.44-fc-v445 · Python 3.13.18 · 4 CPU · 15.7 GB",
+ "etiquetas": {
+  "MEDIDO": "latencias, CPU, memoria, crecimiento, bloqueos, integridad, asignación",
+  "SIMULADO": "fuentes, operadores (clientes HTTP), datos ficticios"
+ },
+ "escenarios": [
+  {
+   "escenario": "s1",
+   "regiones": 5,
+   "sucursales": 10,
+   "fuentes": 100,
+   "expedientes": 1000,
+   "operadores": 5,
+   "sembrado_s": 1.1,
+   "arranque_s": 1.22,
+   "duracion_s": 40.0,
+   "parada": "ordenada",
+   "peticiones": 722,
+   "errores_http": {},
+   "peticiones_por_s": 18.1,
+   "latencia_api": {
+    "/api/captura/mi-trabajo": {
+     "n": 130,
+     "p50_ms": 62.3,
+     "p95_ms": 1213.1,
+     "max_ms": 1441.7
+    },
+    "/api/captura/resumen": {
+     "n": 22,
+     "p50_ms": 54.1,
+     "p95_ms": 676.6,
+     "max_ms": 1279.7
+    },
+    "/api/centro": {
+     "n": 174,
+     "p50_ms": 62.9,
+     "p95_ms": 757.8,
+     "max_ms": 2129.4
+    },
+    "/api/dashboard": {
+     "n": 152,
+     "p50_ms": 50.0,
+     "p95_ms": 667.0,
+     "max_ms": 1655.0
+    },
+    "/api/expedientes": {
+     "n": 22,
+     "p50_ms": 63.5,
+     "p95_ms": 254.2,
+     "max_ms": 2670.6
+    },
+    "/api/health": {
+     "n": 2,
+     "p50_ms": 3.7,
+     "p95_ms": 3.7,
+     "max_ms": 3.7
+    },
+    "/api/notificaciones": {
+     "n": 152,
+     "p50_ms": 17.7,
+     "p95_ms": 320.5,
+     "max_ms": 1544.7
+    },
+    "/api/notificaciones/confirmar": {
+     "n": 24,
+     "p50_ms": 11.8,
+     "p95_ms": 543.1,
+     "max_ms": 1371.4
+    },
+    "/api/operators": {
+     "n": 22,
+     "p50_ms": 91.6,
+     "p95_ms": 674.8,
+     "max_ms": 941.3
+    },
+    "/api/supervision": {
+     "n": 22,
+     "p50_ms": 23.9,
+     "p95_ms": 561.0,
+     "max_ms": 858.9
+    }
+   },
+   "refresco_vistas": {
+    "admin · Centro filtrado": {
+     "n": 22,
+     "p50_ms": 33.4,
+     "p95_ms": 106.1,
+     "max_ms": 203.5
+    },
+    "admin · Expedientes": {
+     "n": 22,
+     "p50_ms": 80.7,
+     "p95_ms": 1280.1,
+     "max_ms": 2671.9
+    },
+    "admin · Inicio (centro)": {
+     "n": 22,
+     "p50_ms": 139.5,
+     "p95_ms": 854.7,
+     "max_ms": 943.5
+    },
+    "admin · Notificaciones": {
+     "n": 22,
+     "p50_ms": 30.8,
+     "p95_ms": 213.9,
+     "max_ms": 1165.9
+    },
+    "admin · Supervisión": {
+     "n": 22,
+     "p50_ms": 24.3,
+     "p95_ms": 561.5,
+     "max_ms": 859.4
+    },
+    "operador · Inicio": {
+     "n": 130,
+     "p50_ms": 90.6,
+     "p95_ms": 1056.6,
+     "max_ms": 2130.7
+    },
+    "operador · Mi trabajo": {
+     "n": 130,
+     "p50_ms": 62.9,
+     "p95_ms": 1213.8,
+     "max_ms": 1442.3
+    }
+   },
+   "cpu_servidor_pct": {
+    "media": 86.3,
+    "max": 101.9
+   },
+   "memoria_servidor_mb": {
+    "max": 191.8,
+    "final": 191.8
+   },
+   "base_bytes": {
+    "antes": 1527808,
+    "despues": 8751152,
+    "crecimiento": 7223344
+   },
+   "database_is_locked_en_registro": 0,
+   "asignacion_motor": {
+    "n": 40,
+    "p50_ms": 0.3,
+    "p95_ms": 0.5,
+    "max_ms": 0.5,
+    "recursos": 40,
+    "asignaciones_creadas": 0
+   },
+   "integridad": [],
+   "asignaciones_dobles": 0,
+   "salud_final": true,
+   "motor": "sqlite"
+  },
+  {
+   "escenario": "s2",
+   "regiones": 10,
+   "sucursales": 25,
+   "fuentes": 100,
+   "expedientes": 5000,
+   "operadores": 10,
+   "sembrado_s": 5.1,
+   "arranque_s": 1.82,
+   "duracion_s": 40.0,
+   "parada": "ordenada",
+   "peticiones": 667,
+   "errores_http": {},
+   "peticiones_por_s": 16.7,
+   "latencia_api": {
+    "/api/captura/mi-trabajo": {
+     "n": 144,
+     "p50_ms": 206.5,
+     "p95_ms": 4256.9,
+     "max_ms": 10981.8
+    },
+    "/api/captura/resumen": {
+     "n": 10,
+     "p50_ms": 73.8,
+     "p95_ms": 2383.7,
+     "max_ms": 2383.7
+    },
+    "/api/centro": {
+     "n": 164,
+     "p50_ms": 90.6,
+     "p95_ms": 2161.3,
+     "max_ms": 8788.6
+    },
+    "/api/dashboard": {
+     "n": 154,
+     "p50_ms": 109.7,
+     "p95_ms": 1648.9,
+     "max_ms": 8061.8
+    },
+    "/api/expedientes": {
+     "n": 10,
+     "p50_ms": 164.8,
+     "p95_ms": 2500.3,
+     "max_ms": 2500.3
+    },
+    "/api/health": {
+     "n": 2,
+     "p50_ms": 22.5,
+     "p95_ms": 22.5,
+     "max_ms": 22.5
+    },
+    "/api/notificaciones": {
+     "n": 154,
+     "p50_ms": 21.0,
+     "p95_ms": 1560.2,
+     "max_ms": 8301.8
+    },
+    "/api/notificaciones/confirmar": {
+     "n": 9,
+     "p50_ms": 22.5,
+     "p95_ms": 1055.0,
+     "max_ms": 1055.0
+    },
+    "/api/operators": {
+     "n": 10,
+     "p50_ms": 120.3,
+     "p95_ms": 13094.5,
+     "max_ms": 13094.5
+    },
+    "/api/supervision": {
+     "n": 10,
+     "p50_ms": 41.1,
+     "p95_ms": 233.7,
+     "max_ms": 233.7
+    }
+   },
+   "refresco_vistas": {
+    "admin · Centro filtrado": {
+     "n": 10,
+     "p50_ms": 42.0,
+     "p95_ms": 1469.1,
+     "max_ms": 1469.1
+    },
+    "admin · Expedientes": {
+     "n": 10,
+     "p50_ms": 165.9,
+     "p95_ms": 2501.7,
+     "max_ms": 2501.7
+    },
+    "admin · Inicio (centro)": {
+     "n": 10,
+     "p50_ms": 660.6,
+     "p95_ms": 13096.6,
+     "max_ms": 13096.6
+    },
+    "admin · Notificaciones": {
+     "n": 10,
+     "p50_ms": 35.0,
+     "p95_ms": 1962.9,
+     "max_ms": 1962.9
+    },
+    "admin · Supervisión": {
+     "n": 10,
+     "p50_ms": 41.6,
+     "p95_ms": 234.1,
+     "max_ms": 234.1
+    },
+    "operador · Inicio": {
+     "n": 144,
+     "p50_ms": 158.5,
+     "p95_ms": 2893.6,
+     "max_ms": 8790.1
+    },
+    "operador · Mi trabajo": {
+     "n": 144,
+     "p50_ms": 207.1,
+     "p95_ms": 4257.4,
+     "max_ms": 10982.5
+    }
+   },
+   "cpu_servidor_pct": {
+    "media": 97.2,
+    "max": 101.9
+   },
+   "memoria_servidor_mb": {
+    "max": 225.9,
+    "final": 225.9
+   },
+   "base_bytes": {
+    "antes": 5353472,
+    "despues": 17866288,
+    "crecimiento": 12512816
+   },
+   "database_is_locked_en_registro": 0,
+   "asignacion_motor": {
+    "n": 40,
+    "p50_ms": 0.3,
+    "p95_ms": 0.6,
+    "max_ms": 0.6,
+    "recursos": 40,
+    "asignaciones_creadas": 0
+   },
+   "integridad": [],
+   "asignaciones_dobles": 0,
+   "salud_final": true,
+   "motor": "sqlite"
+  },
+  {
+   "escenario": "s3",
+   "regiones": 25,
+   "sucursales": 25,
+   "fuentes": 100,
+   "expedientes": 10000,
+   "operadores": 20,
+   "sembrado_s": 11.3,
+   "arranque_s": 1.15,
+   "duracion_s": 40.0,
+   "parada": "ordenada",
+   "peticiones": 1618,
+   "errores_http": {},
+   "peticiones_por_s": 40.5,
+   "latencia_api": {
+    "/api/captura/mi-trabajo": {
+     "n": 378,
+     "p50_ms": 110.5,
+     "p95_ms": 1757.2,
+     "max_ms": 4288.7
+    },
+    "/api/captura/resumen": {
+     "n": 13,
+     "p50_ms": 131.7,
+     "p95_ms": 2488.4,
+     "max_ms": 2488.4
+    },
+    "/api/centro": {
+     "n": 404,
+     "p50_ms": 121.8,
+     "p95_ms": 1491.0,
+     "max_ms": 4282.9
+    },
+    "/api/dashboard": {
+     "n": 391,
+     "p50_ms": 109.7,
+     "p95_ms": 1888.5,
+     "max_ms": 4284.5
+    },
+    "/api/expedientes": {
+     "n": 13,
+     "p50_ms": 110.7,
+     "p95_ms": 2515.0,
+     "max_ms": 2515.0
+    },
+    "/api/health": {
+     "n": 2,
+     "p50_ms": 108.6,
+     "p95_ms": 108.6,
+     "max_ms": 108.6
+    },
+    "/api/notificaciones": {
+     "n": 391,
+     "p50_ms": 56.7,
+     "p95_ms": 1276.5,
+     "max_ms": 4455.7
+    },
+    "/api/operators": {
+     "n": 13,
+     "p50_ms": 205.3,
+     "p95_ms": 1768.4,
+     "max_ms": 1768.4
+    },
+    "/api/supervision": {
+     "n": 13,
+     "p50_ms": 130.2,
+     "p95_ms": 799.4,
+     "max_ms": 799.4
+    }
+   },
+   "refresco_vistas": {
+    "admin · Centro filtrado": {
+     "n": 13,
+     "p50_ms": 63.4,
+     "p95_ms": 1904.9,
+     "max_ms": 1904.9
+    },
+    "admin · Expedientes": {
+     "n": 13,
+     "p50_ms": 166.9,
+     "p95_ms": 2516.4,
+     "max_ms": 2516.4
+    },
+    "admin · Inicio (centro)": {
+     "n": 13,
+     "p50_ms": 370.0,
+     "p95_ms": 2695.7,
+     "max_ms": 2695.7
+    },
+    "admin · Notificaciones": {
+     "n": 13,
+     "p50_ms": 104.6,
+     "p95_ms": 1768.1,
+     "max_ms": 1768.1
+    },
+    "admin · Supervisión": {
+     "n": 13,
+     "p50_ms": 130.9,
+     "p95_ms": 799.8,
+     "max_ms": 799.8
+    },
+    "operador · Inicio": {
+     "n": 378,
+     "p50_ms": 199.4,
+     "p95_ms": 2156.9,
+     "max_ms": 4285.0
+    },
+    "operador · Mi trabajo": {
+     "n": 378,
+     "p50_ms": 111.0,
+     "p95_ms": 1757.5,
+     "max_ms": 4289.3
+    }
+   },
+   "cpu_servidor_pct": {
+    "media": 97.4,
+    "max": 105.9
+   },
+   "memoria_servidor_mb": {
+    "max": 274.7,
+    "final": 274.7
+   },
+   "base_bytes": {
+    "antes": 10182656,
+    "despues": 23531888,
+    "crecimiento": 13349232
+   },
+   "database_is_locked_en_registro": 0,
+   "asignacion_motor": {
+    "n": 6,
+    "p50_ms": 1.5,
+    "p95_ms": 6.6,
+    "max_ms": 6.6,
+    "recursos": 6,
+    "asignaciones_creadas": 0
+   },
+   "integridad": [],
+   "asignaciones_dobles": 0,
+   "salud_final": true,
+   "motor": "sqlite"
+  }
+ ]
+}
