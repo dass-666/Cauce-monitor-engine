@@ -1,0 +1,24 @@
+===== seis
+RESULTADO {"fase":"seis","atenciones":[{"folio":"DIA-20261116-00001R","folio_flujo":"DIA-20261116-00001R","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":5.222,"estado":"CONFIRMADA"},{"folio":"DIA-20261119-00002A","folio_flujo":"DIA-20261119-00002A","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":1.216,"estado":"CONFIRMADA"},{"folio":"DIA-20261119-00003N","folio_flujo":"DIA-20261119-00003N","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":1.233,"estado":"CONFIRMADA"},{"folio":"DIA-20261119-00004R","folio_flujo":"DIA-20261119-00004R","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":1.17,"estado":"CONFIRMADA"},{"folio":"DIA-20261116-00005J","folio_flujo":"DIA-20261116-00005J","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":1.194,"estado":"CONFIRMADA"},{"folio":"DIA-20261117-00006V","folio_flujo":"DIA-20261117-00006V","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":1.249,"estado":"CONFIRMADA"}],"repintado_borra":false,"meta_texto":"6 de 6 citas confirmadas hoyMeta cumplidaSolo cuentan las citas con folio comprobado en el portal.","citas_hoy":6,"errores_js":[],"http_errores":[],"http_mensajes":[]}
+
+
+===== sin_cita
+RESULTADO {"fase":"sin_cita","atenciones":[],"estado":"SIN_DISPONIBILIDAD","folio_visible":false,"errores_js":[],"http_errores":[],"http_mensajes":[]}
+
+
+===== duplicado
+RESULTADO {"fase":"duplicado","atenciones":[],"aviso":"Ya existe un expediente activo para esta persona y este trámite: recupéralo en lugar de crear otroEXP-000008 LISTO · P•••••• V••••••••• V••Atender este","recuperado":"ATN-000008 EN PROCESO En proceso · EXP-000008 · P•••••• V••••••••• V•• · Renovación (ficticia)PersonaDatosFechaConfirmaciónCierreSiguiente: Prepara el formulario y revisa los datos con la persona.Volver a la lista (la atención queda abierta)","folio":"DIA-20261117-00007C","errores_js":[],"http_errores":["409 POST /api/ventanilla/atenciones/8/expediente"],"http_mensajes":["409 POST /api/ventanilla/atenciones/8/expediente · Ya existe un expediente activo para esta persona y este trámite: recupéralo en lugar de crear otro"]}
+
+
+===== medias
+RESULTADO {"fase":"medias","atenciones":[],"atencion":"9","errores_js":[],"http_errores":[],"http_mensajes":[]}
+
+
+===== retomar
+RESULTADO {"fase":"retomar","atenciones":[],"siguiente":"fecha","folio":"DIA-20261119-00008C","errores_js":[],"http_errores":[],"http_mensajes":[]}
+
+
+===== movil
+RESULTADO {"fase":"movil","atenciones":[{"folio":"DIA-20261120-00009W","folio_flujo":"DIA-20261120-00009W","clics":6,"casillas":3,"campos":11,"interacciones":20,"segundos":5.73,"estado":"CONFIRMADA"}],"repintado_borra":false,"desborde":false,"meta_texto":"9 de 6 citas confirmadas hoyMeta cumplidaSolo cuentan las citas con folio comprobado en el portal.","citas_hoy":9,"errores_js":[],"http_errores":[],"http_mensajes":[]}
+
+

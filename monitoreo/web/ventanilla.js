@@ -21,8 +21,13 @@ async function iniciarAtencion() {
   // La clave se conserva hasta que el servidor responde: si la red falla y se pulsa otra vez,
   // el servidor devuelve LA MISMA atención (no se crean dos).
   S.ventanilla.clave = S.ventanilla.clave || nuevaClave();
-  const a = await api("/api/ventanilla/atenciones", { method: "POST", body: { clave: S.ventanilla.clave } });
+  let a;
+  try { a = await api("/api/ventanilla/atenciones", { method: "POST", body: { clave: S.ventanilla.clave } }); }
+  catch (e) { toast("⚠ " + e.message, 4000); return; }
   S.ventanilla = { aid: a.id, clave: null, paso: null };
+  S.dirty = false;
+  // UN solo repintado. Antes se llamaba con act(), que repintaba otra vez al terminar: con el servidor
+  // lento ese segundo repintado llegaba cuando el operador ya escribía y borraba lo tecleado.
   refresh(true, true);
 }
 
@@ -76,7 +81,7 @@ async function viewVentanilla() {
     { t: "Duración", f: (a) => fmtDur(Math.round(a.duracion_s)) }], d.recientes, (a) => { S.ventanilla.aid = a.id; refresh(true, true); }));
   return h("div", { id: "ventanilla" }, cabecera,
     h("div", { class: "section" }, h("button", { class: "btn primary big", id: "btn-nueva-atencion",
-      onclick: () => act(iniciarAtencion) }, "Nueva atención")),
+      onclick: () => iniciarAtencion() }, "Nueva atención")),
     abiertas, h("div", { class: "section" }, recientes));
 }
 
@@ -112,7 +117,7 @@ function resultadoFinal(a) {
     a.estado === "PENDIENTE" ? h("p", {}, "El motor comprueba con el portal si la cita quedó registrada. No repitas la confirmación.") : null,
     h("p", { class: "muted" }, `Duración: ${fmtDur(Math.round(a.duracion_s))}`),
     h("div", { class: "actions" }, h("button", { class: "btn primary big", id: "btn-siguiente-persona",
-      onclick: () => act(iniciarAtencion) }, "Atender a la siguiente persona")));
+      onclick: () => iniciarAtencion() }, "Atender a la siguiente persona")));
 }
 
 function cierre(a, conCita, viva) {
@@ -193,9 +198,10 @@ function registrarPersona(a) {
     const d = formData(ev.target);
     if (d.sucursales_alternativas) d.sucursales_alternativas = d.sucursales_alternativas.split(/[,;\s]+/).filter(Boolean);
     vincular(a, { datos: d }, errs, (lista, msg) => dup.replaceChildren(h("p", { class: "error" }, msg),
-      lista.map((x) => h("div", { class: "trabajo-item vt" }, h("div", {}, h("b", {}, x.codigo), " ", badge(x.estado), ` · ${x.titular || ""}`,
+      ...lista.map((x) => h("div", { class: "trabajo-item vt" }, h("div", {}, h("b", {}, x.codigo), " ", badge(x.estado), ` · ${x.titular || ""}`,
         x.motivo ? h("div", { class: "muted" }, x.motivo) : null),
-        x.puede_atenderse ? h("button", { class: "btn primary", "data-atender": x.id, onclick: () => vincular(a, { expediente_id: x.id }, errs) }, "Atender este") : null))));
+        x.puede_atenderse ? h("button", { type: "button", class: "btn primary", "data-atender": x.id,       // dentro del formulario: no debe enviarlo
+          onclick: () => vincular(a, { expediente_id: x.id }, errs) }, "Atender este") : null))));
   } },
     h("p", { class: "muted full" }, "Solo lo necesario para la cita. Datos ficticios en el laboratorio: teléfono 555…, correo @ejemplo.test."),
     field("Nombre completo", inp("nombre", { required: true, maxlength: 128 }), "full"),

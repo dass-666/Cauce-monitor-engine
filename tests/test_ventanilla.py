@@ -17,7 +17,8 @@ from monitoreo.captura import seguimiento
 from monitoreo.captura.formularios.navegador import NavegadorHTTP, ResultadoIncierto
 from monitoreo.config import settings
 from monitoreo.db import Database
-from monitoreo.models import Assignment, Atencion, Expediente, Request
+from monitoreo.engine.pipeline import maintenance, poll_source, process_pending_events
+from monitoreo.models import Assignment, Atencion, Expediente, Request, SlotState, Source
 from portal_reservas.proceso import PortalProceso
 
 from .captura_util import ADMIN_PWD, MANUALES, LabDia
@@ -224,6 +225,42 @@ def test_si_el_motor_se_adelanta_la_ventanilla_recibe_409(lab):
     r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/expediente", headers=lab.ops[dueno],
                    json={"expediente_id": e["id"]})
     assert r.status_code == 200 and solicitud(lab, e["id"])[0] == "ASIGNADO"
+
+
+def test_motor_asigna_al_mismo_operador_antes_del_seguimiento(lab):
+    """Defecto encontrado por la demo en navegador (v2.0): el motor asigna la solicitud recién creada
+    al MISMO operador que está atendiendo a la persona, antes de que el seguimiento marque el
+    expediente como ASIGNADO. La ventanilla respondía 409 «el motor acaba de asignar» y la persona
+    se quedaba sin atender (y el expediente creado, sin atención)."""
+    e = lab.crear()
+    maintenance(lab.db, lab.clock)                       # valida la solicitud (PENDIENTE -> ELEGIBLE)
+    with lab.db.session() as s:
+        s.get(Source, lab.source_id).next_poll_at = None
+    poll_source(lab.db, lab.source_id, lab.clock, lab.runtime, lab.rng)
+    process_pending_events(lab.db, lab.clock)            # asignado por el motor; SIN seguimiento todavía
+    st, est, _ = solicitud(lab, e["id"])
+    assert st == "ASIGNADO" and est == "LISTO"
+    with lab.db.session() as s:
+        from monitoreo.models import Operator, User
+        op_id = s.get(Request, s.get(Expediente, e["id"]).request_id).operator_id
+        dueno = s.get(User, s.get(Operator, op_id).user_id).username
+    otro = "op2" if dueno == "op1" else "op1"
+    a = iniciar(lab, lab.ops[otro])                     # otro operador: sigue sin poder quitárselo
+    r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/expediente", headers=lab.ops[otro],
+                   json={"expediente_id": e["id"]})
+    assert r.status_code == 409
+    a = iniciar(lab, lab.ops[dueno])
+    r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/expediente", headers=lab.ops[dueno],
+                   json={"expediente_id": e["id"]})
+    assert r.status_code == 200, r.text
+    st, est, op = solicitud(lab, e["id"])
+    assert (st, est) == ("EN_VENTANILLA", "ASIGNADO")
+    with lab.db.session() as s:
+        asg_ = s.scalars(select(Assignment).where(Assignment.request_id == s.get(Expediente, e["id"]).request_id)).all()
+        assert [x.status for x in asg_] == ["CANCELADA"] and asg_[0].live_request_id is None
+        assert s.get(SlotState, asg_[0].slot_id).held == 0                      # el cupo retenido se libera
+    lab.ciclo()
+    assert solicitud(lab, e["id"])[:2] == ("EN_VENTANILLA", "ASIGNADO")        # el seguimiento lo respeta
 
 
 def test_dos_operadores_toman_el_mismo_expediente_a_la_vez(lab):

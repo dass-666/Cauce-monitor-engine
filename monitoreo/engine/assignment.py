@@ -36,7 +36,7 @@ EN_VENTANILLA = "EN_VENTANILLA"
 TRANSITIONS: dict[str, set[str]] = {
     PENDIENTE: {ELEGIBLE, ERROR, CANCELADO},
     ELEGIBLE: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA},
-    ASIGNADO: {EN_PROCESO, REINTENTO, EXPIRADO, CANCELADO},
+    ASIGNADO: {EN_PROCESO, REINTENTO, EXPIRADO, CANCELADO, EN_VENTANILLA},
     EN_PROCESO: {COMPLETADO, REINTENTO, ERROR, CANCELADO, EXPIRADO},
     REINTENTO: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA},
     EN_VENTANILLA: {ELEGIBLE, COMPLETADO, CANCELADO},
@@ -365,6 +365,26 @@ def record_operation(s: Session, op: dict | None, assignment_id: int, code: int,
         from ..models import Operation
         s.add(Operation(username=op["user"], op_key=op["key"], action=op["action"], target=str(assignment_id),
                         status_code=code, result=result))
+
+
+def pasar_a_ventanilla(s: Session, req: Request, operator_id: int, actor: str, now: datetime) -> bool:
+    """v2.0: el motor asignó la solicitud a ESTE operador (aún sin tomar) y la persona está en su
+    ventanilla: se cancela esa asignación (libera el cupo retenido y la carga) y la solicitud pasa a
+    EN_VENTANILLA. UPDATE condicional: si la asignación ya cambió (tomada, expirada, de otro
+    operador) devuelve False y no toca nada. Nunca le quita una asignación a OTRO operador."""
+    if req.status != ASIGNADO or req.operator_id != operator_id:
+        return False
+    a = s.scalar(select(Assignment).where(Assignment.live_request_id == req.id))
+    if a is None or a.operator_id != operator_id:
+        return False
+    if s.execute(update(Assignment).where(Assignment.id == a.id, Assignment.status == "ACTIVA",
+                                          Assignment.operator_id == operator_id)
+                 .values(status="CANCELADA")).rowcount != 1:
+        return False
+    s.refresh(a)
+    _release(s, a, "CANCELADA", now, "la persona se atiende en ventanilla")
+    transition(s, req, EN_VENTANILLA, actor, f"asignación {a.id} cancelada: atención presencial", now)
+    return True
 
 
 def take_assignment(db: Database, assignment_id: int, operator_id: int | None, now: datetime, actor: str,

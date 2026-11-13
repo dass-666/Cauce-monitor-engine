@@ -110,6 +110,8 @@ def run(a) -> dict:
     ok, seis, err = fase(node, motor, caps, out, "seis", personas[:6])
     ats = seis.get("atenciones", [])
     ck("navegador real: SEIS atenciones seguidas hasta el folio", ok and len(ats) == 6, err if not ok else len(ats))
+    ck("con el servidor lento, la pantalla no se repinta y no borra lo que el operador ya tecleó",
+       seis.get("repintado_borra") is False, seis.get("repintado_borra"))
     ck("las seis terminan como CITA CONFIRMADA en pantalla", ats and all(x["estado"] == "CONFIRMADA" for x in ats),
        [x.get("estado") for x in ats])
     estados = [en_portal(portal, x["folio"]) for x in ats]
@@ -126,6 +128,7 @@ def run(a) -> dict:
        [(e["codigo"], e["estado"]) for e in sin])
 
     p8 = personas[7]
+    antes = len(c.get("/api/expedientes", params={"limit": 500}).json())
     r = c.post("/api/expedientes", json={**{k: v for k, v in p8.items()}, "telefono_confirmacion": p8["telefono"],
                                          "correo_confirmacion": p8["correo"], "modo": "POR_DIA"})
     ck("alta previa de una persona (para el caso duplicado)", r.status_code == 201, r.status_code)
@@ -133,9 +136,11 @@ def run(a) -> dict:
     ok, du, err = fase(node, motor, caps, out, "duplicado", [p8])
     ck("duplicado detectado en ventanilla y se atiende el expediente EXISTENTE", ok and previo in (du.get("recuperado") or ""),
        err if not ok else (du.get("aviso") or "")[:100])
-    n_mismo = sum(1 for e in c.get("/api/expedientes", params={"limit": 500}).json() if e["tipo_tramite"] == p8["tipo_tramite"]
-                  and e.get("nombre", "").startswith(p8["nombre"][:1]) and e["codigo"] == previo)
-    ck("no se creó un segundo expediente para esa persona", n_mismo == 1, previo)
+    ck("el expediente recuperado llega a su cita y el folio está CONFIRMADO en el portal",
+       bool(du.get("folio")) and en_portal(portal, du["folio"]) == "CONFIRMADA", du.get("folio"))
+    despues = len(c.get("/api/expedientes", params={"limit": 500}).json())
+    ck("no se creó un segundo expediente para esa persona (solo el alta previa)", despues == antes + 1,
+       f"{antes} -> {despues}, previo {previo}")
 
     ok, me, err = fase(node, motor, caps, out, "medias", personas[8:9])
     ck("atención a medias (datos enviados, calendario en pantalla) y navegador cerrado", ok, err if not ok else me.get("atencion"))
@@ -146,7 +151,7 @@ def run(a) -> dict:
     motor = Server("motor-reinicio", env, out)
     motor.start()
     ck("el motor vuelve a arrancar sobre los mismos datos", True, f"{motor.wait_ready()} s")
-    ok, rt, err = fase(node, motor, caps, out, "retomar", [])
+    ok, rt, err = fase(node, motor, caps, out, "retomar", [{"atencion": me.get("atencion")}])
     ck("«Retomar» vuelve al paso exacto (elegir día) y llega al folio", ok and rt.get("siguiente") == "fecha" and bool(rt.get("folio")),
        err if not ok else (rt.get("siguiente"), rt.get("folio")))
     if rt.get("folio"):
@@ -160,12 +165,18 @@ def run(a) -> dict:
     with httpx.Client(base_url=motor.base, timeout=30, trust_env=False) as co:
         co.headers["Authorization"] = "Bearer " + co.post("/api/auth/login", json={"username": "operador1", "password": OP_PWD}).json()["token"]
         dia = co.get("/api/ventanilla").json()
-    ck("resumen del día: 8 con cita, 1 sin cita, ninguna abierta", dia["mias"]["con_cita"] == 8 and dia["mias"]["sin_cita"] == 1
+    ck("resumen del día: 9 con cita, 1 sin cita, ninguna abierta", dia["mias"]["con_cita"] == 9 and dia["mias"]["sin_cita"] == 1
        and not dia["abiertas"], (dia["mias"]["con_cita"], dia["mias"]["sin_cita"], len(dia["abiertas"])))
     integ = c.get("/api/captura/coherencia").json()
     ck("coherencia del motor (sin estados contradictorios)", not integ.get("problemas"), (integ.get("problemas") or [])[:3])
     errores = sum((x.get("errores_js", []) for x in (seis, sc, du, me, rt, mv)), [])
     ck("sin errores de JavaScript en el panel", not errores, errores[:5])
+    http_err = {k: x.get("http_errores", []) for k, x in (("seis", seis), ("sin_cita", sc), ("duplicado", du), ("medias", me),
+                                                           ("retomar", rt), ("movil", mv))}
+    esperados = [e for e in http_err["duplicado"] if e.startswith("409 POST /api/ventanilla/atenciones/") and e.endswith("/expediente")]
+    otros = [e for k, v in http_err.items() for e in v if not (k == "duplicado" and e in esperados)]
+    ck("respuestas HTTP de error: solo UN 409, el esperado del duplicado (sin envíos dobles)", len(esperados) == 1 and not otros,
+       {k: x.get("http_mensajes", []) for k, x in (("duplicado", du),)} if otros or len(esperados) != 1 else http_err["duplicado"])
     motor.stop()
     portal.detener()
     textos = "".join(p.read_text(encoding="utf-8", errors="replace") for p in out.glob("servidor-motor*.log"))

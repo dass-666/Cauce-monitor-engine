@@ -15,18 +15,30 @@ const personas = JSON.parse(fs.readFileSync(personasJson, "utf-8"));
 fs.mkdirSync(outDir, { recursive: true });
 const CLAVE = "KLM305918";
 
+let paginaActual = null;
 (async () => {
   const browser = await chromium.launch();
   const errores = [];
+  const http = [];
+  const detalle = [];      // solo el mensaje del servidor (nunca datos de la persona)
   const res = { fase, atenciones: [] };
   const nueva = async (w, hgt) => {
     const ctx = await browser.newContext({ viewport: { width: w, height: hgt }, deviceScaleFactor: 1 });
     const p = await ctx.newPage();
     p.on("pageerror", (e) => errores.push(e.message));
-    p.on("console", (m) => { if (m.type() === "error") errores.push(m.text()); });
+    // el navegador anota como error de consola cada respuesta HTTP >= 400; esas se registran aparte
+    // (con su ruta) para comprobar que solo aparecen las esperadas, p. ej. el 409 de un duplicado
+    p.on("console", (m) => { if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) errores.push(m.text()); });
+    p.on("response", async (r) => {
+      if (r.status() < 400) return;
+      const linea = `${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`;
+      http.push(linea);
+      try { const d = (await r.json()).detail; detalle.push(`${linea} · ${(d && d.mensaje) || ""}`); } catch (_) { /* sin cuerpo */ }
+    });
     return p;
   };
   const page = await nueva(fase === "movil" ? 390 : 1366, fase === "movil" ? 844 : 900);
+  paginaActual = page;
   let n = { clics: 0, casillas: 0, campos: 0 };
   const clic = async (sel) => { await page.waitForSelector(sel, { timeout: 30000 }); await page.click(sel); n.clics++; };
   const casilla = async (sel) => { await page.waitForSelector(sel, { timeout: 30000 }); await page.check(sel); n.casillas++; };
@@ -62,6 +74,9 @@ const CLAVE = "KLM305918";
     await casilla("#chk-revisado");
     await clic("#btn-enviar");
     await page.waitForSelector("#flujo .mes", { timeout: 30000 });
+    return buscarDia();
+  };
+  const buscarDia = async () => {
     let libre = await page.$("#flujo .mes button.dia");
     for (let k = 0; !libre && k < 2; k++) {                // sin días este mes: el operador pasa al siguiente
       await clic("#flujo .filters button:nth-of-type(2)");
@@ -87,8 +102,18 @@ const CLAVE = "KLM305918";
     for (let i = 0; i < total; i++) {
       n = { clics: 0, casillas: 0, campos: 0 };
       const t0 = Date.now();
+      if (i === 0) await page.route("**/api/**", async (r) => { await new Promise((ok) => setTimeout(ok, 400)); await r.continue(); });
       await clic(i === 0 ? "#btn-nueva-atencion" : "#btn-siguiente-persona");
       await page.waitForSelector("#form-persona");
+      if (i === 0) {
+        // v2.0 defecto intermitente (visto en PostgreSQL): la pantalla se pintaba DOS veces al empezar
+        // y la segunda borraba lo ya tecleado. Con el servidor lento (respuestas retrasadas a propósito)
+        // se comprueba que lo escrito sigue ahí un momento después.
+        await page.fill("#form-persona [name=nombre]", "prueba de repintado");
+        await page.waitForTimeout(2500);
+        res.repintado_borra = (await page.inputValue("#form-persona [name=nombre]")) !== "prueba de repintado";
+        await page.unroute("**/api/**");
+      }
       if (i === 0) { await shot(fase === "movil" ? "60_movil_persona.png" : "50_ventanilla_persona.png"); }
       await registrar(personas[i]);
       if (!(await datosYFecha())) throw new Error("sin días disponibles en el portal de prueba");
@@ -128,6 +153,8 @@ const CLAVE = "KLM305918";
     await page.click("#aviso-duplicado [data-atender]");
     await page.waitForSelector("#captura-manual");
     res.recuperado = await page.textContent("#atencion");
+    if (!(await datosYFecha())) throw new Error("sin días disponibles para el expediente recuperado");
+    res.folio = (await confirmarYCerrar()).folio;          // el expediente existente llega a su cita
   }
 
   if (fase === "medias") {
@@ -139,18 +166,33 @@ const CLAVE = "KLM305918";
   }
 
   if (fase === "retomar") {
-    await page.waitForSelector("#atenciones-abiertas [data-retomar]", { timeout: 30000 });
+    const sel = `#atenciones-abiertas [data-retomar="${personas[0].atencion}"]`;   // la que quedó a medias
+    await page.waitForSelector(sel, { timeout: 30000 });
     await shot("57_ventanilla_retomar.png");
-    await page.click("#atenciones-abiertas [data-retomar]");
+    await page.click(sel);
     await page.waitForSelector("#siguiente-paso");
     res.siguiente = await page.getAttribute("#siguiente-paso", "data-siguiente");
-    await page.waitForSelector("#flujo .mes button.dia", { timeout: 30000 });
+    await page.waitForSelector("#flujo .mes", { timeout: 30000 });
+    if (!(await buscarDia())) throw new Error("sin días disponibles al retomar");
     const r = await confirmarYCerrar();
     res.folio = r.folio;
     await shot("58_ventanilla_folio_tras_reinicio.png");
   }
 
   res.errores_js = errores;
+  res.http_errores = http;
+  res.http_mensajes = detalle;
   await browser.close();
   console.log("RESULTADO " + JSON.stringify(res));
-})().catch((e) => { console.error("FALLO", e); process.exit(1); });
+})().catch(async (e) => {
+  console.error("FALLO", e);
+  if (paginaActual) {                                     // evidencia del fallo: captura y texto visible
+    try {
+      await paginaActual.screenshot({ path: path.join(outDir, `ZZ_fallo_${fase}.png`), fullPage: true });
+      console.error("INVALIDOS", JSON.stringify(await paginaActual.evaluate(() =>
+        [...document.querySelectorAll("form :invalid")].map((x) => `${x.name || x.id}: ${x.validationMessage}`))));
+      console.error("PANTALLA", (await paginaActual.textContent("main")).replace(/\s+/g, " ").slice(0, 1500));
+    } catch (_) { /* el navegador ya no responde */ }
+  }
+  process.exit(1);
+});

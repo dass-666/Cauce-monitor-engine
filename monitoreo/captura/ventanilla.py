@@ -230,10 +230,12 @@ def _tomar(db: Database, user, exp_id: int, now: datetime) -> None:
         try:
             if req.status == asg.PENDIENTE:
                 asg.validate_request(s, req, now, actor=_actor(user))
-            if req.status not in asg.MATCHABLE:
+            if req.status in asg.MATCHABLE:
+                asg.transition(s, req, asg.EN_VENTANILLA, _actor(user), "atención presencial", now)
+            elif not (user.operator_id is not None and          # el motor se lo acaba de asignar A ÉL
+                      asg.pasar_a_ventanilla(s, req, user.operator_id, _actor(user), now)):
                 raise ErrorVentanilla(409, "El motor acaba de asignar este expediente; vuelve a buscarlo",
                                       {"estado_solicitud": req.status})
-            asg.transition(s, req, asg.EN_VENTANILLA, _actor(user), "atención presencial", now)
         except asg.TransitionError as err:      # incluye ConcurrentChange
             raise ErrorVentanilla(409, "El expediente cambió mientras tanto; vuelve a buscarlo") from err
         op_id = user.operator_id

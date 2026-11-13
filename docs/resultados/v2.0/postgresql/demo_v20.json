@@ -1,0 +1,965 @@
+{
+  "version": "2.0.0-dev",
+  "momento": "2026-11-13 08:49:03",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 32.4,
+  "base_de_datos": "postgresql",
+  "por_atencion": {
+    "interacciones": {
+      "media": 20,
+      "min": 20,
+      "max": 20
+    },
+    "segundos_navegador_automatizado": {
+      "media": 1.9,
+      "max": 5.2
+    },
+    "nota": "MEDIDO con un navegador automatizado: el tiempo de una persona real será mayor (teclear, hablar con el solicitante)."
+  },
+  "seis": {
+    "fase": "seis",
+    "atenciones": [
+      {
+        "folio": "DIA-20261116-00001R",
+        "folio_flujo": "DIA-20261116-00001R",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 5.222,
+        "estado": "CONFIRMADA"
+      },
+      {
+        "folio": "DIA-20261119-00002A",
+        "folio_flujo": "DIA-20261119-00002A",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 1.216,
+        "estado": "CONFIRMADA"
+      },
+      {
+        "folio": "DIA-20261119-00003N",
+        "folio_flujo": "DIA-20261119-00003N",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 1.233,
+        "estado": "CONFIRMADA"
+      },
+      {
+        "folio": "DIA-20261119-00004R",
+        "folio_flujo": "DIA-20261119-00004R",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 1.17,
+        "estado": "CONFIRMADA"
+      },
+      {
+        "folio": "DIA-20261116-00005J",
+        "folio_flujo": "DIA-20261116-00005J",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 1.194,
+        "estado": "CONFIRMADA"
+      },
+      {
+        "folio": "DIA-20261117-00006V",
+        "folio_flujo": "DIA-20261117-00006V",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 1.249,
+        "estado": "CONFIRMADA"
+      }
+    ],
+    "repintado_borra": false,
+    "meta_texto": "6 de 6 citas confirmadas hoyMeta cumplidaSolo cuentan las citas con folio comprobado en el portal.",
+    "citas_hoy": 6,
+    "errores_js": [],
+    "http_errores": [],
+    "http_mensajes": []
+  },
+  "sin_cita": {
+    "fase": "sin_cita",
+    "atenciones": [],
+    "estado": "SIN_DISPONIBILIDAD",
+    "folio_visible": false,
+    "errores_js": [],
+    "http_errores": [],
+    "http_mensajes": []
+  },
+  "duplicado": {
+    "fase": "duplicado",
+    "atenciones": [],
+    "aviso": "Ya existe un expediente activo para esta persona y este trámite: recupéralo en lugar de crear otroEXP-000008 LISTO · P•••••• V••••••••• V••Atender este",
+    "recuperado": "ATN-000008 EN PROCESO En proceso · EXP-000008 · P•••••• V••••••••• V•• · Renovación (ficticia)PersonaDatosFechaConfirmaciónCierreSiguiente: Prepara el formulario y revisa los datos con la persona.Volver a la lista (la atención queda abierta)",
+    "folio": "DIA-20261117-00007C",
+    "errores_js": [],
+    "http_errores": [
+      "409 POST /api/ventanilla/atenciones/8/expediente"
+    ],
+    "http_mensajes": [
+      "409 POST /api/ventanilla/atenciones/8/expediente · Ya existe un expediente activo para esta persona y este trámite: recupéralo en lugar de crear otro"
+    ]
+  },
+  "retomar": {
+    "fase": "retomar",
+    "atenciones": [],
+    "siguiente": "fecha",
+    "folio": "DIA-20261119-00008C",
+    "errores_js": [],
+    "http_errores": [],
+    "http_mensajes": []
+  },
+  "movil": {
+    "fase": "movil",
+    "atenciones": [
+      {
+        "folio": "DIA-20261120-00009W",
+        "folio_flujo": "DIA-20261120-00009W",
+        "clics": 6,
+        "casillas": 3,
+        "campos": 11,
+        "interacciones": 20,
+        "segundos": 5.73,
+        "estado": "CONFIRMADA"
+      }
+    ],
+    "repintado_borra": false,
+    "desborde": false,
+    "meta_texto": "9 de 6 citas confirmadas hoyMeta cumplidaSolo cuentan las citas con folio comprobado en el portal.",
+    "citas_hoy": 9,
+    "errores_js": [],
+    "http_errores": [],
+    "http_mensajes": []
+  },
+  "dia": {
+    "meta_citas_dia": 6,
+    "citas_confirmadas_hoy": 9,
+    "progreso_pct": 100,
+    "equipo": {
+      "atenciones": 10,
+      "por_estado": {
+        "PENDIENTE": 0,
+        "EN_PROCESO": 0,
+        "CONFIRMADA": 9,
+        "SIN_DISPONIBILIDAD": 1,
+        "ERROR": 0,
+        "CANCELADA": 0
+      },
+      "con_cita": 9,
+      "sin_cita": 1,
+      "pendientes": 0,
+      "tiempo_medio_s": 2.1
+    },
+    "mias": {
+      "atenciones": 10,
+      "por_estado": {
+        "PENDIENTE": 0,
+        "EN_PROCESO": 0,
+        "CONFIRMADA": 9,
+        "SIN_DISPONIBILIDAD": 1,
+        "ERROR": 0,
+        "CANCELADA": 0
+      },
+      "con_cita": 9,
+      "sin_cita": 1,
+      "pendientes": 0,
+      "tiempo_medio_s": 2.1
+    },
+    "abiertas": [],
+    "recientes": [
+      {
+        "id": 10,
+        "codigo": "ATN-000010",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261120-00009W",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:57.104645Z",
+        "cerrada_en": "2026-11-13T08:49:02.245569Z",
+        "duracion_s": 5.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 10,
+          "codigo": "EXP-000010",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• X••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 10,
+          "expediente_id": 10,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-20",
+          "hora": null,
+          "folio": "DIA-20261120-00009W",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261120-00009W",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|alta|2026-11-20",
+            "confirmada_en_portal": "2026-11-13T08:49:02.025909Z",
+            "verificada_en": "2026-11-13T08:49:02.032464Z"
+          },
+          "creada": "2026-11-13T08:49:01.378379Z",
+          "actualizada": "2026-11-13T08:49:02.012389Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 9,
+        "codigo": "ATN-000009",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261119-00008C",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:51.348767Z",
+        "cerrada_en": "2026-11-13T08:48:55.682276Z",
+        "duracion_s": 4.3,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 9,
+          "codigo": "EXP-000009",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• W••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 9,
+          "expediente_id": 9,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-19",
+          "hora": null,
+          "folio": "DIA-20261119-00008C",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261119-00008C",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|alta|2026-11-19",
+            "confirmada_en_portal": "2026-11-13T08:48:55.460505Z",
+            "verificada_en": "2026-11-13T08:48:55.467898Z"
+          },
+          "creada": "2026-11-13T08:48:51.677360Z",
+          "actualizada": "2026-11-13T08:48:55.446861Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 8,
+        "codigo": "ATN-000008",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261117-00007C",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:48.846953Z",
+        "cerrada_en": "2026-11-13T08:48:50.232432Z",
+        "duracion_s": 1.4,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 8,
+          "codigo": "EXP-000008",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "renovacion",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• V••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 8,
+          "expediente_id": 8,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-17",
+          "hora": null,
+          "folio": "DIA-20261117-00007C",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261117-00007C",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|renovacion|2026-11-17",
+            "confirmada_en_portal": "2026-11-13T08:48:50.015181Z",
+            "verificada_en": "2026-11-13T08:48:50.023903Z"
+          },
+          "creada": "2026-11-13T08:48:49.394937Z",
+          "actualizada": "2026-11-13T08:48:49.998917Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 7,
+        "codigo": "ATN-000007",
+        "estado": "SIN_DISPONIBILIDAD",
+        "estado_nombre": "Sin disponibilidad",
+        "resultado": "SINDIAS",
+        "folio": null,
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:47.214173Z",
+        "cerrada_en": "2026-11-13T08:48:47.696724Z",
+        "duracion_s": 0.5,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 7,
+          "codigo": "EXP-000007",
+          "estado": "ASIGNADO",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• U••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 7,
+          "expediente_id": 7,
+          "estado": "CANCELADA",
+          "grupo": "fallido",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": null,
+          "fecha": null,
+          "hora": null,
+          "folio": null,
+          "vence_en": null,
+          "error_codigo": "DESCARTADO",
+          "error": "intento descartado por el operador",
+          "intentos_confirmacion": 0,
+          "confirmada_por": null,
+          "modo": "POR_DIA",
+          "evidencia": {},
+          "creada": "2026-11-13T08:48:47.539748Z",
+          "actualizada": "2026-11-13T08:48:47.696724Z",
+          "sesion_portal": null
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 6,
+        "codigo": "ATN-000006",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261117-00006V",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:44.914567Z",
+        "cerrada_en": "2026-11-13T08:48:46.012388Z",
+        "duracion_s": 1.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 6,
+          "codigo": "EXP-000006",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "constancia",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• T••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 6,
+          "expediente_id": 6,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-17",
+          "hora": null,
+          "folio": "DIA-20261117-00006V",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261117-00006V",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|constancia|2026-11-17",
+            "confirmada_en_portal": "2026-11-13T08:48:45.824761Z",
+            "verificada_en": "2026-11-13T08:48:45.831699Z"
+          },
+          "creada": "2026-11-13T08:48:45.226164Z",
+          "actualizada": "2026-11-13T08:48:45.811515Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 5,
+        "codigo": "ATN-000005",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261116-00005J",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:43.745166Z",
+        "cerrada_en": "2026-11-13T08:48:44.818547Z",
+        "duracion_s": 1.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 5,
+          "codigo": "EXP-000005",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "constancia",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• S••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 5,
+          "expediente_id": 5,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-16",
+          "hora": null,
+          "folio": "DIA-20261116-00005J",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261116-00005J",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|constancia|2026-11-16",
+            "confirmada_en_portal": "2026-11-13T08:48:44.607851Z",
+            "verificada_en": "2026-11-13T08:48:44.614000Z"
+          },
+          "creada": "2026-11-13T08:48:44.042370Z",
+          "actualizada": "2026-11-13T08:48:44.595201Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 4,
+        "codigo": "ATN-000004",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261119-00004R",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:42.564552Z",
+        "cerrada_en": "2026-11-13T08:48:43.614558Z",
+        "duracion_s": 1.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 4,
+          "codigo": "EXP-000004",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• R••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 4,
+          "expediente_id": 4,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-19",
+          "hora": null,
+          "folio": "DIA-20261119-00004R",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261119-00004R",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|alta|2026-11-19",
+            "confirmada_en_portal": "2026-11-13T08:48:43.507016Z",
+            "verificada_en": "2026-11-13T08:48:43.512477Z"
+          },
+          "creada": "2026-11-13T08:48:42.893111Z",
+          "actualizada": "2026-11-13T08:48:43.495342Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 3,
+        "codigo": "ATN-000003",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261119-00003N",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:41.312576Z",
+        "cerrada_en": "2026-11-13T08:48:42.445238Z",
+        "duracion_s": 1.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 3,
+          "codigo": "EXP-000003",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• Q••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 3,
+          "expediente_id": 3,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-19",
+          "hora": null,
+          "folio": "DIA-20261119-00003N",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261119-00003N",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|alta|2026-11-19",
+            "confirmada_en_portal": "2026-11-13T08:48:42.250716Z",
+            "verificada_en": "2026-11-13T08:48:42.258530Z"
+          },
+          "creada": "2026-11-13T08:48:41.657627Z",
+          "actualizada": "2026-11-13T08:48:42.229179Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 2,
+        "codigo": "ATN-000002",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261119-00002A",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:40.097077Z",
+        "cerrada_en": "2026-11-13T08:48:41.212924Z",
+        "duracion_s": 1.1,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 2,
+          "codigo": "EXP-000002",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "alta",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• P••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 2,
+          "expediente_id": 2,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-19",
+          "hora": null,
+          "folio": "DIA-20261119-00002A",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261119-00002A",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|alta|2026-11-19",
+            "confirmada_en_portal": "2026-11-13T08:48:41.006824Z",
+            "verificada_en": "2026-11-13T08:48:41.012221Z"
+          },
+          "creada": "2026-11-13T08:48:40.410472Z",
+          "actualizada": "2026-11-13T08:48:40.995376Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      },
+      {
+        "id": 1,
+        "codigo": "ATN-000001",
+        "estado": "CONFIRMADA",
+        "estado_nombre": "Cita confirmada",
+        "resultado": "CITA_CONFIRMADA",
+        "folio": "DIA-20261116-00001R",
+        "abierta": false,
+        "region": "NORTE",
+        "sucursal": "NOR-1",
+        "iniciada_en": "2026-11-13T08:48:35.289113Z",
+        "cerrada_en": "2026-11-13T08:48:39.946697Z",
+        "duracion_s": 4.7,
+        "conexion": null,
+        "operador": "operador1",
+        "expediente": {
+          "id": 1,
+          "codigo": "EXP-000001",
+          "estado": "RESERVACION_CONFIRMADA",
+          "tipo_tramite": "renovacion",
+          "region": "NORTE",
+          "sucursal": "NOR-1",
+          "modo": "POR_DIA",
+          "titular": "P•••••• V••••••••• O••",
+          "faltan": []
+        },
+        "reservacion": {
+          "id": 1,
+          "expediente_id": 1,
+          "estado": "CONFIRMADA",
+          "grupo": "confirmado",
+          "asignacion": null,
+          "operator_id": 1,
+          "horario": null,
+          "sucursal": "NOR-1",
+          "fecha": "2026-11-16",
+          "hora": null,
+          "folio": "DIA-20261116-00001R",
+          "vence_en": null,
+          "error_codigo": null,
+          "error": null,
+          "intentos_confirmacion": 1,
+          "confirmada_por": "operador1",
+          "modo": "POR_DIA",
+          "evidencia": {
+            "folio": "DIA-20261116-00001R",
+            "estado_portal": "CONFIRMADA",
+            "clave_coincide": true,
+            "fuente": "api_por_folio",
+            "horario_portal": null,
+            "dia_portal": "NOR-1|renovacion|2026-11-16",
+            "confirmada_en_portal": "2026-11-13T08:48:39.735156Z",
+            "verificada_en": "2026-11-13T08:48:39.743482Z"
+          },
+          "creada": "2026-11-13T08:48:39.104835Z",
+          "actualizada": "2026-11-13T08:48:39.716378Z",
+          "sesion_portal": "•••"
+        },
+        "siguiente": {
+          "clave": "terminada",
+          "texto": "Atención cerrada."
+        }
+      }
+    ]
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "motor y portal arrancan como procesos independientes",
+      "ok": true,
+      "detalle": "2.15 s"
+    },
+    {
+      "comprobacion": "fuente del calendario registrada",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "operador de ventanilla con usuario",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "navegador real: SEIS atenciones seguidas hasta el folio",
+      "ok": true,
+      "detalle": 6
+    },
+    {
+      "comprobacion": "con el servidor lento, la pantalla no se repinta y no borra lo que el operador ya tecleó",
+      "ok": true,
+      "detalle": false
+    },
+    {
+      "comprobacion": "las seis terminan como CITA CONFIRMADA en pantalla",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA"
+      ]
+    },
+    {
+      "comprobacion": "evidencia independiente: los seis folios están CONFIRMADOS en el portal",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA",
+        "CONFIRMADA"
+      ]
+    },
+    {
+      "comprobacion": "seis folios distintos (ninguna cita duplicada)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "la meta del día (6) aparece cumplida",
+      "ok": true,
+      "detalle": 6
+    },
+    {
+      "comprobacion": "atención SIN disponibilidad: termina sin cita y sin folio",
+      "ok": true,
+      "detalle": "SIN_DISPONIBILIDAD"
+    },
+    {
+      "comprobacion": "su expediente vuelve a la cola del motor (LISTO, sin operador)",
+      "ok": true,
+      "detalle": [
+        [
+          "EXP-000007",
+          "LISTO"
+        ]
+      ]
+    },
+    {
+      "comprobacion": "alta previa de una persona (para el caso duplicado)",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "duplicado detectado en ventanilla y se atiende el expediente EXISTENTE",
+      "ok": true,
+      "detalle": "Ya existe un expediente activo para esta persona y este trámite: recupéralo en lugar de crear otroEX"
+    },
+    {
+      "comprobacion": "el expediente recuperado llega a su cita y el folio está CONFIRMADO en el portal",
+      "ok": true,
+      "detalle": "DIA-20261117-00007C"
+    },
+    {
+      "comprobacion": "no se creó un segundo expediente para esa persona (solo el alta previa)",
+      "ok": true,
+      "detalle": "7 -> 8, previo EXP-000008"
+    },
+    {
+      "comprobacion": "atención a medias (datos enviados, calendario en pantalla) y navegador cerrado",
+      "ok": true,
+      "detalle": "9"
+    },
+    {
+      "comprobacion": "el motor se detiene de golpe (kill) con la atención a medias",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el motor vuelve a arrancar sobre los mismos datos",
+      "ok": true,
+      "detalle": "1.62 s"
+    },
+    {
+      "comprobacion": "«Retomar» vuelve al paso exacto (elegir día) y llega al folio",
+      "ok": true,
+      "detalle": [
+        "fecha",
+        "DIA-20261119-00008C"
+      ]
+    },
+    {
+      "comprobacion": "evidencia independiente: el folio retomado está CONFIRMADO en el portal",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "ventanilla en teléfono: atención completa y sin desborde horizontal",
+      "ok": true,
+      "detalle": false
+    },
+    {
+      "comprobacion": "resumen del día: 9 con cita, 1 sin cita, ninguna abierta",
+      "ok": true,
+      "detalle": [
+        9,
+        1,
+        0
+      ]
+    },
+    {
+      "comprobacion": "coherencia del motor (sin estados contradictorios)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "sin errores de JavaScript en el panel",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "respuestas HTTP de error: solo UN 409, el esperado del duplicado (sin envíos dobles)",
+      "ok": true,
+      "detalle": [
+        "409 POST /api/ventanilla/atenciones/8/expediente"
+      ]
+    },
+    {
+      "comprobacion": "sin datos personales en los registros del motor",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}
