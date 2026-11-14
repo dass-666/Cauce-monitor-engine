@@ -1,4 +1,4 @@
-# Informe técnico · v2.1 (en desarrollo) — Planificador diario y observador visual de calendarios
+# Informe técnico · v2.1 — Planificador diario y observador visual de calendarios
 
 Rama `fase-2.1`, creada desde `fase-2.0`. **No se fusionó con `master`** ni con ninguna otra rama.
 Todo se ejecutó con **datos ficticios** y con el **portal de laboratorio propio** (127.0.0.1). No se
@@ -18,7 +18,7 @@ script en lugar de una persona o de un sistema real), **ESTIMADO** (juicio, sin 
 | P3 Motor de coincidencias | Hecho | pruebas de concurrencia en SQLite y PostgreSQL |
 | P4 Recorrido integrado | Hecho con procesos reales; **confirmación humana SIMULADA por el script** | `docs/resultados/v2.1/recorrido_v21_*.json` |
 | P5 Resistencia | Hecho lo pedido salvo lo indicado en §8 | pruebas + recorrido (PostgreSQL detenido de verdad) |
-| GitHub Actions | ver §9 | |
+| GitHub Actions | 22/22 en verde en la última corrida, tras corregir un defecto real que CI encontró | §9 |
 | Pruebas en el MSI | **PENDIENTE** (no se pidieron en esta fase) | — |
 
 La fase **no está terminada**: faltan las decisiones y el trabajo de §10 (sobre todo una pantalla
@@ -94,6 +94,11 @@ estrategia u otro observador que ve el mismo cambio se anota en `detecciones` de
 - *Desconexión*: la petición falla; nunca se interpreta como «no hay días».
 - *Congelado*: la petición queda colgada y el sello «Actualizado» deja de cambiar (3–5 s).
 - *Sin disponibilidad*: vista ACTIVA y ningún día disponible.
+
+**Recuperación del navegador.** Si el proceso del navegador muere, el supervisor lo relanza con
+espera creciente (1, 2, 4… 30 s). Un **vigilante** lo reinicia también si deja de latir 20 s o si
+una reapertura no se confirma en 20 s. Las capturas de imagen y la navegación van **en serie**
+(candado de página) para que no se bloqueen entre sí (ver §9).
 
 ## 5. P3 · Motor de coincidencias (`monitoreo/planificador/coincidencias.py`)
 
@@ -182,9 +187,30 @@ intervalo lo decide el portal.
 
 ## 9. Commits y GitHub Actions
 
-`fase-2.0`: e14105d (identidad del proveedor), 5c8ef8a (autodiagnóstico en Windows).
-`fase-2.1`: ver `git log fase-2.0..fase-2.1`. Resultado de CI: ver la sección final añadida al
-recibir la corrida.
+**`fase-2.0`** (sin fusionar): e14105d (identidad del proveedor), 5c8ef8a (autodiagnóstico en
+Windows), 8ae2525 (defecto del script de resistencia, escenario C). CI 43538347390: **22/22 en verde**.
+
+**`fase-2.1`** (sin fusionar):
+
+| Commit | Qué | CI | Resultado |
+|---|---|---|---|
+| 92928b9 · e22ef09 | P1–P5, recorrido, pruebas, pasos nuevos de CI | 43540639238 | 20/22: falla la reapertura del observador y `demo_v20` en Windows 3.11 |
+| 0d16fef | una sola reapertura por sesión caducada; `demo_v20` más robusto | 43542491882 | 19/22: el observador vuelve a fallar; `e2e_panel` falla una vez (pasa en la siguiente) |
+| bd42201 | prueba con detalle completo | 43544642083 | 21/22: el detalle muestra que **el navegador no respondía tras la orden de reabrir** |
+| 0d0d755 | vigilante: sin latido o reapertura sin confirmar en 20 s → reinicia el navegador | 43546663108 | Windows 3.11 y 3.12 fallan: el vigilante **sí** recupera (`reinicios_por_vigilancia: 1`), pero tarde para el plazo de la prueba |
+| c3d949a | candado de página: captura de imagen y navegación nunca se solapan | 43547795901 | **22/22 en verde**, y otra vez **22/22** al repetirla (intento 2) |
+
+Lo que CI encontró era un **defecto real**, no una prueba frágil: tras caducar la sesión, la orden de
+reabrir podía coincidir con una captura de imagen en curso y la página quedaba sin responder. La causa
+exacta dentro de Playwright **no está demostrada** (inferencia: navegación y captura simultáneas
+sobre la misma página); la corrección elimina esa simultaneidad y el vigilante queda como respaldo.
+Evidencia local: 8/8 repeticiones por base, 4/4 con la CPU saturada. Evidencia en CI: dos
+intentos verdes de la misma corrida. Con tan pocas repeticiones **no se puede descartar** que
+vuelva a aparecer con baja frecuencia.
+
+Pasos nuevos en CI: en «Reservaciones de laboratorio · Linux» y «· Windows» se añadieron las pruebas
+del observador y del planificador (`pytest -vv`) y el recorrido v2.1 (en Linux, también con
+PostgreSQL detenido y arrancado de verdad con `docker stop/start`).
 
 ## 10. Riesgos y siguientes pasos (recomendación)
 
