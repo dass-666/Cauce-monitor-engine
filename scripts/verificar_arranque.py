@@ -27,6 +27,25 @@ from pathlib import Path
 
 import httpx
 
+ROOT_INSTALACION = Path(__file__).resolve().parent.parent
+
+
+def _navegadores_de_la_instalacion() -> None:
+    """Cierre v2.1: igual que monitoreo/config.py (aquí no se importa para no cargar el .env de la
+    instalación en los recorridos): si la instalación tiene `.browsers` con Chromium y
+    PLAYWRIGHT_BROWSERS_PATH no está definida, se fija para los Node que lancen los recorridos."""
+    if (os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or "").strip():
+        return
+    local = ROOT_INSTALACION / ".browsers"
+    try:
+        if any(x.name.startswith(("chromium-", "chromium_headless_shell-")) for x in local.iterdir()):
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(local)
+    except OSError:
+        pass
+
+
+_navegadores_de_la_instalacion()
+
 ROOT = Path(__file__).resolve().parent.parent
 PWD = "Verificacion-Arranque-2026"
 WIN = os.name == "nt"

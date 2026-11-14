@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -43,6 +44,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from portal_reservas.proceso import PortalProceso  # noqa: E402
 from verificar_arranque import Checks, Server, base_env  # noqa: E402
 
+from monitoreo import navegador as ruta_navegador  # noqa: E402
+from monitoreo.texto_seguro import RespuestaInesperada, sanitizar  # noqa: E402
+from monitoreo.texto_seguro import cuerpo_esperado as datos  # noqa: E402
+
+ULTIMO_FALLO_ESPERA: list[str] = []      # último diagnóstico de una espera que no llegó a cumplirse
+
 PWD = "Aceptacion-Planificador-2026"
 OP_PWD = "Operador-Aceptacion-2026"
 ZONA = "America/Mexico_City"
@@ -52,7 +59,7 @@ LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def login(base: str, u: str, p: str) -> httpx.Client:
     c = httpx.Client(base_url=base, timeout=30, trust_env=False)
-    c.headers["Authorization"] = "Bearer " + c.post("/api/auth/login", json={"username": u, "password": p}).json()["token"]
+    c.headers["Authorization"] = "Bearer " + datos(c.post("/api/auth/login", json={"username": u, "password": p}), "token")
     return c
 
 
@@ -61,6 +68,9 @@ def esperar(pred, t=30.0, paso=0.1):
     while time.monotonic() - t0 < t:
         try:
             v = pred()
+        except RespuestaInesperada as e:
+            ULTIMO_FALLO_ESPERA[:] = [str(e)]
+            v = None
         except (httpx.HTTPError, ValueError, KeyError, StopIteration, IndexError):
             v = None
         if v:
@@ -72,7 +82,7 @@ def esperar(pred, t=30.0, paso=0.1):
 def navegador(base, usuario, clave, caps, fase, n=None, log=None) -> dict:
     p = subprocess.run(["node", str(ROOT / "scripts" / "aceptacion_v21.js"), base, usuario, clave, str(caps), fase,
                         *( [str(n)] if n is not None else [])], cwd=ROOT, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=900)
+                       encoding="utf-8", errors="replace", timeout=900, env=ruta_navegador.entorno())
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write(f"===== {fase} {usuario}\n{p.stdout}\n{p.stderr[-3000:]}\n")
@@ -144,7 +154,7 @@ def run(a) -> dict:
                      "region": "NORTE", "sucursal": "NOR-1", "sucursales_alternativas": ["NOR-2"], "tipo_tramite": "alta",
                      "id_registro_previo": reg["identificador"], "prioridad": prios[k]}
                 r = c.post("/api/expedientes", json=d)
-                if r.status_code == 201 and r.json()["estado"] == "LISTO":
+                if r.status_code == 201 and datos(r, "estado") == "LISTO":
                     exps.append({**r.json(), "_nombre": d["nombre"], "_tel": d["telefono"]})
             n += 1
         ck("8 expedientes ficticios LISTOS", len(exps) == 8, len(exps))
@@ -158,14 +168,14 @@ def run(a) -> dict:
         ck("Ventanilla: el detalle muestra sucursales y fechas aceptables",
            bool(nav.get("detalle")) and "NOR-1" in nav["detalle"]["sucursales"] and nav["detalle"]["fechas"] >= 20, nav.get("detalle"))
         ck("sin errores de JavaScript en la sección", not nav.get("errores_js"), nav.get("errores_js"))
-        pid = c.get("/api/planes").json()["planes"][0]["id"]
-        plan = c.get(f"/api/planes/{pid}").json()
+        pid = datos(c.get("/api/planes"), "planes")[0]["id"]
+        plan = datos(c.get(f"/api/planes/{pid}"))
 
         def reqs_plan():
             out_ = {}
-            for x in c.get(f"/api/planes/{pid}").json()["elementos"]:
-                e = c.get(f"/api/expedientes/{x['expediente_id']}").json()
-                out_[x["expediente_id"]] = c.get(f"/api/requests/{e['request_id']}").json()
+            for x in datos(c.get(f"/api/planes/{pid}"), "elementos"):
+                e = datos(c.get(f"/api/expedientes/{x['expediente_id']}"))
+                out_[x["expediente_id"]] = datos(c.get(f"/api/requests/{e['request_id']}"))
             return out_
         ck("propiedad: las 8 solicitudes del motor quedaron EN_PLAN", all(r["status"] == "EN_PLAN" for r in reqs_plan().values()))
 
@@ -176,14 +186,14 @@ def run(a) -> dict:
         ck("observador configurado (persistente) y lanzado", r.status_code == 200, r.text[:200])
 
         def vista_dom():
-            o = c.get("/api/observador").json()["observadores"]
+            o = datos(c.get("/api/observador"), "observadores")
             return o and (o[0]["vista"] or {}).get("dom") == "ACTIVA"
         ck("calendario abierto y ACTIVO", bool(esperar(vista_dom, 60)))
         time.sleep(3)
-        ck("sin disponibilidad: nada asignado", all(x["estado"] == "EN_ESPERA" for x in c.get(f"/api/planes/{pid}").json()["elementos"]))
+        ck("sin disponibilidad: nada asignado", all(x["estado"] == "EN_ESPERA" for x in datos(c.get(f"/api/planes/{pid}"), "elementos")))
 
         def elementos():
-            return c.get(f"/api/planes/{pid}").json()["elementos"]
+            return datos(c.get(f"/api/planes/{pid}"), "elementos")
 
         def asignados(fecha=None):
             return [x for x in elementos() if x["estado"] in ("ASIGNADO", "OPERACION_PREPARADA", "CONFIRMADO")
@@ -206,7 +216,7 @@ def run(a) -> dict:
             ck(f"día con {unidades} unidad(es): {unidades} coincidencia(s), las de mayor prioridad",
                bool(ok) and sorted(x["id"] for x in got) == sorted(esperados), {"esperados": esperados, "obtenidos": [x["id"] for x in got]})
         m["latencia_hasta_asignar_ms"] = lat
-        evs = c.get("/api/observaciones").json()["eventos"]
+        evs = datos(c.get("/api/observaciones"), "eventos")
         por_dia = {f: [e for e in evs if e["fecha"] == f and e["tipo"] == "DIA_DISPONIBLE"] for f in (A, B, C)}
         ck("un evento por día (las dos estrategias lo ven; no se duplica)",
            all(len(v) == 1 and {"dom", "visual"} <= set(v[0]["detecciones"]) for v in por_dia.values()),
@@ -236,8 +246,8 @@ def run(a) -> dict:
         el_sc = next((x for x in elementos() if str(x["id"]) == str(sc.get("elemento"))), None)
         ck("operación sin cita: la atención termina SIN_DISPONIBILIDAD", sc.get("estado") == "SIN_DISPONIBILIDAD", nav.get("error") or sc)
         if el_sc:
-            e_sc = c.get(f"/api/expedientes/{el_sc['expediente_id']}").json()
-            req = c.get(f"/api/requests/{e_sc['request_id']}").json()
+            e_sc = datos(c.get(f"/api/expedientes/{el_sc['expediente_id']}"))
+            req = datos(c.get(f"/api/requests/{e_sc['request_id']}"))
             ck("…y el expediente vuelve AL PLAN (solicitud EN_PLAN), no a la cola general",
                req["status"] == "EN_PLAN" and e_sc["estado"] == "LISTO", (req["status"], e_sc["estado"]))
             ck("…y su unidad (que sigue libre en el portal) se le vuelve a ofrecer (REEVALUACION)",
@@ -266,16 +276,16 @@ def run(a) -> dict:
         ok = esperar(vista_dom, 90, 0.5)
         m["observador_restaurado_s"] = round(time.perf_counter() - t + m["reinicio_motor_s"], 1)
         ck("el observador se RESTAURA solo tras el reinicio (sin volver a pedirlo)", bool(ok), m["observador_restaurado_s"])
-        ck("no hay dos observadores para lo mismo", len(c.get("/api/observador").json()["observadores"]) == 1)
+        ck("no hay dos observadores para lo mismo", len(datos(c.get("/api/observador"), "observadores")) == 1)
         r = op2.post(f"/api/reservaciones/{rid}/seleccionar-dia", json={"fecha": medias["fecha_asignada"], "sucursal": "NOR-1"})
         r2 = op2.post(f"/api/reservaciones/{rid}/confirmar", json={"confirmo": True}) if r.status_code == 200 else r
         folio_medias = (r2.json().get("reservacion") or {}).get("folio") if r2.status_code == 200 else None
         ck("la operación a medias se termina tras el reinicio (folio)", bool(folio_medias), r2.text[:200])
         # navegador del observador matado
-        n_arr = c.get("/api/observador").json()["observadores"][0]["arranques"]
+        n_arr = datos(c.get("/api/observador"), "observadores")[0]["arranques"]
         c.post("/api/observador/simular-caida-navegador").raise_for_status()      # corte brusco de Chromium
         ck("el supervisor relanza el navegador del observador",
-           bool(esperar(lambda: c.get("/api/observador").json()["observadores"][0]["arranques"] > n_arr and vista_dom(), 60, 0.5)))
+           bool(esperar(lambda: datos(c.get("/api/observador"), "observadores")[0]["arranques"] > n_arr and vista_dom(), 60, 0.5)))
         pend = esperado_orden(1)
         ctl("POST", "/control/dias/habilitar", sucursal="NOR-1", tramite="alta", fecha=E, capacidad=1)
         ck("tras relanzarlo se sigue detectando: día E -> la pendiente", bool(esperar(lambda: [x["id"] for x in asignados(E)] == pend, 30)),
@@ -314,6 +324,12 @@ def run(a) -> dict:
         ck("todas las solicitudes del plan terminaron COMPLETADO", all(r["status"] == "COMPLETADO" for r in rq.values()),
            sorted({r["status"] for r in rq.values()}))
         c.delete("/api/observador")
+    except RespuestaInesperada as e:
+        ck("el recorrido se detuvo: respuesta inesperada del motor", False, str(e))
+    except Exception as e:  # noqa: BLE001 - el informe se escribe igual, con el motivo saneado
+        donde = traceback.extract_tb(e.__traceback__)[-1]
+        ck("el recorrido se detuvo por un error", False, f"{type(e).__name__} en {Path(donde.filename).name}:{donde.lineno}: "
+           f"{sanitizar(str(e), 240)}" + (f" (última espera fallida: {ULTIMO_FALLO_ESPERA[0]})" if ULTIMO_FALLO_ESPERA else ""))
     finally:
         try:
             motor.stop()

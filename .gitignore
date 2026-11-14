@@ -11,3 +11,7 @@ data/
 
 # salidas de demos y laboratorios (lo que se conserva se copia a docs/resultados/)
 /resultados/
+
+# v2.1 cierre: Playwright y su navegador, instalados dentro de la carpeta (scripts/preparar_navegador.py)
+node_modules/
+/.browsers/

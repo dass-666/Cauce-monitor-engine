@@ -570,10 +570,12 @@ jobs:
           cache-dependency-path: requirements*.txt
       - name: Instalar dependencias (solo paquetes precompilados)
         run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
-      - name: Preparar navegador
+      - name: Preparar navegador (cierre v2.1 · dentro de la instalación, en .browsers, sin exportar PLAYWRIGHT_BROWSERS_PATH)
+        run: python scripts/preparar_navegador.py --dependencias-linux
+      - name: Diagnóstico del navegador (el motor lo encuentra solo)
         run: |
-          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
-          npx playwright install --with-deps chromium
+          test -z "${PLAYWRIGHT_BROWSERS_PATH:-}"
+          python -m monitoreo.navegador --probar
       - name: Crear bases PostgreSQL limpias para demo y carga
         run: |
           python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia', 'monitoreo_v17', 'monitoreo_v20', 'monitoreo_res', 'monitoreo_v21', 'monitoreo_acep21')]"
@@ -602,7 +604,7 @@ jobs:
             --parar "docker stop -t 20 $PG" --parar-golpe "docker kill $PG" --arrancar "docker start $PG" \
             --caida-s 8 --salida resultados/resistencia_v20
       - name: v2.1 · Observador de calendario con navegador real (pytest, SQLite y PostgreSQL)
-        run: mkdir -p resultados; python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py 2>&1 | tee resultados/pytest_v21.txt; exit ${PIPESTATUS[0]}
+        run: mkdir -p resultados; python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py tests/test_cierre_v21.py 2>&1 | tee resultados/pytest_v21.txt; exit ${PIPESTATUS[0]}
       - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio (SQLite)
         run: python scripts/recorrido_v21.py --salida resultados/recorrido_v21
       - name: v2.1 · Recorrido integrado con PostgreSQL detenido de verdad a mitad
@@ -649,10 +651,15 @@ jobs:
           cache-dependency-path: requirements*.txt
       - name: Instalar dependencias (solo paquetes precompilados)
         run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
-      - name: Preparar navegador
+      - name: Preparar navegador (cierre v2.1 · dentro de la instalación, en .browsers)
         run: |
-          npm install --no-save --no-audit --no-fund "playwright@$env:PLAYWRIGHT_VERSION"
-          npx playwright install chromium
+          python scripts/preparar_navegador.py
+          exit $LASTEXITCODE
+      - name: Diagnóstico del navegador (el motor lo encuentra solo)
+        run: |
+          if ($env:PLAYWRIGHT_BROWSERS_PATH) { throw "PLAYWRIGHT_BROWSERS_PATH no debería estar definida" }
+          python -m monitoreo.navegador --probar
+          exit $LASTEXITCODE
       - name: Recorrido completo expediente → folio, con reinicio brusco
         run: |
           python scripts/demo_reservacion.py --salida resultados/demo --capturas resultados/capturas
@@ -675,7 +682,7 @@ jobs:
           exit $LASTEXITCODE
       - name: v2.1 · Observador de calendario con navegador real (pytest)
         run: |
-          python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py
+          python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py tests/test_cierre_v21.py
           exit $LASTEXITCODE
       - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio
         run: |

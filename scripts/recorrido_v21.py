@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -42,6 +43,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from portal_reservas.proceso import PortalProceso  # noqa: E402
 from verificar_arranque import Checks, Server, base_env  # noqa: E402
 
+from monitoreo.texto_seguro import RespuestaInesperada, sanitizar  # noqa: E402
+from monitoreo.texto_seguro import cuerpo_esperado as datos  # noqa: E402
+
+ULTIMO_FALLO_ESPERA: list[str] = []      # último diagnóstico de una espera que no llegó a cumplirse
+
 PWD = "Recorrido-Planificador-2026"
 OP_PWD = "Operador-Planificador-2026"
 ZONA = "America/Mexico_City"
@@ -51,7 +57,7 @@ LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def login(base: str, u: str, p: str) -> httpx.Client:
     c = httpx.Client(base_url=base, timeout=30, trust_env=False)
-    c.headers["Authorization"] = "Bearer " + c.post("/api/auth/login", json={"username": u, "password": p}).json()["token"]
+    c.headers["Authorization"] = "Bearer " + datos(c.post("/api/auth/login", json={"username": u, "password": p}), "token")
     return c
 
 
@@ -60,6 +66,9 @@ def esperar(pred, t=30.0, paso=0.05):
     while time.monotonic() - t0 < t:
         try:
             v = pred()
+        except RespuestaInesperada as e:
+            ULTIMO_FALLO_ESPERA[:] = [str(e)]
+            v = None
         except (httpx.HTTPError, ValueError, KeyError, IndexError):
             v = None
         if v:
@@ -98,6 +107,8 @@ def run(a) -> dict:
     motor = Server("motor-v21", env, out)
     motor.start()
     metricas: dict = {"rondas": [], "parpadeos": []}
+    exps: list[dict] = []
+    obs_estado = None
     try:
         ck("motor y portal arrancan como procesos independientes", True, f"{motor.wait_ready()} s")
         c = login(motor.base, "admin", PWD)
@@ -135,7 +146,7 @@ def run(a) -> dict:
                      "region": "NORTE", "sucursal": "NOR-1", "sucursales_alternativas": ["NOR-2"], "tipo_tramite": "alta",
                      "id_registro_previo": reg["identificador"], "prioridad": prios[len(exps)]}
                 r = c.post("/api/expedientes", json=d)
-                if r.status_code == 201 and r.json()["estado"] == "LISTO":
+                if r.status_code == 201 and datos(r, "estado") == "LISTO":
                     exps.append({**r.json(), "_nombre": d["nombre"], "_tel": d["telefono"]})
             n += 1
         ck("8 expedientes ficticios LISTOS (trámite alta, NOR-1)", len(exps) == 8, len(exps))
@@ -146,7 +157,7 @@ def run(a) -> dict:
         jornada = datetime.now(__import__("zoneinfo").ZoneInfo(ZONA)).date().isoformat()
         r = c.post("/api/planes", json={"fecha_jornada": jornada, "capacidad": 6})
         ck("plan de la jornada creado (capacidad 6)", r.status_code == 201, r.text[:200])
-        pid = r.json()["id"]
+        pid = datos(r, "id")
         t = time.perf_counter()
         r = c.post(f"/api/planes/{pid}/seleccionar", json={"fechas_desde": libres[0], "fechas_hasta": libres[-1]}).json()
         metricas["seleccion_ms"] = round((time.perf_counter() - t) * 1000, 1)
@@ -171,11 +182,11 @@ def run(a) -> dict:
         r = c.post("/api/observador", json={"sucursal": "NOR-1", "tramite": "alta", "mes": f"{y:04d}-{m:02d}",
                                             "estrategia": "ambas", "intervalo_visual_ms": a.intervalo_visual_ms})
         ck("observador (Chromium) lanzado por el motor", r.status_code == 200, r.text[:200])
-        activo = esperar(lambda: (c.get("/api/observador").json()["observadores"][0]["vista"] or {}).get("dom") == "ACTIVA", 60)
+        activo = esperar(lambda: (datos(c.get("/api/observador"), "observadores")[0]["vista"] or {}).get("dom") == "ACTIVA", 60)
         ck("calendario abierto y ACTIVO", bool(activo), c.get("/api/observador").json())
         time.sleep(4)
-        evs = c.get("/api/observaciones").json()["eventos"]
-        plan = c.get(f"/api/planes/{pid}").json()
+        evs = datos(c.get("/api/observaciones"), "eventos")
+        plan = datos(c.get(f"/api/planes/{pid}"))
         ck("sin disponibilidad: ningún evento de día y los 8 siguen EN ESPERA",
            not [e for e in evs if e["tipo"] != "VISTA"] and all(x["estado"] == "EN_ESPERA" for x in plan["elementos"]),
            {"eventos": [e["tipo"] for e in evs], "estados": [x["estado"] for x in plan["elementos"]]})
@@ -187,17 +198,17 @@ def run(a) -> dict:
         usadas: list[str] = []
 
         def ronda(fecha: str) -> dict:
-            plan = c.get(f"/api/planes/{pid}").json()
+            plan = datos(c.get(f"/api/planes/{pid}"))
             espera = sorted((x["prioridad"], x["orden"], x["expediente_id"], x["id"]) for x in plan["elementos"]
                             if x["estado"] == "EN_ESPERA" and fecha in x["fechas_aceptables"])
             esperado = espera[0][3] if espera else None
-            ultimo = max([e["id"] for e in c.get("/api/observaciones").json()["eventos"]] or [0])
+            ultimo = max([e["id"] for e in datos(c.get("/api/observaciones"), "eventos")] or [0])
             t0 = time.time()
             ctl("POST", "/control/dias/habilitar", sucursal="NOR-1", tramite="alta", fecha=fecha, capacidad=1)
             t1 = time.time()
 
             def listo():
-                for e in c.get("/api/observaciones", params={"desde": ultimo}).json()["eventos"]:
+                for e in datos(c.get("/api/observaciones", params={"desde": ultimo}), "eventos"):
                     if e["tipo"] == "DIA_DISPONIBLE" and e["fecha"] == fecha and e["consumo"] not in ("NUEVO", "EN_PROCESO") \
                             and {"dom", "visual"} <= set(e["detecciones"]):
                         return e
@@ -227,17 +238,17 @@ def run(a) -> dict:
 
         # ---------------------------------------------------------------- 4. operación -> confirmación humana -> folio
         primero = oks[0]
-        coinc = op.get("/api/planificador/coincidencias").json()["coincidencias"]
+        coinc = datos(op.get("/api/planificador/coincidencias"), "coincidencias")
         ck("el operador ve las coincidencias asignadas", any(x["id"] == primero["elemento"] for x in coinc), len(coinc))
         t = time.perf_counter()
         r = op.post(f"/api/planificador/elementos/{primero['elemento']}/preparar")
         ck("operación preparada (expediente tomado, reservación abierta)", r.status_code == 200, r.text[:200])
-        rid = r.json()["reservacion_id"]
+        rid = datos(r, "reservacion_id")
         r = op.post(f"/api/reservaciones/{rid}/enviar-datos", json={"revisado": True, "manuales": MANUALES, "sucursal": "NOR-1"})
         ck("datos enviados con los campos MANUALES tecleados", r.status_code == 200, r.text[:200])
         r = op.post(f"/api/reservaciones/{rid}/seleccionar-dia", json={"fecha": primero["fecha"], "sucursal": "NOR-1"})
         ck("día asignado elegido en el portal", r.status_code == 200, r.text[:200])
-        plan = c.get(f"/api/planes/{pid}").json()
+        plan = datos(c.get(f"/api/planes/{pid}"))
         el = next(x for x in plan["elementos"] if x["id"] == primero["elemento"])
         ck("sin confirmación humana NO hay cita (sigue OPERACION_PREPARADA)", el["estado"] == "OPERACION_PREPARADA", el["estado"])
         r = op.post(f"/api/reservaciones/{rid}/confirmar", json={"confirmo": True})       # SIMULADA: la «persona» es el script
@@ -248,14 +259,14 @@ def run(a) -> dict:
                        trust_env=False)
         ck("el folio existe CONFIRMADO en el portal (comprobación independiente)",
            rp.status_code == 200 and rp.json().get("estado") == "CONFIRMADA", rp.status_code)
-        conf = esperar(lambda: next(x for x in c.get(f"/api/planes/{pid}").json()["elementos"]
+        conf = esperar(lambda: next(x for x in datos(c.get(f"/api/planes/{pid}"), "elementos")
                                     if x["id"] == primero["elemento"])["estado"] == "CONFIRMADO", 30, 0.5)
         ck("el plan lo refleja: CONFIRMADO (mantenimiento del motor)", bool(conf))
 
         # ---------------------------------------------------------------- 5. cambio que desaparece tras asignarse
         seg = oks[1]
         ctl("POST", "/control/dias/agotar", sucursal="NOR-1", tramite="alta", fecha=seg["fecha"])
-        vuelto = esperar(lambda: next(x for x in c.get(f"/api/planes/{pid}").json()["elementos"]
+        vuelto = esperar(lambda: next(x for x in datos(c.get(f"/api/planes/{pid}"), "elementos")
                                       if x["id"] == seg["elemento"])["estado"] == "EN_ESPERA", 30, 0.3)
         ck("día que desaparece tras asignarse: el expediente vuelve a EN ESPERA", bool(vuelto))
         r = op.post(f"/api/planificador/elementos/{seg['elemento']}/preparar")
@@ -264,18 +275,18 @@ def run(a) -> dict:
         # ---------------------------------------------------------------- 6. parpadeos
         for dur in (0.15, 1.5):
             fecha = candidatas[a.rondas * 2 + len(metricas["parpadeos"]) * 2 + 1]
-            ultimo = max([e["id"] for e in c.get("/api/observaciones").json()["eventos"]] or [0])
+            ultimo = max([e["id"] for e in datos(c.get("/api/observaciones"), "eventos")] or [0])
             ctl("POST", "/control/dias/habilitar", sucursal="NOR-1", tramite="alta", fecha=fecha, capacidad=1)
             time.sleep(dur)
             ctl("POST", "/control/dias/agotar", sucursal="NOR-1", tramite="alta", fecha=fecha)
             time.sleep(3)
-            evs = [e for e in c.get("/api/observaciones", params={"desde": ultimo}).json()["eventos"] if e["fecha"] == fecha]
+            evs = [e for e in datos(c.get("/api/observaciones", params={"desde": ultimo}), "eventos") if e["fecha"] == fecha]
             disp = [e for e in evs if e["tipo"] == "DIA_DISPONIBLE"]
             metricas["parpadeos"].append({"duracion_s": dur, "visto": bool(disp),
                                           "estrategias": sorted(disp[0]["detecciones"]) if disp else [],
                                           "consumo": disp[0]["consumo"] if disp else None})
         p15 = metricas["parpadeos"][1]
-        el15 = [x for x in c.get(f"/api/planes/{pid}").json()["elementos"] if x["estado"] == "ASIGNADO"
+        el15 = [x for x in datos(c.get(f"/api/planes/{pid}"), "elementos") if x["estado"] == "ASIGNADO"
                 and x["fecha_asignada"] == candidatas[a.rondas * 2 + 3]]
         ck("parpadeo de 1,5 s: visto por ambas estrategias y, al desaparecer, nada queda asignado a ese día",
            p15["visto"] and p15["estrategias"] == ["dom", "visual"] and not el15, metricas["parpadeos"])
@@ -283,8 +294,8 @@ def run(a) -> dict:
                                       "estrategia puede verlo (MEDIDO con 150 ms y refresco de " f"{a.refresco_ms} ms).")
 
         # ---------------------------------------------------------------- 7. motor matado y reiniciado
-        antes = c.get(f"/api/planes/{pid}").json()
-        n_ev = len(c.get("/api/observaciones").json()["eventos"])
+        antes = datos(c.get(f"/api/planes/{pid}"))
+        n_ev = len(datos(c.get("/api/observaciones"), "eventos"))
         motor.proc.kill()
         motor.proc.wait(20)
         motor.log.close()
@@ -294,17 +305,17 @@ def run(a) -> dict:
         metricas["reinicio_motor_s"] = round(time.perf_counter() - t, 2)
         c = login(motor.base, "admin", PWD)
         op = login(motor.base, "operador1", OP_PWD)
-        despues = c.get(f"/api/planes/{pid}").json()
+        despues = datos(c.get(f"/api/planes/{pid}"))
         ck("tras matar y reiniciar el motor, el plan está intacto",
            [(x["id"], x["estado"]) for x in antes["elementos"]] == [(x["id"], x["estado"]) for x in despues["elementos"]])
         # v2.1: la configuración del observador es persistente: se restaura sola (sin volver a pedirla)
         t = time.perf_counter()
-        restaurado = esperar(lambda: (c.get("/api/observador").json()["observadores"][0]["vista"] or {}).get("dom") == "ACTIVA",
+        restaurado = esperar(lambda: (datos(c.get("/api/observador"), "observadores")[0]["vista"] or {}).get("dom") == "ACTIVA",
                              90, 0.5)
         metricas["observador_restaurado_s"] = round(time.perf_counter() - t + metricas["reinicio_motor_s"], 1)
         ck("el observador se restaura solo tras el reinicio", bool(restaurado), metricas["observador_restaurado_s"])
         time.sleep(2)
-        evs = c.get("/api/observaciones").json()["eventos"]
+        evs = datos(c.get("/api/observaciones"), "eventos")
         nuevos_dia = [e for e in evs[n_ev:] if e["tipo"] != "VISTA"]
         ck("al reabrir el calendario no se duplican los eventos ya vistos", not nuevos_dia, [e["fecha"] for e in nuevos_dia])
         rr = ronda(candidatas[a.rondas * 2 + 6])
@@ -320,7 +331,7 @@ def run(a) -> dict:
             time.sleep(4)
             salud = httpx.get(motor.base + "/api/health", timeout=10, trust_env=False).status_code
             subprocess.run(a.pg_arrancar, shell=True, check=False, timeout=60)
-            ev = esperar(lambda: [e for e in c.get("/api/observaciones").json()["eventos"]
+            ev = esperar(lambda: [e for e in datos(c.get("/api/observaciones"), "eventos")
                                   if e["fecha"] == fecha and e["tipo"] == "DIA_DISPONIBLE"], 60, 0.5)
             ck("PostgreSQL caído: el motor responde 503 (no inventa nada)", salud == 503, salud)
             ck("al volver PostgreSQL, el cambio visto durante la caída se registra (una vez)", ev and len(ev) == 1,
@@ -329,6 +340,12 @@ def run(a) -> dict:
                                     round(iso_a_epoch(ev[0]["registrado_en"]) - t0, 1) if ev else None}
         c.delete("/api/observador")
         obs_estado = None
+    except RespuestaInesperada as e:
+        ck("el recorrido se detuvo: respuesta inesperada del motor", False, str(e))
+    except Exception as e:  # noqa: BLE001 - el informe se escribe igual, con el motivo saneado
+        donde = traceback.extract_tb(e.__traceback__)[-1]
+        ck("el recorrido se detuvo por un error", False, f"{type(e).__name__} en {Path(donde.filename).name}:{donde.lineno}: "
+           f"{sanitizar(str(e), 240)}" + (f" (última espera fallida: {ULTIMO_FALLO_ESPERA[0]})" if ULTIMO_FALLO_ESPERA else ""))
     finally:
         try:
             motor.stop()

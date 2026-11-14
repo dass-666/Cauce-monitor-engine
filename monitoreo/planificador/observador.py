@@ -42,7 +42,9 @@ from urllib.parse import urlencode
 
 from sqlalchemy import select
 
+from .. import navegador
 from ..db import utcnow
+from ..texto_seguro import sanitizar
 from . import coincidencias, observaciones, operacion
 
 log = logging.getLogger("monitoreo.planificador")
@@ -83,6 +85,11 @@ class Observador:
         self._reinicios_t: deque = deque()
         self._reaperturas_seguidas = 0
         self.fallo: str | None = None          # motivo por el que se detuvo solo (límite superado)
+        # Diagnóstico (cierre v2.1): los ERROR del script y la salida de error de Node, saneados.
+        self.stats["errores_navegador"] = 0
+        self.ultimo_error: dict | None = None
+        self.errores: deque = deque(maxlen=20)
+        self.stderr: deque = deque(maxlen=20)
 
     # ------------------------------------------------------------------ ciclo de vida
     def iniciar(self) -> None:
@@ -149,8 +156,11 @@ class Observador:
             self.stats["arranques"] += 1
             self._latido_mono, self._reabrir_pedido = time.monotonic(), None
             self.proc = subprocess.Popen(["node", str(SCRIPT), self._cfg_file], cwd=ROOT, stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
-                                         bufsize=1)
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                         errors="replace", bufsize=1, env=navegador.entorno())
+            hilo_err = threading.Thread(target=self._leer_stderr, args=(self.proc,), name=f"stderr-{self.nombre}",
+                                        daemon=True)
+            hilo_err.start()
             t0 = time.monotonic()
             for linea in self.proc.stdout:
                 if not linea.startswith("OBS "):
@@ -161,16 +171,24 @@ class Observador:
                     continue
                 self._procesar(obs)
             self.proc.wait()
+            hilo_err.join(2)
             if self._stop.is_set():
                 break
+            if self.proc.returncode and not self._error_en(self.stats["arranques"]) and self.stderr:
+                # Node terminó con error sin emitir una línea ERROR (p. ej. no encontró el módulo
+                # «playwright»): se registra la última salida de error, saneada.
+                self._anotar_error("node", " ".join(list(self.stderr)[-3:]))
             self.stats["reinicios_navegador"] += 1
             ahora = time.monotonic()
             self._reinicios_t.append(ahora)
             while self._reinicios_t and ahora - self._reinicios_t[0] > self.ventana_reinicios_s:
                 self._reinicios_t.popleft()
             if len(self._reinicios_t) > self.max_reinicios:
-                self._fallar(f"el navegador se relanzó {len(self._reinicios_t)} veces en "
-                             f"{self.ventana_reinicios_s / 60:.0f} min; se detiene para no insistir")
+                base = (f"el navegador se relanzó {len(self._reinicios_t)} veces en "
+                        f"{self.ventana_reinicios_s / 60:.0f} min; se detiene para no insistir")
+                if self.ultimo_error:          # el motivo se guarda en 200 caracteres: el error se recorta
+                    base += "; último error: " + sanitizar(self.ultimo_error["mensaje"], max(20, 200 - len(base) - 16))
+                self._fallar(base)
                 break
             log.warning("observador %s: el proceso terminó (código %s); se relanza en %.0f s", self.nombre,
                         self.proc.returncode, espera)
@@ -180,10 +198,39 @@ class Observador:
                 break
             espera = min(30.0, espera * 2)
 
+    # ------------------------------------------------------------------ diagnóstico
+    def _leer_stderr(self, proc: subprocess.Popen) -> None:
+        """Lee la salida de error de Node (hay que vaciarla para que el proceso no se bloquee) y
+        conserva sus últimas líneas, saneadas. No se registra cada línea: solo si Node termina con
+        error sin haber emitido una línea ERROR propia."""
+        try:
+            for linea in proc.stderr:
+                s = sanitizar(linea, 240)
+                if s:
+                    self.stderr.append(s)
+        except (OSError, ValueError):
+            pass
+
+    def _anotar_error(self, origen: str, mensaje) -> None:
+        m = sanitizar(mensaje, 300) or "(sin mensaje)"
+        self.stats["errores_navegador"] += 1
+        self.ultimo_error = {"origen": origen, "mensaje": m, "arranque": self.stats["arranques"],
+                             "en": utcnow().isoformat() + "Z"}
+        self.errores.append(self.ultimo_error)
+        log.error("observador %s: ERROR del navegador (%s): %s", self.nombre, origen, m)
+
+    def _error_en(self, arranque: int) -> bool:
+        return bool(self.ultimo_error and self.ultimo_error["arranque"] == arranque)
+
     # ------------------------------------------------------------------ procesamiento
     def _procesar(self, obs: dict) -> None:
         self.stats["lineas"] += 1
         tipo = obs.get("tipo")
+        if tipo == "ERROR":
+            self._anotar_error(obs.get("estrategia") or "observador", obs.get("mensaje"))
+        elif tipo == "VISTA" and obs.get("estado") == "DESCONECTADO" and obs.get("detalle"):
+            log.warning("observador %s: página DESCONECTADA (%s): %s", self.nombre, obs.get("estrategia"),
+                        sanitizar(obs.get("detalle"), 200))
         if tipo == "LATIDO":
             self.stats["ultimo_latido"] = obs.get("ts_ms")
             self._latido_mono = time.monotonic()
@@ -259,7 +306,8 @@ class Observador:
     def estado(self) -> dict:
         return {"nombre": self.nombre, "url": self.url, "estrategia": self.estrategia,
                 "vivo": bool(self.proc and self.proc.poll() is None), "pendientes": len(self.pendientes),
-                "fallo": self.fallo, **self.stats}
+                "fallo": self.fallo, "ultimo_error": self.ultimo_error, "errores": list(self.errores),
+                "stderr_node": list(self.stderr)[-5:], **self.stats}
 
 
 def mantenimiento(db, now) -> dict:

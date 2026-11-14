@@ -442,17 +442,46 @@ def check_proveedor(out: list[Item], db: Database, now: datetime, ctx: dict) -> 
                         f"{base.get('destino')} ({base['id']}); activas: {len(e['instancias_activas'])}.", "", ""))
 
 
+def check_observador(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """Cierre v2.1: observadores configurados que no pueden arrancar (sin Chromium) o que se
+    detuvieron por fallos, con su motivo. Sin observadores configurados no dice nada."""
+    if entorno.is_production():
+        return
+    from . import navegador
+    from .models import ObservadorConfig
+    with db.session() as s:
+        cfgs = list(s.scalars(select(ObservadorConfig)))
+    activos = [c for c in cfgs if c.activo]
+    for c in cfgs:
+        if c.estado == "DETENIDO_POR_FALLOS":
+            out.append(Item("Observador", AVISO, f"Observador {c.clave} detenido por fallos", (c.motivo or "")[:200],
+                            "Revisa el motivo, corrige la causa (p. ej. `python -m monitoreo.navegador --probar`) y "
+                            "vuelve a iniciarlo desde la API del observador.", f"obs-fallo:{c.clave}"))
+    if not activos:
+        return
+    r = navegador.resolver(navegador.entorno())
+    if r["chromium"] is False:
+        out.append(Item("Observador", AVISO, "El observador no encontrará Chromium",
+                        f"Hay {len(activos)} observador(es) activo(s) y la carpeta de navegadores {r['ruta']} "
+                        f"({r['origen']}) no contiene Chromium.",
+                        "Ejecuta `python scripts/preparar_navegador.py` en la carpeta de la instalación, o fija "
+                        "PLAYWRIGHT_BROWSERS_PATH en .env con la carpeta donde ya está.", "obs-sin-chromium"))
+    else:
+        out.append(Item("Observador", OK, f"{len(activos)} observador(es) activo(s); navegador localizado",
+                        f"{r['ruta'] or 'node_modules'} ({r['origen']})", "", "obs-navegador"))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
          "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
          "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad",
-         "check_proveedor": "Proveedor"}
+         "check_proveedor": "Proveedor", "check_observador": "Observador"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
           check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones,
-          check_proveedor]
+          check_proveedor, check_observador]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

@@ -17,11 +17,11 @@ if errorlevel 1 (
   if not "%MONITOREO_SIN_PAUSA%"=="1" pause
   exit /b 3
 )
-if not exist node_modules\playwright (
+rem Cierre v2.1: comprueba de verdad que Chromium arranca (no solo que exista node_modules).
+.venv\Scripts\python.exe scripts\preparar_navegador.py --comprobar >nul 2>nul
+if errorlevel 1 (
   echo Preparando el navegador automatizado (solo la primera vez, descarga unos 150 MB^)...
-  call npm install --no-save --no-audit --no-fund playwright@1.63.0
-  if errorlevel 1 goto sin_navegador
-  call npx playwright install chromium
+  .venv\Scripts\python.exe scripts\preparar_navegador.py
   if errorlevel 1 goto sin_navegador
 )
 .venv\Scripts\python.exe scripts\demo_v20.py --salida resultados\demo_v20 --capturas resultados\capturas_v20 %*

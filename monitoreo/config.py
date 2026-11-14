@@ -34,6 +34,23 @@ def _load_dotenv(path: Path) -> None:
 _load_dotenv(BASE_DIR / ".env")
 
 
+def _navegadores_de_la_instalacion() -> None:
+    """Cierre v2.1: si PLAYWRIGHT_BROWSERS_PATH no está definida (ni en el entorno ni en .env) y la
+    instalación tiene su propia carpeta `.browsers` con Chromium (scripts/preparar_navegador.py), se
+    fija para este proceso y sus hijos (el observador, los recorridos). Ver monitoreo/navegador.py."""
+    if (os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or "").strip():
+        return
+    local = BASE_DIR / ".browsers"
+    try:
+        if any(x.name.startswith(("chromium-", "chromium_headless_shell-")) for x in local.iterdir()):
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(local)
+    except OSError:
+        pass
+
+
+_navegadores_de_la_instalacion()
+
+
 def _bool(name: str, default: bool) -> bool:
     return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "si", "sí", "yes"}
 

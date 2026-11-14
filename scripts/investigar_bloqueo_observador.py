@@ -23,7 +23,8 @@ d = p.ctl("GET", "/control/dias"); suc = "NOR-1"
 cfg = {"url": p.base + f"/observar/calendario?sucursal={suc}&tramite=alta", "estrategia": "ambas",
        "intervalo_visual_ms": 250, "congelado_s": 5, "evidencia_dir": None}
 cf = tmp / "cfg.json"; cf.write_text(json.dumps(cfg))
-env = {**os.environ, "DEBUG": "pw:api"}
+from monitoreo import navegador  # noqa: E402  (cierre v2.1: misma ruta de Chromium que el motor)
+env = {**navegador.entorno(), "DEBUG": "pw:api"}
 err = open(out / "stderr.log", "w")
 proc = subprocess.Popen(["node", script, str(cf)], cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]), stdin=subprocess.PIPE,
                         stdout=subprocess.PIPE, stderr=err, text=True, bufsize=1, env=env)

@@ -16,7 +16,14 @@
 // Estrategia VISUAL: captura de imagen del calendario cada intervalo; los colores de referencia se
 // toman de la LEYENDA de la propia página (calibración visual) y la posición de las celdas una sola
 // vez al abrir (calibración geométrica). Si la página cambia de diseño hay que recalibrar (reabrir).
-const { chromium } = require("playwright");
+const emit = (o) => process.stdout.write("OBS " + JSON.stringify(o) + "\n");
+let chromium;
+try {
+  ({ chromium } = require("playwright"));
+} catch (e) {   // cierre v2.1: que el motor sepa POR QUÉ no arranca (antes solo salía por stderr, descartado)
+  emit({ tipo: "ERROR", estrategia: "arranque", mensaje: "no se encontró el módulo playwright: " + String(e.message || e).split("\n")[0].slice(0, 200), ts_ms: Date.now() });
+  process.exit(4);
+}
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -35,7 +42,6 @@ const congeladoMs = Math.max(1000, (cfg.congelado_s || 5) * 1000);
 const evid = cfg.evidencia_dir || null;
 if (evid) fs.mkdirSync(evid, { recursive: true });
 
-const emit = (o) => process.stdout.write("OBS " + JSON.stringify(o) + "\n");
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 let nEvid = 0;
 const guardar = (buf, pref) => {
