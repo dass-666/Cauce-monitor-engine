@@ -208,7 +208,7 @@ def test_script_del_observador_avisa_si_falta_el_modulo_playwright(tmp_path):
     (tmp_path / "c.json").write_text("{}", encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if k != "NODE_PATH"}
     p = subprocess.run(["node", str(copia), str(tmp_path / "c.json")], capture_output=True, text=True, env=env,
-                       cwd=str(tmp_path), timeout=60)
+                       cwd=str(tmp_path), timeout=60, encoding="utf-8", errors="replace")   # Node escribe UTF-8 (Windows: cp1252 por omisión)
     lineas = [json.loads(x[4:]) for x in p.stdout.splitlines() if x.startswith("OBS ")]
     assert p.returncode == 4, (p.returncode, p.stdout, p.stderr[-300:])
     assert lineas and lineas[0]["tipo"] == "ERROR" and "no se encontró el módulo playwright" in lineas[0]["mensaje"]

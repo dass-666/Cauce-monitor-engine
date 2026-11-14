@@ -102,9 +102,9 @@ def diagnosticar(timeout: float = 20.0, probar: bool = False) -> dict:
              "process.exit(0)}console.log(JSON.stringify({version:require('playwright/package.json').version,"
              "ejecutable:p.chromium.executablePath()}))")
     try:
-        v = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=timeout)
+        v = subprocess.run([node, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         r["node"] = v.stdout.strip() or None
-        s = subprocess.run([node, "-e", sonda], capture_output=True, text=True, timeout=timeout, cwd=str(ROOT / "scripts"),
+        s = subprocess.run([node, "-e", sonda], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, cwd=str(ROOT / "scripts"),
                            env=env)
         datos = json.loads((s.stdout.strip().splitlines() or ["{}"])[-1])
     except (OSError, subprocess.TimeoutExpired, ValueError) as e:
@@ -154,7 +154,7 @@ def _probar(node: str, env: dict, timeout: float) -> dict:
           "console.log(JSON.stringify({ok:true,version:b.version()}));await b.close()})"
           ".catch(e=>{console.log(JSON.stringify({ok:false,error:String(e.message)}))})")
     try:
-        s = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=max(timeout, 60),
+        s = subprocess.run([node, "-e", js], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=max(timeout, 60),
                            cwd=str(ROOT / "scripts"), env=env)
         d = json.loads((s.stdout.strip().splitlines() or ["{}"])[-1])
     except (OSError, subprocess.TimeoutExpired, ValueError) as e:
