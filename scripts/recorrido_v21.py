@@ -60,7 +60,7 @@ def esperar(pred, t=30.0, paso=0.05):
     while time.monotonic() - t0 < t:
         try:
             v = pred()
-        except (httpx.HTTPError, ValueError, KeyError):
+        except (httpx.HTTPError, ValueError, KeyError, IndexError):
             v = None
         if v:
             return v
@@ -297,9 +297,12 @@ def run(a) -> dict:
         despues = c.get(f"/api/planes/{pid}").json()
         ck("tras matar y reiniciar el motor, el plan está intacto",
            [(x["id"], x["estado"]) for x in antes["elementos"]] == [(x["id"], x["estado"]) for x in despues["elementos"]])
-        c.post("/api/observador", json={"sucursal": "NOR-1", "tramite": "alta", "mes": f"{y:04d}-{m:02d}",
-                                        "estrategia": "ambas", "intervalo_visual_ms": a.intervalo_visual_ms})
-        esperar(lambda: (c.get("/api/observador").json()["observadores"][0]["vista"] or {}).get("dom") == "ACTIVA", 60)
+        # v2.1: la configuración del observador es persistente: se restaura sola (sin volver a pedirla)
+        t = time.perf_counter()
+        restaurado = esperar(lambda: (c.get("/api/observador").json()["observadores"][0]["vista"] or {}).get("dom") == "ACTIVA",
+                             90, 0.5)
+        metricas["observador_restaurado_s"] = round(time.perf_counter() - t + metricas["reinicio_motor_s"], 1)
+        ck("el observador se restaura solo tras el reinicio", bool(restaurado), metricas["observador_restaurado_s"])
         time.sleep(2)
         evs = c.get("/api/observaciones").json()["eventos"]
         nuevos_dia = [e for e in evs[n_ev:] if e["tipo"] != "VISTA"]

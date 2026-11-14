@@ -148,3 +148,79 @@ def visibles_para(db, user) -> list[dict]:
                 continue                       # otra región o sucursal que no atiende
             out.append(pl.vista_elemento(el, exp))
         return out
+
+
+def _resumen_fechas(fechas: list[str]) -> dict:
+    fs = sorted(fechas or [])
+    return {"n": len(fs), "desde": fs[0] if fs else None, "hasta": fs[-1] if fs else None,
+            "continuas": bool(fs) and len(fs) == (_d(fs[-1]) - _d(fs[0])).days + 1}
+
+
+def _d(x: str):
+    from datetime import date
+    return date.fromisoformat(x)
+
+
+def jornada_para(db, user, now: datetime) -> dict:
+    """v2.1 · P1: el plan de la jornada tal como lo ve ESTE usuario (para Ventanilla).
+    Administrador: todo el plan. Operador: los elementos de su región y sucursales (y los suyos).
+    Sin datos personales: código, estados, prioridades, sucursales y fechas."""
+    from ..captura import zona
+    from ..models import Atencion, ObservacionDia, PlanDiario
+    from .observaciones import efectivas
+    hoy = zona.hoy(now)
+    with db.session() as s:
+        p = s.scalar(select(PlanDiario).where(PlanDiario.fecha_jornada == hoy))
+        if p is None:
+            return {"jornada": hoy.isoformat(), "plan": None, "administrar": bool(user.is_admin)}
+        out, conteo = [], {}
+        for el in s.scalars(select(PlanElemento).where(PlanElemento.plan_id == p.id).order_by(PlanElemento.orden)):
+            exp = s.get(Expediente, el.expediente_id)
+            mio = el.operador_id is not None and el.operador_id == user.operator_id
+            if not user.is_admin and not mio and not vt._disponible(s, exp, user)[0] and el.estado in pl.VIVOS:
+                continue
+            if not user.is_admin and not mio and el.estado not in pl.VIVOS:
+                continue
+            conteo[el.estado] = conteo.get(el.estado, 0) + 1
+            v = pl.vista_elemento(el, exp)
+            expl = el.explicacion or {}
+            res = s.get(Reservacion, el.reservacion_id) if el.reservacion_id else None
+            dia = None
+            if el.fecha_asignada:
+                d = s.get(ObservacionDia, f"{el.sucursal_asignada}|{el.tramite}|{el.fecha_asignada}")
+                dia = None if d is None else {"estado": d.estado, "libres": d.libres,
+                                              "con_las_que_se_cuenta": efectivas(d.libres, d.estado)}
+            atencion = s.scalar(select(Atencion.id).where(Atencion.viva_expediente_id == el.expediente_id,
+                                                          Atencion.cerrada_en.is_(None)))
+            out.append({**v, "explicacion": None, "fechas": _resumen_fechas(v["fechas_aceptables"]),
+                        "expediente_estado": exp.estado if exp else None, "mio": mio,
+                        "operador": el.operador_id, "dia": dia, "atencion_id": atencion,
+                        "reservacion": None if res is None else {"id": res.id, "estado": res.estado, "folio": res.folio},
+                        "por_que": expl.get("por_que") if el.estado != pl.EN_ESPERA else None,
+                        "devuelto": (expl.get("devuelto") or {}).get("motivo"),
+                        "folio": (expl.get("confirmado") or {}).get("folio"),
+                        "puede_preparar": el.estado == pl.ASIGNADO and user.operator_id is not None,
+                        "puede_abrir": el.estado == pl.PREPARADO and (mio or user.is_admin)})
+        vivos = sum(1 for x in out if x["estado"] in pl.VIVOS)
+        return {"jornada": hoy.isoformat(), "administrar": bool(user.is_admin),
+                "plan": {"id": p.id, "estado": p.estado, "capacidad": p.capacidad, "vivos": vivos,
+                         "por_estado": conteo, "elementos": out,
+                         "pendientes": conteo.get(pl.EN_ESPERA, 0), "coincidencias": conteo.get(pl.ASIGNADO, 0)}}
+
+
+def detalle_para(db, user, elemento_id: int) -> dict:
+    """Detalle de un elemento (fechas aceptables completas y explicación de la asignación)."""
+    with db.session() as s:
+        el = s.get(PlanElemento, elemento_id)
+        if el is None:
+            raise ErrorOperacion(404, "Elemento no encontrado")
+        exp = s.get(Expediente, el.expediente_id)
+        mio = el.operador_id is not None and el.operador_id == user.operator_id
+        if not user.is_admin and not mio and not vt._disponible(s, exp, user)[0]:
+            raise ErrorOperacion(404, "Elemento no encontrado")
+        v = pl.vista_elemento(el, exp)
+        expl = dict(el.explicacion or {})
+        for k in ("compatibles_en_espera", "descartados", "elegidos"):      # solo códigos, nunca nombres
+            expl[k] = [{kk: vv for kk, vv in x.items() if kk in ("codigo", "prioridad", "orden", "motivo")}
+                       for x in expl.get(k) or []]
+        return {**v, "explicacion": expl}

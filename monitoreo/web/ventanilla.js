@@ -79,10 +79,115 @@ async function viewVentanilla() {
     { t: "Expediente", f: (a) => a.expediente ? a.expediente.codigo : "—" },
     { t: "Resultado", f: (a) => h("span", {}, badge(a.estado), a.folio ? h("span", { class: "mono" }, " " + a.folio) : null) },
     { t: "Duración", f: (a) => fmtDur(Math.round(a.duracion_s)) }], d.recientes, (a) => { S.ventanilla.aid = a.id; refresh(true, true); }));
+  let plan = null;
+  try { plan = await api("/api/planificador/jornada"); } catch (_) { plan = null; }   // fuera del laboratorio no existe
   return h("div", { id: "ventanilla" }, cabecera,
     h("div", { class: "section" }, h("button", { class: "btn primary big", id: "btn-nueva-atencion",
       onclick: () => iniciarAtencion() }, "Nueva atención")),
-    abiertas, h("div", { class: "section" }, recientes));
+    abiertas, plan ? h("div", { class: "section" }, planDelDia(plan, d.abiertas)) : null,
+    h("div", { class: "section" }, recientes));
+}
+
+// ---------------------------------------------------------------- v2.1 · P1: plan de la jornada dentro de Ventanilla
+// Lo que el planificador eligió para hoy, sus coincidencias y lo que sigue en espera. El operador prepara
+// la operación de una coincidencia y la continúa en ESTA misma pantalla de atención (mismo flujo de
+// siempre: campos manuales, día, confirmación humana, folio comprobado). El administrador crea el plan,
+// lo llena y amplía su capacidad. Solo códigos, estados y fechas: ningún dato personal.
+Object.assign(BADGE, { EN_ESPERA: "b-info", OPERACION_PREPARADA: "b-warn", CONFIRMADO: "b-ok", RETIRADO: "",
+  FIN_JORNADA: "", EN_PLAN: "b-info" });
+const PLAN_NOMBRE = { EN_ESPERA: "En espera", ASIGNADO: "Coincidencia", OPERACION_PREPARADA: "Operación preparada",
+  CONFIRMADO: "Cita confirmada", RETIRADO: "Retirado", FIN_JORNADA: "Terminó la jornada" };
+const planBadge = (e) => h("span", { class: "badge " + (BADGE[e] || ""), "data-estado-plan": e }, PLAN_NOMBRE[e] || e);
+
+function rangoFechas(f) {
+  if (!f || !f.n) return "—";
+  if (f.n === 1) return f.desde;
+  return f.continuas ? `${f.desde} a ${f.hasta} (${f.n} días)` : `${f.n} fechas entre ${f.desde} y ${f.hasta}`;
+}
+
+async function abrirEnAtencion(expId, atencionId, abiertas) {
+  // Si ya hay una atención abierta para ese expediente se retoma; si no, se abre una y se vincula.
+  const ya = atencionId || ((abiertas || []).find((a) => a.expediente && a.expediente.id === expId) || {}).id;
+  if (ya) { S.ventanilla.aid = ya; refresh(true, true); return; }
+  const a = await api("/api/ventanilla/atenciones", { method: "POST", body: { clave: nuevaClave() } });
+  await api(`/api/ventanilla/atenciones/${a.id}/expediente`, { method: "POST", body: { expediente_id: expId } });
+  S.ventanilla = { aid: a.id, clave: null, paso: null };
+  refresh(true, true);
+}
+
+async function prepararDelPlan(el, abiertas, errs) {
+  errs.textContent = "";
+  try {
+    await api(`/api/planificador/elementos/${el.id}/preparar`, { method: "POST" });
+    await abrirEnAtencion(el.expediente_id, null, abiertas);
+  } catch (err) { errs.textContent = err.message; refresh(true); }
+}
+
+async function detallePlan(el) {
+  const d = await api(`/api/planificador/elementos/${el.id}`);
+  const x = d.explicacion || {};
+  const lista = (t, xs) => xs && xs.length ? h("div", {}, h("h3", {}, t), h("ul", {}, xs.map((y) =>
+    h("li", {}, `${y.codigo || "—"} · prioridad ${y.prioridad}` + (y.motivo ? ` · ${y.motivo}` : ""))))) : null;
+  openDrawer(h("div", { id: "detalle-plan", "data-elemento": d.id },
+    h("h2", {}, d.codigo || "Expediente"), planBadge(d.estado),
+    h("p", {}, `Trámite: ${TRAMITES[d.tramite] || d.tramite} · Prioridad ${d.prioridad} · alta n.º ${d.orden}`),
+    h("p", {}, "Sucursales aceptables: ", h("b", { id: "detalle-sucursales" }, d.sucursales.join(", "))),
+    h("div", {}, h("h3", {}, `Fechas aceptables (${d.fechas_aceptables.length})`),
+      h("div", { class: "fechas-aceptables", id: "detalle-fechas" }, d.fechas_aceptables.map((f) =>
+        h("span", { class: "badge" + (f === d.fecha_asignada ? " b-acc" : "") }, f)))),
+    d.fecha_asignada ? h("p", {}, "Día asignado: ", h("b", {}, `${d.fecha_asignada} · ${d.sucursal_asignada}`)) : null,
+    x.por_que ? h("div", {}, h("h3", {}, "Por qué"), h("p", { id: "detalle-por-que" }, x.por_que),
+      x.unidades ? h("p", { class: "muted" }, `Unidades vistas: ${x.unidades.libres_vistas ?? "sin cifra (solo color)"} · comprometidas: ${x.unidades.comprometidas} · cupo: ${x.unidades.cupo}`) : null,
+      h("p", { class: "muted" }, "Regla: " + (x.regla || ""))) : null,
+    x.devuelto ? h("p", { class: "warn-text" }, "Volvió a la espera: " + x.devuelto.motivo) : null,
+    lista("Siguen en espera", x.compatibles_en_espera), lista("Descartados", x.descartados)));
+}
+
+function planDelDia(j, abiertas) {
+  const errs = h("div", { class: "error", role: "alert", id: "plan-error" });
+  const accion = async (fn) => { errs.textContent = ""; try { await fn(); refresh(true); } catch (err) { errs.textContent = err.message; } };
+  if (!j.plan) {
+    return card("Plan del día", h("div", { id: "plan-dia", "data-plan": "ninguno" },
+      h("p", { class: "muted" }, `No hay plan para la jornada ${j.jornada}.`),
+      j.administrar ? h("button", { class: "btn primary", id: "btn-crear-plan", onclick: () => accion(() =>
+        api("/api/planes", { method: "POST", body: { fecha_jornada: j.jornada } }).then((p) =>
+          api(`/api/planes/${p.id}/seleccionar`, { method: "POST", body: {} }))) }, "Crear el plan y elegir expedientes") :
+        h("p", { class: "muted" }, "Lo crea un administrador."), errs));
+  }
+  const p = j.plan;
+  const capacidad = h("input", { type: "number", id: "plan-capacidad", min: p.capacidad, max: 50, value: p.capacidad, class: "small" });
+  const admin = j.administrar ? h("div", { class: "actions", id: "plan-admin" },
+    h("label", {}, "Capacidad ", capacidad),
+    h("button", { class: "btn", id: "btn-ampliar-plan", onclick: () => accion(() =>
+      api(`/api/planes/${p.id}/ampliar`, { method: "POST", body: { capacidad: Number(capacidad.value) } })) }, "Ampliar"),
+    h("button", { class: "btn", id: "btn-llenar-plan", disabled: p.vivos >= p.capacidad ? true : null, onclick: () => accion(() =>
+      api(`/api/planes/${p.id}/seleccionar`, { method: "POST", body: {} })) }, "Completar con expedientes listos")) : null;
+  const filas = table([
+    { t: "Expediente", f: (e) => h("b", { "data-plan-codigo": e.codigo }, e.codigo || "—") },
+    { t: "Prioridad", num: true, f: (e) => e.prioridad },
+    { t: "Estado", f: (e) => h("span", {}, planBadge(e.estado), e.folio ? h("span", { class: "mono" }, " " + e.folio) : null) },
+    { t: "Sucursales", f: (e) => e.sucursales.join(", ") },
+    { t: "Fechas aceptables", f: (e) => rangoFechas(e.fechas) },
+    { t: "Día asignado", f: (e) => e.fecha_asignada ? h("span", {}, `${e.fecha_asignada} · ${e.sucursal_asignada}`,
+      e.dia && e.dia.libres ? h("div", { class: "muted" }, `${e.dia.libres} unidad(es) libres vistas`) : null) :
+      (e.devuelto ? h("span", { class: "muted" }, "volvió a la espera") : "—") },
+    { t: "", f: (e) => h("div", { class: "actions" },
+      e.puede_preparar ? h("button", { class: "btn primary", "data-preparar-plan": e.id, "data-fecha-asignada": e.fecha_asignada,
+        onclick: (ev) => { ev.stopPropagation(); prepararDelPlan(e, abiertas, errs); } }, "Preparar operación") : null,
+      e.puede_abrir && e.mio ? h("button", { class: "btn primary", "data-abrir-plan": e.id,
+        onclick: (ev) => { ev.stopPropagation(); abrirEnAtencion(e.expediente_id, e.atencion_id, abiertas).catch((err) => { errs.textContent = err.message; }); } }, "Continuar") : null,
+      j.administrar ? h("button", { class: "btn ghost small", "data-ver-expediente": e.expediente_id,
+        onclick: (ev) => { ev.stopPropagation(); showExpediente(e.expediente_id); } }, "Ver expediente") : null) }],
+    p.elementos, (e) => detallePlan(e));
+  return card(`Plan del día · ${j.jornada}`, h("div", { id: "plan-dia", "data-plan": p.id },
+    h("div", { class: "grid kpis" },
+      kpi("En el plan", h("span", { id: "plan-vivos" }, `${p.vivos} de ${p.capacidad}`), "expedientes activos / capacidad"),
+      kpi("Coincidencias", h("span", { id: "plan-coincidencias" }, num(p.coincidencias)), "días encontrados, listos para preparar"),
+      kpi("Pendientes", h("span", { id: "plan-pendientes" }, num(p.pendientes)), "esperan un día compatible"),
+      kpi("Confirmadas", num(p.por_estado.CONFIRMADO || 0), "con folio comprobado")),
+    h("p", { class: "muted" }, "Pulsa una fila para ver sus fechas aceptables y por qué se le asignó (o no) un día. ",
+      "Los expedientes del plan solo los asigna el plan: la cola general no los toma."),
+    admin, filas, errs));
 }
 
 async function pantallaAtencion(aid) {
@@ -101,7 +206,10 @@ async function pantallaAtencion(aid) {
     "CONFIRMANDO", "EN_VERIFICACION"].includes(r.estado));
   const conf = a.reservacion && a.reservacion.estado === "CONFIRMADA" ? a.reservacion : null;
   const flujo = h("div", { class: "card section", id: "flujo" });
-  const paso = S.ventanilla.paso || (a.siguiente.clave === "preparar" && !viva ? "preparar" : undefined);
+  // v2.1: un intento ya PREPARADO (p. ej. la operación preparada desde «Plan del día») se retoma mostrando
+  // directamente la revisión con los campos manuales, sin pedir otra vez «Preparar formulario».
+  const paso = S.ventanilla.paso || (["preparar", "enviar"].includes(a.siguiente.clave) && (!viva || viva.estado === "PREPARADA")
+    ? "preparar" : undefined);
   S.ventanilla.paso = null;
   await pintarFlujo(flujo, e, viva, conf, paso);
   return h("div", {}, cab, flujo, cierre(a, !!conf, viva));

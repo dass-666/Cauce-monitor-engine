@@ -144,6 +144,18 @@ def iniciar_observador(body: ObservadorIn, request: Request, user: CurrentUser =
             "en_otro_proceso": c["clave"] in r["de_otro_proceso"]}
 
 
+@router.post("/observador/simular-caida-navegador")
+def simular_caida(request: Request, user: CurrentUser = Depends(require_admin)):
+    """Laboratorio (pruebas de resistencia): corta de golpe el navegador de los observadores de este
+    proceso, como si Chromium se cerrara. El supervisor debe relanzarlo."""
+    sup = _sup(request)
+    n = 0
+    for o in list(sup.activos.values()):
+        o.matar_navegador()
+        n += 1
+    return {"navegadores_cortados": n}
+
+
 @router.delete("/observador")
 def detener_observadores(request: Request, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     from ..planificador import observador as ob
@@ -155,6 +167,20 @@ def detener_observadores(request: Request, user: CurrentUser = Depends(require_a
 
 
 # ------------------------------------------------------------------ operación (operador)
+@router.get("/planificador/jornada")
+def jornada(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v2.1 · P1: plan del día para la sección «Plan del día» de Ventanilla (respeta permisos)."""
+    return operacion.jornada_para(db, user, utcnow())
+
+
+@router.get("/planificador/elementos/{elemento_id}")
+def detalle(elemento_id: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    try:
+        return operacion.detalle_para(db, user, elemento_id)
+    except operacion.ErrorOperacion as e:
+        _err(e)
+
+
 @router.get("/planificador/coincidencias")
 def mis_coincidencias(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     return {"coincidencias": operacion.visibles_para(db, user)}

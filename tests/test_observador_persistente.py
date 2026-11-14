@@ -148,3 +148,23 @@ def test_varias_unidades_vistas_por_dom(entorno):
         assert s.get(ObservacionDia, clave).libres == 5
     tipos = [(e.tipo, e.unidades_anteriores, e.unidades) for e in _ev(lab, fecha)]
     assert tipos == [("DIA_DISPONIBLE", None, 3), ("DIA_DISPONIBLE", 3, 5)], tipos      # sin duplicados
+
+
+def test_limite_de_reaperturas_seguidas_sin_volver_a_activa(entorno):
+    """Sin navegador: la página dice SESION_CADUCADA una y otra vez sin volver a ACTIVA. Con el
+    límite en 2, a la tercera el observador se detiene con su motivo (no reabre sin fin)."""
+    lab, p, obs, tmp = entorno
+    o = Observador(lab.db, "NOR-1", "alta", atender=False, max_reaperturas=2)
+    for _ in range(3):
+        o._espera_reabrir = 0.01
+        o._procesar({"tipo": "VISTA", "estrategia": "dom", "estado": "SESION_CADUCADA", "ts_ms": time.time() * 1000})
+        assert _esperar(lambda: not o._reabriendo.is_set(), 5)
+    assert o.fallo and "3 veces seguidas" not in o.fallo and "seguidas" in o.fallo, o.fallo
+    assert o.stats["reaperturas_sesion"] == 3
+    # una vista ACTIVA entre medias reinicia la cuenta
+    o2 = Observador(lab.db, "NOR-1", "alta", atender=False, max_reaperturas=2)
+    for est in ("SESION_CADUCADA", "SESION_CADUCADA", "ACTIVA", "SESION_CADUCADA", "SESION_CADUCADA"):
+        o2._espera_reabrir = 0.01
+        o2._procesar({"tipo": "VISTA", "estrategia": "dom", "estado": est, "ts_ms": time.time() * 1000})
+        assert _esperar(lambda: not o2._reabriendo.is_set(), 5)
+    assert o2.fallo is None
