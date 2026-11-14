@@ -1,0 +1,387 @@
+{
+  "expediente": {
+    "codigo": "EXP-000002",
+    "estado": "RESERVACION_CONFIRMADA",
+    "motivo_cierre": null,
+    "tipo_tramite": "alta",
+    "creado_por": "admin",
+    "creado_en": "2026-11-14T12:44:21.635411Z",
+    "consentimiento_vigente": null
+  },
+  "consentimientos": [
+    {
+      "id": 2,
+      "codigo": "CON-000002",
+      "expediente_id": 2,
+      "tipo_tramite": "alta",
+      "finalidad": "GESTION_CITA",
+      "finalidad_texto": "Gestionar la cita del trámite indicado: buscar fecha, preparar los datos, confirmar y dar seguimiento",
+      "medio": "FIRMA_PAPEL",
+      "otorgado_en": "2026-11-14T12:44:21.635411Z",
+      "vigente_hasta": null,
+      "responsable": "admin",
+      "aviso_privacidad": "AP-2026-01",
+      "evidencia_sha256": "01aa801b2cb399ea030dc72ab9837fbd5d6cb313da5e3d5f244d9f130d943cfe",
+      "evidencia_ref": "Carpeta LAB-01",
+      "estado": "REVOCADO",
+      "revocado_en": "2026-11-14T12:44:23.841836Z",
+      "revocado_por": "operador1",
+      "revocacion_medio": "ESCRITO",
+      "revocacion_motivo": "PERSONA_LO_PIDE",
+      "version": 3
+    }
+  ],
+  "verificacion_consentimientos": {
+    "ok": true,
+    "consentimientos": 1,
+    "problemas": []
+  },
+  "planes": [
+    {
+      "jornada": "2026-11-14",
+      "elemento": 2,
+      "estado": "CONFIRMADO",
+      "prioridad": 2,
+      "fecha_asignada": "2027-01-01",
+      "sucursal_asignada": "NOR-1"
+    }
+  ],
+  "atenciones": [],
+  "reservaciones": [
+    {
+      "id": 1,
+      "estado": "CONFIRMADA",
+      "modo": "POR_DIA",
+      "fecha": "2027-01-01",
+      "sucursal": "NOR-1",
+      "folio": "DIA-20270101-00001F",
+      "confirmada_por": "operador1",
+      "error_codigo": null,
+      "creada_en": "2026-11-14T12:44:22.995661Z",
+      "actualizada_en": "2026-11-14T12:44:23.066446Z"
+    }
+  ],
+  "linea_de_tiempo": [
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "CREADO",
+      "actor": "admin",
+      "detalle": {
+        "campos": [
+          "correo",
+          "fecha_nacimiento",
+          "id_registro_previo",
+          "modo",
+          "nombre",
+          "operacion",
+          "prioridad",
+          "region",
+          "sucursal",
+          "sucursales_alternativas",
+          "telefono",
+          "tipo_tramite"
+        ],
+        "modo": "POR_DIA"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "admin",
+      "detalle": {
+        "antes": "NUEVO",
+        "despues": "INCOMPLETO",
+        "faltan": [
+          "consentimiento"
+        ]
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "CONSENTIMIENTO_REGISTRADO",
+      "actor": "admin",
+      "detalle": {
+        "consentimiento": "CON-000002",
+        "finalidad": "GESTION_CITA",
+        "medio": "FIRMA_PAPEL"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "admin",
+      "detalle": {
+        "antes": "INCOMPLETO",
+        "despues": "EN_VALIDACION"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "admin",
+      "detalle": {
+        "antes": "EN_VALIDACION",
+        "despues": "LISTO"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "expediente",
+      "tipo": "SOLICITUD_CREADA",
+      "actor": "admin",
+      "detalle": {
+        "solicitud": "EXP-000002",
+        "ronda": 1,
+        "modo": "POR_DIA"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.635411Z",
+      "fuente": "consentimiento",
+      "tipo": "CONSENTIMIENTO_OTORGADO",
+      "actor": "admin",
+      "detalle": {
+        "registro": {
+          "expediente_id": 2,
+          "tipo_tramite": "alta",
+          "finalidad": "GESTION_CITA",
+          "medio": "FIRMA_PAPEL",
+          "otorgado_en": "2026-11-14T12:44:21",
+          "vigente_hasta": null,
+          "responsable": "admin",
+          "aviso_privacidad": "AP-2026-01",
+          "evidencia_sha256": "01aa801b2cb399ea030dc72ab9837fbd5d6cb313da5e3d5f244d9f130d943cfe",
+          "evidencia_ref": "Carpeta LAB-01"
+        },
+        "sello": "20f015dfb77c"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.880975Z",
+      "fuente": "expediente",
+      "tipo": "PLAN_AGREGADO",
+      "actor": "admin",
+      "detalle": {
+        "plan": "2026-11-14",
+        "prioridad": 2
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.880975Z",
+      "fuente": "cola",
+      "tipo": "SOLICITUD_ELEGIBLE",
+      "actor": "planificador",
+      "detalle": {
+        "solicitud": "EXP-000002",
+        "desde": "PENDIENTE",
+        "nota": "condiciones validadas"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:21.880975Z",
+      "fuente": "cola",
+      "tipo": "SOLICITUD_EN_PLAN",
+      "actor": "planificador",
+      "detalle": {
+        "solicitud": "EXP-000002",
+        "desde": "ELEGIBLE",
+        "nota": "incluido en el plan diario"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.976141Z",
+      "fuente": "expediente",
+      "tipo": "PLAN_COINCIDENCIA",
+      "actor": "motor",
+      "detalle": {
+        "fecha": "2027-01-01",
+        "sucursal": "NOR-1",
+        "evento_observacion": 2,
+        "prioridad": 2,
+        "unidades": 1
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "operador1 (ventanilla)",
+      "detalle": {
+        "antes": "LISTO",
+        "despues": "ASIGNADO",
+        "operador": 1,
+        "canal": "ventanilla"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "expediente",
+      "tipo": "TOMADO_EN_VENTANILLA",
+      "actor": "operador1 (ventanilla)",
+      "detalle": {
+        "operador": 1
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "operador1",
+      "detalle": {
+        "antes": "ASIGNADO",
+        "despues": "CAPTURA_EN_PROCESO"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "expediente",
+      "tipo": "FORMULARIO_PREPARADO",
+      "actor": "operador1",
+      "detalle": {
+        "contrato": "portal_laboratorio_dia",
+        "version_contrato": 2,
+        "faltan": []
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "expediente",
+      "tipo": "PLAN_OPERACION_PREPARADA",
+      "actor": "user:operador1",
+      "detalle": {
+        "fecha": "2027-01-01",
+        "sucursal": "NOR-1"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:22.995661Z",
+      "fuente": "cola",
+      "tipo": "SOLICITUD_EN_VENTANILLA",
+      "actor": "operador1 (ventanilla)",
+      "detalle": {
+        "solicitud": "EXP-000002",
+        "desde": "EN_PLAN",
+        "nota": "operación del plan diario"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.010010Z",
+      "fuente": "expediente",
+      "tipo": "DATOS_ENVIADOS",
+      "actor": "operador1",
+      "detalle": {
+        "disponibles_visibles": 8,
+        "manuales_capturados": [
+          "acepto_privacidad",
+          "clave_identidad"
+        ]
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.045560Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "operador1",
+      "detalle": {
+        "antes": "CAPTURA_EN_PROCESO",
+        "despues": "RESERVACION_PENDIENTE"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.045560Z",
+      "fuente": "expediente",
+      "tipo": "RECURSO_SELECCIONADO",
+      "actor": "operador1",
+      "detalle": {
+        "sucursal": "NOR-1",
+        "fecha": "2027-01-01",
+        "libres_vistas": 1
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.045560Z",
+      "fuente": "expediente",
+      "tipo": "RESERVACION_PENDIENTE",
+      "actor": "operador1",
+      "detalle": {
+        "fecha": "2027-01-01"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.066446Z",
+      "fuente": "expediente",
+      "tipo": "RESERVACION_CONFIRMADA",
+      "actor": "operador1",
+      "detalle": {
+        "folio": "DIA-20270101-00001F",
+        "evidencia": "api_por_folio"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.066446Z",
+      "fuente": "expediente",
+      "tipo": "ESTADO",
+      "actor": "operador1",
+      "detalle": {
+        "antes": "RESERVACION_PENDIENTE",
+        "despues": "RESERVACION_CONFIRMADA",
+        "folio": "DIA-20270101-00001F"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.264434Z",
+      "fuente": "cola",
+      "tipo": "SOLICITUD_COMPLETADO",
+      "actor": "ventanilla",
+      "detalle": {
+        "solicitud": "EXP-000002",
+        "desde": "EN_VENTANILLA",
+        "nota": "cita confirmada en ventanilla"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.841836Z",
+      "fuente": "expediente",
+      "tipo": "CONSENTIMIENTO_REVOCADO",
+      "actor": "operador1",
+      "detalle": {
+        "consentimiento": "CON-000002",
+        "medio": "ESCRITO",
+        "motivo": "PERSONA_LO_PIDE"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.841836Z",
+      "fuente": "expediente",
+      "tipo": "CONSENTIMIENTO_REVOCADO_CON_CITA",
+      "actor": "motor",
+      "detalle": {}
+    },
+    {
+      "ts": "2026-11-14T12:44:23.841836Z",
+      "fuente": "consentimiento",
+      "tipo": "CONSENTIMIENTO_REVOCADO",
+      "actor": "operador1",
+      "detalle": {
+        "medio": "ESCRITO",
+        "motivo": "PERSONA_LO_PIDE",
+        "sello": "1d547d11da8c"
+      }
+    },
+    {
+      "ts": "2026-11-14T12:44:23.841836Z",
+      "fuente": "consentimiento",
+      "tipo": "CONSENTIMIENTO_AVISO_CITA_CONFIRMADA",
+      "actor": "motor",
+      "detalle": {
+        "nota": "cita ya confirmada: su cancelación la decide la persona",
+        "sello": "542798e18ca0"
+      }
+    }
+  ]
+}

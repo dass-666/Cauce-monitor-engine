@@ -578,7 +578,7 @@ jobs:
           python -m monitoreo.navegador --probar
       - name: Crear bases PostgreSQL limpias para demo y carga
         run: |
-          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia', 'monitoreo_v17', 'monitoreo_v20', 'monitoreo_res', 'monitoreo_v21', 'monitoreo_acep21')]"
+          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia', 'monitoreo_v17', 'monitoreo_v20', 'monitoreo_res', 'monitoreo_v21', 'monitoreo_acep21', 'monitoreo_v22')]"
       - name: Recorrido completo expediente → folio (SQLite)
         run: python scripts/demo_reservacion.py --salida resultados/demo_sqlite --capturas resultados/capturas_sqlite
       - name: Recorrido completo expediente → folio (PostgreSQL)
@@ -616,6 +616,15 @@ jobs:
         run: python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21
       - name: v2.1 · Aceptación · PostgreSQL
         run: python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_acep21"
+      - name: v2.2 · Consentimiento por expediente (pytest, SQLite y PostgreSQL)
+        run: mkdir -p resultados; python -m pytest -q -vv -rs -s tests/test_consentimiento_v22.py 2>&1 | tee resultados/pytest_v22.txt; exit ${PIPESTATUS[0]}
+      - name: v2.2 · Demostración completa con consentimiento exigido (SQLite)
+        run: python scripts/demo_v22.py --salida resultados/demo_v22
+      - name: v2.2 · Demostración completa con PostgreSQL detenido de verdad a mitad
+        run: |
+          PG=${{ job.services.postgres.id }}
+          python scripts/demo_v22.py --salida resultados/demo_v22 --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v22" \
+            --pg-parar "docker stop -t 20 $PG" --pg-arrancar "docker start $PG && sleep 3"
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -691,6 +700,14 @@ jobs:
       - name: v2.1 · Aceptación (Ventanilla «Plan del día», varias unidades, propiedad única, reinicios)
         run: |
           python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21
+          exit $LASTEXITCODE
+      - name: v2.2 · Consentimiento por expediente (pytest)
+        run: |
+          python -m pytest -q -vv -rs -s tests/test_consentimiento_v22.py
+          exit $LASTEXITCODE
+      - name: v2.2 · Demostración completa con consentimiento exigido
+        run: |
+          python scripts/demo_v22.py --salida resultados/demo_v22
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |

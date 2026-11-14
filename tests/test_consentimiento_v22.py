@@ -31,6 +31,9 @@ def lab(_lab_dia, monkeypatch):
     return _lab_dia
 
 
+ADMIN = __import__("types").SimpleNamespace(username="admin", is_admin=True, operator_id=None)
+
+
 def cons(n: int = 1, **kw) -> dict:
     d = {"medio": "FIRMA_PAPEL", "aviso_privacidad": "AP-2026-01",
          "evidencia_sha256": hashlib.sha256(f"formato ficticio {n}".encode()).hexdigest(),
@@ -501,3 +504,125 @@ def test_trazabilidad_de_punta_a_punta_sin_datos_personales(lab):
                            for row in s.execute(text(f"SELECT * FROM {tb}"))], ensure_ascii=False)
     for p in personales[:3]:
         assert p not in blob, p
+
+
+# ================================================================ recuperación (procesos, sesiones, base de datos)
+def test_revocacion_interrumpida_la_completa_el_mantenimiento(lab, monkeypatch):
+    """El proceso muere justo después de registrar la revocación (antes de aplicar sus efectos): la
+    revocación ya es definitiva y el mantenimiento del motor (otro proceso, otro ciclo) termina el resto."""
+    eid, u, h = asignado(lab)
+    rid, _ = lab.hasta_fecha(eid, h)
+
+    def muere(*a, **kw):
+        raise RuntimeError("simulado: el proceso se cayó tras guardar la revocación")
+    with monkeypatch.context() as m:
+        m.setattr(cs, "aplicar_revocacion", muere)
+        cid = consentimiento_de(lab, eid)["consentimientos"][0]["id"]
+        with pytest.raises(RuntimeError):
+            cs.revocar(lab.db, cid, {"medio": "ESCRITO"}, ADMIN, utcnow())
+    with lab.db.session() as s:
+        assert s.get(Consentimiento, cid).estado == "REVOCADO"
+    assert res_estado(lab, rid) == "FECHA_ELEGIDA" and exp(lab, eid)["estado"] != "CERRADO"
+    # mientras tanto, ninguna operación nueva pasa la puerta
+    r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
+    assert r.status_code == 409, r.text
+    out = seguimiento.mantenimiento(lab.db, utcnow())
+    assert any(x["expediente_id"] == eid and x["expediente_cerrado"] for x in out["revocaciones"]), out["revocaciones"]
+    assert res_estado(lab, rid) == "CANCELADA" and exp(lab, eid)["estado"] == "CERRADO"
+    assert verificar(lab)["ok"]
+
+
+def test_fallo_a_mitad_de_la_revocacion_no_deja_nada_a_medias(lab, monkeypatch):
+    """La base de datos falla entre el cambio de estado y el evento sellado: se deshace TODO (el
+    consentimiento sigue vigente, sin eventos huérfanos) y la cadena sigue íntegra."""
+    eid, u, h = asignado(lab)
+    cid = consentimiento_de(lab, eid)["consentimientos"][0]["id"]
+    real = cs._agregar_evento
+
+    def cae(s, c, tipo, *a, **kw):
+        if tipo == "REVOCADO":
+            raise RuntimeError("simulado: conexión perdida")
+        return real(s, c, tipo, *a, **kw)
+    with monkeypatch.context() as m:
+        m.setattr(cs, "_agregar_evento", cae)
+        with pytest.raises(RuntimeError):
+            cs.revocar(lab.db, cid, {"medio": "ESCRITO"}, ADMIN, utcnow())
+    with lab.db.session() as s:
+        c = s.get(Consentimiento, cid)
+        assert c.estado == "VIGENTE" and c.version == 1 and c.revocado_en is None
+        assert s.scalar(select(func.count(ConsentimientoEvento.id)).where(ConsentimientoEvento.consentimiento_id == cid)) == 1
+        assert s.scalar(select(func.count(AuditLog.id)).where(AuditLog.action == "consentimiento_revocado")) == 0
+    assert exp(lab, eid)["estado"] == "ASIGNADO" and verificar(lab)["ok"]
+    # se reintenta y ahora sí
+    assert revocar(lab, eid, h)["repetida"] is False and exp(lab, eid)["estado"] == "CERRADO"
+
+
+def test_sesion_vencida_no_revoca_y_al_volver_se_retoma(lab):
+    from monitoreo.models import ApiToken
+    h = lab.ops["op1"]
+    a = _atencion(lab, h)
+    r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/expediente", headers=h, json={"datos": lab.datos_expediente()})
+    assert r.status_code == 200 and r.json()["siguiente"]["clave"] == "consentimiento", r.text
+    with lab.db.session() as s:          # vence la sesión del operador (como tras MONITOREO_TOKEN_TTL_HORAS)
+        s.execute(update(ApiToken).values(expires_at=utcnow() - timedelta(minutes=1)))
+    r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/consentimiento", headers=h, json=cons(30))
+    assert r.status_code == 401
+    with lab.db.session() as s:
+        assert s.scalar(select(func.count(Consentimiento.id))) == 0
+    h2 = lab.login("op1", "Operador-123")
+    v = lab.c.get(f"/api/ventanilla/atenciones/{a['id']}", headers=h2).json()
+    assert v["abierta"] and v["siguiente"]["clave"] == "consentimiento"       # «Retomar»: mismo paso
+    r = lab.c.post(f"/api/ventanilla/atenciones/{a['id']}/consentimiento", headers=h2, json=cons(30))
+    assert r.status_code == 201 and r.json()["atencion"]["siguiente"]["clave"] == "preparar", r.text
+    # el operador revoca con su sesión vencida: 401 y nada cambia
+    eid = v["expediente"]["id"]
+    cid = consentimiento_de(lab, eid, h2)["consentimientos"][0]["id"]
+    with lab.db.session() as s:
+        s.execute(update(ApiToken).values(expires_at=utcnow() - timedelta(minutes=1)))
+    assert lab.c.post(f"/api/consentimientos/{cid}/revocar", headers=h2, json={"medio": "ESCRITO"}).status_code == 401
+    with lab.db.session() as s:
+        assert s.get(Consentimiento, cid).estado == "VIGENTE"
+
+
+def test_reinicio_del_motor_conserva_consentimientos_y_revocaciones(lab):
+    from fastapi.testclient import TestClient
+
+    from monitoreo.app import create_app
+    e1, u, h = asignado(lab)
+    e2 = crear(lab)
+    revocar(lab, e2["id"])
+    v_antes = verificar(lab)
+    url = lab.db.url
+    lab.cerrar()
+    c2 = TestClient(create_app(url, start_engine=False, seed_demo=False))
+    c2.__enter__()
+    try:
+        db2 = c2.app.state.db
+        seguimiento.mantenimiento(db2, utcnow())
+        v = cs.verificar(db2)
+        assert v["ok"] and v["eventos"] == v_antes["eventos"]
+        with db2.session() as s:
+            assert s.get(Expediente, e2["id"]).estado == "CERRADO"
+            e = s.get(Expediente, e1)
+            assert e.estado == "ASIGNADO" and cs.vigente(s, e, utcnow()) is not None
+    finally:
+        c2.__exit__(None, None, None)
+        lab.c.__enter__()
+
+
+def test_retencion_borrar_conserva_la_constancia_de_consentimiento(lab):
+    """Con `retencion_accion=BORRAR`, un expediente revocado (con consentimientos) se ANONIMIZA: la
+    constancia de la autorización y de su revocación se conserva y la retención no se detiene."""
+    from monitoreo.captura import retencion
+    from monitoreo.engine.params import set_params
+    e = crear(lab)
+    revocar(lab, e["id"])
+    with lab.db.session() as s:
+        set_params(s, {"retencion_accion": "BORRAR", "retencion_cerrados_dias": 1})
+    res = retencion.aplicar(lab.db, utcnow() + timedelta(days=3))
+    assert res["borrados"] == 0 and res["anonimizados"] >= 1, res
+    with lab.db.session() as s:
+        x = s.get(Expediente, e["id"])
+        assert x is not None and x.anonimizado_en is not None and x.nombre != "" and x.telefono is None
+        assert s.scalar(select(func.count(Consentimiento.id)).where(Consentimiento.expediente_id == e["id"])) == 1
+    assert verificar(lab)["ok"]

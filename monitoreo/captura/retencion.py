@@ -70,6 +70,12 @@ def candidatos(s, now: datetime, params: dict) -> list[dict]:
     return out
 
 
+def _referenciado(s, exp_id: int) -> bool:
+    from ..models import Atencion, CapturaManual, Consentimiento, ConsentimientoEvento, PlanElemento
+    return any(s.scalar(select(m.id).where(m.expediente_id == exp_id).limit(1)) is not None
+               for m in (Atencion, CapturaManual, PlanElemento, Consentimiento, ConsentimientoEvento))
+
+
 def aplicar(db: Database, now: datetime, actor: str = "motor", simular: bool = False) -> dict:
     from .. import security
     with db.session() as s:
@@ -88,6 +94,11 @@ def aplicar(db: Database, now: datetime, actor: str = "motor", simular: bool = F
                     or rs.viva_bloquea(s, e.id):
                 res["omitidos"] += 1
                 continue
+            if p["accion"] == "BORRAR" and _referenciado(s, e.id):
+                # v2.2: con atenciones, planes, capturas manuales o consentimientos (la constancia de la
+                # autorización y de su revocación) no se borra: se anonimiza y se conserva la evidencia.
+                # Antes, el borrado chocaba con esas referencias y detenía la retención entera.
+                p = {**p, "accion": "ANONIMIZAR"}
             if p["accion"] == "BORRAR":
                 s.execute(delete(ExpedienteEvento).where(ExpedienteEvento.expediente_id == e.id))
                 s.delete(e)
