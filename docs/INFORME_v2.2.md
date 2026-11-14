@@ -141,9 +141,9 @@ y en CI como controles. No se añadieron metas de velocidad.
 | Qué | Resultado |
 |---|---|
 | Pruebas nuevas `tests/test_consentimiento_v22.py` | 22 casos; 44 con PostgreSQL; todos pasan |
-| Suite completa, SQLite y PostgreSQL (Linux, este contenedor) | SUITE_PENDIENTE |
+| Suite completa, SQLite y PostgreSQL (Linux, este contenedor) | 701 pasan, 4 omitidas, 0 fallan (13 min; `docs/resultados/v2.2/pytest_sqlite_y_postgresql.txt`) |
 | Demostración `scripts/demo_v22.py`, SQLite | 36 de 36 comprobaciones (`docs/resultados/v2.2/demo_v22_sqlite.json`) |
-| Demostración con PostgreSQL detenido a mitad | DEMO_PG_PENDIENTE (`docs/resultados/v2.2/demo_v22_postgresql.json`) |
+| Demostración con PostgreSQL detenido a mitad | 38 de 38 comprobaciones, con 503 durante la caída y recuperación al volver (`docs/resultados/v2.2/demo_v22_postgresql.json`) |
 | GitHub Actions (Linux y Windows) | CI_PENDIENTE |
 
 La confirmación «humana» de la demostración la hace el script: es **SIMULADA**.

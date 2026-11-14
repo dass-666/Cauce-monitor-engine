@@ -1,0 +1,409 @@
+{
+  "version": "2.2.0-dev",
+  "momento": "2026-11-14 12:55:47",
+  "plataforma": "Linux-6.18.44-fc-v470-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 18.2,
+  "base_de_datos": "postgresql",
+  "resumen": {
+    "operacion_hasta_folio_ms": 156.6,
+    "tras_revocar_asignado": {
+      "fecha": "2027-01-05",
+      "reasignada_a": null,
+      "nota": "OBSERVADO: si la unidad liberada se reofrece depende de que el observador vuelva a verla"
+    },
+    "ventanilla": {
+      "pasos": [
+        {
+          "caso": "A",
+          "atencion": "1",
+          "siguiente": "preparar",
+          "barra": "CON-000009"
+        },
+        {
+          "caso": "B",
+          "atencion": "2",
+          "siguiente_antes": "consentimiento",
+          "paso_consentimiento": true,
+          "flujo_antes": false,
+          "siguiente_despues": "preparar",
+          "consentimiento": "CON-000010"
+        },
+        {
+          "caso": "C",
+          "atencion": "2",
+          "aviso_sin_casilla": true,
+          "resultado": "Atención terminada SIN cita",
+          "estado_atencion": "CANCELADA"
+        }
+      ],
+      "huella_navegador": "04e3f67d65877f44864fbaadd89ca7a96d9b1a9623b6a7569f3e3747ce0b7dc1",
+      "huella_coincide": true,
+      "errores_js": [],
+      "http_errores": []
+    },
+    "reinicio_s": 1.17,
+    "pg": {
+      "salud_durante": 503,
+      "consulta_durante": 503,
+      "cid": null
+    },
+    "verificacion": {
+      "ok": true,
+      "consentimientos": 10,
+      "eventos": 17,
+      "problemas": []
+    }
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "motor y portal arrancan como procesos independientes",
+      "ok": true,
+      "detalle": "2.11 s"
+    },
+    {
+      "comprobacion": "la exigencia de consentimiento está ACTIVA",
+      "ok": true,
+      "detalle": true
+    },
+    {
+      "comprobacion": "operador con usuario",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "6 expedientes con consentimiento quedan LISTOS",
+      "ok": true,
+      "detalle": [
+        "LISTO",
+        "LISTO",
+        "LISTO",
+        "LISTO",
+        "LISTO",
+        "LISTO"
+      ]
+    },
+    {
+      "comprobacion": "sin consentimiento: INCOMPLETO (nunca entra a la cola)",
+      "ok": true,
+      "detalle": "INCOMPLETO"
+    },
+    {
+      "comprobacion": "consentimiento inválido: 422 y el expediente NO se crea",
+      "ok": true,
+      "detalle": {
+        "http": 422,
+        "antes": 7,
+        "despues": 7
+      }
+    },
+    {
+      "comprobacion": "duplicado EXACTO: 409",
+      "ok": true,
+      "detalle": 409
+    },
+    {
+      "comprobacion": "duplicado PARECIDO (letras cambiadas, mismo nacimiento): REQUIERE_REVISION",
+      "ok": true,
+      "detalle": "Requiere revisión: POSIBLE_DUPLICADO:EXP-000001"
+    },
+    {
+      "comprobacion": "el operador NO puede descartar un posible duplicado",
+      "ok": true,
+      "detalle": 403
+    },
+    {
+      "comprobacion": "el admin lo descarta con motivo y el expediente sigue (LISTO)",
+      "ok": true,
+      "detalle": "{\"expediente\":\"EXP-000009\",\"estado\":\"LISTO\",\"ultimo_error\":null}"
+    },
+    {
+      "comprobacion": "plan del día: entran los 6 con consentimiento",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "el plan rechaza al que no tiene consentimiento, con su motivo",
+      "ok": true,
+      "detalle": [
+        {
+          "expediente_id": 7,
+          "motivo": "el expediente está incompleto o sin validar (INCOMPLETO)"
+        }
+      ]
+    },
+    {
+      "comprobacion": "al registrar su consentimiento pasa a LISTO",
+      "ok": true,
+      "detalle": "{\"consentimiento\":{\"id\":8,\"codigo\":\"CON-000008\",\"expediente_id\":7,\"tipo_tramite\":\"alta\",\"finalidad\":\"GESTION_CITA\",\"finalidad_texto\":\"Gestionar la cita del trámite indicado: buscar fecha, preparar los"
+    },
+    {
+      "comprobacion": "y ahora sí entra al plan",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "observador (Chromium) abierto y ACTIVO sobre el calendario del laboratorio",
+      "ok": true,
+      "detalle": "{\"nombre\":\"obs-NOR-1-alta\",\"url\":\"http://127.0.0.1:60811/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01\",\"e"
+    },
+    {
+      "comprobacion": "revocación con el expediente EN ESPERA del plan",
+      "ok": true,
+      "detalle": {
+        "consentimiento": {
+          "id": 1,
+          "codigo": "CON-000001",
+          "expediente_id": 1,
+          "tipo_tramite": "alta",
+          "finalidad": "GESTION_CITA",
+          "finalidad_texto": "Gestionar la cita del trámite indicado: buscar fecha, preparar los datos, confirmar y dar seguimiento",
+          "medio": "FIRMA_PAPEL",
+          "otorgado_en": "2026-11-14T12:55:32.236733Z",
+          "vigente_hasta": null,
+          "responsable": "admin",
+          "aviso_privacidad": "AP-2026-01",
+          "evidencia_sha256": "44130754fb1ea5f2e0657469eb4c59c664b207722891e997f5cdd6ebd1d8ef74",
+          "evidencia_ref": "Carpeta LAB-00",
+          "estado": "REVOCADO",
+          "revocado_en": "2026-11-14T12:55:33.599234Z",
+          "revocado_por": "admin",
+          "revocacion_medio": "ESCRITO",
+          "revocacion_motivo": "PERSONA_LO_PIDE",
+          "version": 2
+        },
+        "repetida": false,
+        "efectos": {
+          "plan_retirados": 0,
+          "intento_descartado": null,
+          "solicitud_cancelada": true,
+          "atencion_cerrada": null,
+          "expediente_cerrado": true,
+          "pendiente": null,
+          "aviso_cita_confirmada": false
+        }
+      }
+    },
+    {
+      "comprobacion": "se retira del plan (RETIRADO) y el expediente se cierra",
+      "ok": true,
+      "detalle": {
+        "plan": "RETIRADO",
+        "exp": "CERRADO"
+      }
+    },
+    {
+      "comprobacion": "la fecha nueva va al SIGUIENTE por prioridad, nunca al revocado",
+      "ok": true,
+      "detalle": "EXP-000002"
+    },
+    {
+      "comprobacion": "confirmación humana de laboratorio (SIMULADA) -> folio CONFIRMADO en el portal",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":1,\"expediente_id\":2,\"estado\":\"CONFIRMADA\",\"grupo\":\"confirmado\",\"asignacion\":null,\"operator_id\":1,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":"
+    },
+    {
+      "comprobacion": "segunda fecha asignada al siguiente (prioridad 3)",
+      "ok": true,
+      "detalle": "EXP-000003"
+    },
+    {
+      "comprobacion": "revocación con el DÍA ELEGIDO: intento descartado y expediente cerrado",
+      "ok": true,
+      "detalle": {
+        "plan_retirados": 0,
+        "intento_descartado": true,
+        "solicitud_cancelada": true,
+        "atencion_cerrada": null,
+        "expediente_cerrado": true,
+        "pendiente": null,
+        "aviso_cita_confirmada": false
+      }
+    },
+    {
+      "comprobacion": "confirmar después de revocar: 409 y el portal no recibe ninguna confirmación",
+      "ok": true,
+      "detalle": {
+        "http": 409,
+        "antes": 1,
+        "despues": 1
+      }
+    },
+    {
+      "comprobacion": "revocación con CITA CONFIRMADA: aviso a una persona y la cita sigue en el portal (no se cancela sola)",
+      "ok": true,
+      "detalle": {
+        "plan_retirados": 0,
+        "intento_descartado": null,
+        "solicitud_cancelada": false,
+        "atencion_cerrada": null,
+        "expediente_cerrado": false,
+        "pendiente": null,
+        "aviso_cita_confirmada": true
+      }
+    },
+    {
+      "comprobacion": "el plan sigue contando esa cita como CONFIRMADA (no la retira)",
+      "ok": true,
+      "detalle": "CONFIRMADO"
+    },
+    {
+      "comprobacion": "revocación con la fecha ASIGNADA (sin preparar): retirado del plan, solicitud cancelada, cerrado",
+      "ok": true,
+      "detalle": {
+        "asignado_a": "EXP-000005",
+        "esperado": 5,
+        "plan": "RETIRADO",
+        "exp": "CERRADO"
+      }
+    },
+    {
+      "comprobacion": "ya no se puede preparar la operación del revocado",
+      "ok": true,
+      "detalle": 409
+    },
+    {
+      "comprobacion": "Ventanilla A: alta CON consentimiento (huella calculada en el navegador) -> «Preparar»",
+      "ok": true,
+      "detalle": {
+        "caso": "A",
+        "atencion": "1",
+        "siguiente": "preparar",
+        "barra": "CON-000009"
+      }
+    },
+    {
+      "comprobacion": "Ventanilla B: alta SIN consentimiento -> se detiene en «Consentimiento»; registrado -> «Preparar»",
+      "ok": true,
+      "detalle": {
+        "caso": "B",
+        "atencion": "2",
+        "siguiente_antes": "consentimiento",
+        "paso_consentimiento": true,
+        "flujo_antes": false,
+        "siguiente_despues": "preparar",
+        "consentimiento": "CON-000010"
+      }
+    },
+    {
+      "comprobacion": "Ventanilla C: revocación desde la atención (pide confirmar) -> atención terminada sin cita",
+      "ok": true,
+      "detalle": {
+        "caso": "C",
+        "atencion": "2",
+        "aviso_sin_casilla": true,
+        "resultado": "Atención terminada SIN cita",
+        "estado_atencion": "CANCELADA"
+      }
+    },
+    {
+      "comprobacion": "Ventanilla: sin errores de JavaScript",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "Ventanilla: el doble clic registra UN solo consentimiento",
+      "ok": true,
+      "detalle": 1
+    },
+    {
+      "comprobacion": "tras matar y reiniciar el motor: nada revocado se reabre y las cadenas siguen íntegras",
+      "ok": true,
+      "detalle": {
+        "verificacion": {
+          "ok": true,
+          "consentimientos": 10,
+          "eventos": 16,
+          "problemas": []
+        },
+        "antes": 16
+      }
+    },
+    {
+      "comprobacion": "PostgreSQL detenido: el motor responde 503 y no inventa nada",
+      "ok": true,
+      "detalle": {
+        "salud": 503,
+        "consulta": 503
+      }
+    },
+    {
+      "comprobacion": "al volver PostgreSQL, se revoca con normalidad y la cadena cuadra",
+      "ok": true,
+      "detalle": {
+        "plan_retirados": 0,
+        "intento_descartado": null,
+        "solicitud_cancelada": true,
+        "atencion_cerrada": null,
+        "expediente_cerrado": true,
+        "pendiente": null,
+        "aviso_cita_confirmada": false
+      }
+    },
+    {
+      "comprobacion": "cadenas de sellos de TODOS los consentimientos íntegras",
+      "ok": true,
+      "detalle": {
+        "ok": true,
+        "consentimientos": 10,
+        "eventos": 17,
+        "problemas": []
+      }
+    },
+    {
+      "comprobacion": "el autodiagnóstico revisa los consentimientos y no ve problemas",
+      "ok": true,
+      "detalle": [
+        {
+          "area": "Consentimiento",
+          "estado": "OK",
+          "titulo": "Cadena de consentimientos íntegra",
+          "detalle": "10 consentimiento(s), 17 evento(s)",
+          "accion": "",
+          "clave": ""
+        }
+      ]
+    },
+    {
+      "comprobacion": "trazabilidad de punta a punta (alta, consentimiento, plan, folio, revocación, aviso) y sin datos personales",
+      "ok": true,
+      "detalle": [
+        "CREADO",
+        "ESTADO",
+        "CONSENTIMIENTO_REGISTRADO",
+        "ESTADO",
+        "ESTADO",
+        "SOLICITUD_CREADA",
+        "CONSENTIMIENTO_OTORGADO",
+        "PLAN_AGREGADO",
+        "SOLICITUD_ELEGIBLE",
+        "SOLICITUD_EN_PLAN",
+        "PLAN_COINCIDENCIA",
+        "ESTADO",
+        "TOMADO_EN_VENTANILLA",
+        "ESTADO",
+        "FORMULARIO_PREPARADO",
+        "PLAN_OPERACION_PREPARADA",
+        "SOLICITUD_EN_VENTANILLA",
+        "DATOS_ENVIADOS",
+        "ESTADO",
+        "RECURSO_SELECCIONADO",
+        "RESERVACION_PENDIENTE",
+        "RESERVACION_CONFIRMADA",
+        "ESTADO",
+        "CONSENTIMIENTO_REVOCADO",
+        "CONSENTIMIENTO_REVOCADO_CON_CITA",
+        "CONSENTIMIENTO_REVOCADO",
+        "CONSENTIMIENTO_AVISO_CITA_CONFIRMADA",
+        "SOLICITUD_COMPLETADO"
+      ]
+    },
+    {
+      "comprobacion": "sin datos personales en los registros del motor",
+      "ok": true,
+      "detalle": 0
+    }
+  ],
+  "nota": "Portal de LABORATORIO propio y datos FICTICIOS. La confirmación «humana» la hace este script: SIMULADA. Nada aquí demuestra el comportamiento de un portal externo."
+}
