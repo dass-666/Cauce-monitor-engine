@@ -1,0 +1,453 @@
+{
+  "version": "2.1.0-dev",
+  "momento": "2026-11-13 23:58:27",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 23.6,
+  "base_de_datos": "sqlite",
+  "parametros": {
+    "refresco_pagina_ms": 500,
+    "intervalo_visual_ms": 250,
+    "rondas": 5
+  },
+  "latencias": {
+    "deteccion_dom": {
+      "n": 5,
+      "mediana_ms": 226,
+      "p95_ms": 239,
+      "max_ms": 239,
+      "min_ms": 187
+    },
+    "deteccion_visual": {
+      "n": 5,
+      "mediana_ms": 463,
+      "p95_ms": 469,
+      "max_ms": 469,
+      "min_ms": 423
+    },
+    "hasta_asignacion": {
+      "n": 5,
+      "mediana_ms": 231,
+      "p95_ms": 244,
+      "max_ms": 244,
+      "min_ms": 191
+    },
+    "nota": "MEDIDO desde que el laboratorio habilita el día (antes de la llamada de control) hasta el instante de detección en la página y hasta que el motor asigna. Incluye el refresco propio de la página (refresco_pagina_ms): con un portal real ese intervalo lo decide el portal."
+  },
+  "metricas": {
+    "rondas": [
+      {
+        "fecha": "2027-01-01",
+        "ok": true,
+        "evento_id": 3,
+        "elemento": 1,
+        "esperado": 1,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 1, alta n.º 1 en el plan; 7 compatible(s) más quedan en espera",
+        "control_ms": 6.2,
+        "deteccion_dom_ms": 227.2,
+        "deteccion_visual_ms": 469.2,
+        "asignacion_ms": 234.3,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      },
+      {
+        "fecha": "2027-01-03",
+        "ok": true,
+        "evento_id": 4,
+        "elemento": 2,
+        "esperado": 2,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 1, alta n.º 2 en el plan; 6 compatible(s) más quedan en espera",
+        "control_ms": 5.7,
+        "deteccion_dom_ms": 226.0,
+        "deteccion_visual_ms": 463.0,
+        "asignacion_ms": 231.1,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      },
+      {
+        "fecha": "2027-01-05",
+        "ok": true,
+        "evento_id": 5,
+        "elemento": 3,
+        "esperado": 3,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 2, alta n.º 3 en el plan; 5 compatible(s) más quedan en espera",
+        "control_ms": 6.0,
+        "deteccion_dom_ms": 187.0,
+        "deteccion_visual_ms": 423.0,
+        "asignacion_ms": 191.0,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      },
+      {
+        "fecha": "2027-01-07",
+        "ok": true,
+        "evento_id": 6,
+        "elemento": 4,
+        "esperado": 4,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 2, alta n.º 4 en el plan; 4 compatible(s) más quedan en espera",
+        "control_ms": 5.7,
+        "deteccion_dom_ms": 210.9,
+        "deteccion_visual_ms": 439.9,
+        "asignacion_ms": 214.5,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      },
+      {
+        "fecha": "2027-01-09",
+        "ok": true,
+        "evento_id": 7,
+        "elemento": 5,
+        "esperado": 5,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 3, alta n.º 5 en el plan; 3 compatible(s) más quedan en espera",
+        "control_ms": 4.1,
+        "deteccion_dom_ms": 239.2,
+        "deteccion_visual_ms": 464.2,
+        "asignacion_ms": 243.5,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      }
+    ],
+    "parpadeos": [
+      {
+        "duracion_s": 0.15,
+        "visto": false,
+        "estrategias": [],
+        "consumo": null
+      },
+      {
+        "duracion_s": 1.5,
+        "visto": true,
+        "estrategias": [
+          "dom",
+          "visual"
+        ],
+        "consumo": "ASIGNADO"
+      }
+    ],
+    "seleccion_ms": 28.4,
+    "operacion_hasta_folio_ms": 125.1,
+    "parpadeos_nota": "Un cambio más corto que el refresco de la propia página no llega al DOM: ninguna estrategia puede verlo (MEDIDO con 150 ms y refresco de 500 ms).",
+    "reinicio_motor_s": 1.08,
+    "ronda_tras_reinicio": {
+      "fecha": "2027-01-17",
+      "ok": true,
+      "evento_id": 12,
+      "elemento": 2,
+      "esperado": 2,
+      "consumo": "ASIGNADO",
+      "por_que": "prioridad 1, alta n.º 2 en el plan; 3 compatible(s) más quedan en espera",
+      "control_ms": 5.2,
+      "deteccion_dom_ms": 217.4,
+      "deteccion_visual_ms": 456.4,
+      "asignacion_ms": 225.9,
+      "evidencia_dom": true,
+      "evidencia": [
+        "html",
+        "sha256"
+      ]
+    }
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "motor y portal arrancan como procesos independientes",
+      "ok": true,
+      "detalle": "1.2 s"
+    },
+    {
+      "comprobacion": "operador con usuario",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "hay un mes sin días habilitados para observar",
+      "ok": true,
+      "detalle": [
+        2027,
+        1
+      ]
+    },
+    {
+      "comprobacion": "8 expedientes ficticios LISTOS (trámite alta, NOR-1)",
+      "ok": true,
+      "detalle": 8
+    },
+    {
+      "comprobacion": "un expediente incompleto (para comprobar que se rechaza)",
+      "ok": true,
+      "detalle": "INCOMPLETO"
+    },
+    {
+      "comprobacion": "plan de la jornada creado (capacidad 6)",
+      "ok": true,
+      "detalle": "{\"id\":1,\"fecha_jornada\":\"2026-11-13\",\"estado\":\"ABIERTO\",\"capacidad\":6,\"vivos\":0,\"creado_por\":\"admin\",\"elementos\":[]}"
+    },
+    {
+      "comprobacion": "selección automática: 6 por prioridad y antigüedad",
+      "ok": true,
+      "detalle": [
+        1,
+        1,
+        2,
+        2,
+        3,
+        3
+      ]
+    },
+    {
+      "comprobacion": "el incompleto se rechaza con su motivo",
+      "ok": true,
+      "detalle": [
+        {
+          "expediente_id": 9,
+          "motivo": "el expediente está incompleto o sin validar (INCOMPLETO)"
+        }
+      ]
+    },
+    {
+      "comprobacion": "plan lleno: el 7.º se rechaza",
+      "ok": true,
+      "detalle": [
+        {
+          "expediente_id": 4,
+          "motivo": "El plan está completo (6); amplía la capacidad para agregar más"
+        }
+      ]
+    },
+    {
+      "comprobacion": "ampliado a 8: entran los otros dos",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "duplicado rechazado",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "observador (Chromium) lanzado por el motor",
+      "ok": true,
+      "detalle": "{\"nombre\":\"obs-NOR-1-alta\",\"url\":\"http://127.0.0.1:48761/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01\",\"estrategia\":\"ambas\",\"vivo\":false,\"pendientes\":0,\"lineas\":0,\"eventos\":0,\"reinicios"
+    },
+    {
+      "comprobacion": "calendario abierto y ACTIVO",
+      "ok": true,
+      "detalle": {
+        "observadores": [
+          {
+            "nombre": "obs-NOR-1-alta",
+            "url": "http://127.0.0.1:48761/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01",
+            "estrategia": "ambas",
+            "vivo": true,
+            "pendientes": 0,
+            "lineas": 5,
+            "eventos": 2,
+            "reinicios_navegador": 0,
+            "reaperturas_sesion": 0,
+            "errores_bd": 0,
+            "ultimo_latido": null,
+            "vista": {
+              "dom": "ACTIVA",
+              "visual": "ACTIVA"
+            },
+            "coincidencias": 0,
+            "arranques": 1
+          }
+        ]
+      }
+    },
+    {
+      "comprobacion": "sin disponibilidad: ningún evento de día y los 8 siguen EN ESPERA",
+      "ok": true,
+      "detalle": {
+        "eventos": [
+          "VISTA",
+          "VISTA"
+        ],
+        "estados": [
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA",
+          "EN_ESPERA"
+        ]
+      }
+    },
+    {
+      "comprobacion": "la página vacía NO se confunde con desconexión ni sesión caducada",
+      "ok": true,
+      "detalle": [
+        "ACTIVA",
+        "ACTIVA"
+      ]
+    },
+    {
+      "comprobacion": "5 fechas nuevas detectadas por DOM y por imagen",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "cada fecha se asignó al expediente que dicta la regla (prioridad, orden de alta)",
+      "ok": true,
+      "detalle": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "comprobacion": "cada asignación trae su explicación",
+      "ok": true,
+      "detalle": "prioridad 1, alta n.º 1 en el plan; 7 compatible(s) más quedan en espera"
+    },
+    {
+      "comprobacion": "el operador ve las coincidencias asignadas",
+      "ok": true,
+      "detalle": 5
+    },
+    {
+      "comprobacion": "operación preparada (expediente tomado, reservación abierta)",
+      "ok": true,
+      "detalle": "{\"elemento\":{\"id\":1,\"plan_id\":1,\"expediente_id\":2,\"codigo\":null,\"estado\":\"OPERACION_PREPARADA\",\"prioridad\":1,\"tramite\":\"alta\",\"sucursales\":[\"NOR-1\",\"NOR-2\"],\"fechas_aceptables\":[\"2027-01-01\",\"2027-01-"
+    },
+    {
+      "comprobacion": "datos enviados con los campos MANUALES tecleados",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":1,\"expediente_id\":2,\"estado\":\"DATOS_ENVIADOS\",\"grupo\":\"en_proceso\",\"asignacion\":null,\"operator_id\":1,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":null,\"hora\":null,\"folio\":null,\"vence"
+    },
+    {
+      "comprobacion": "día asignado elegido en el portal",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":1,\"expediente_id\":2,\"estado\":\"FECHA_ELEGIDA\",\"grupo\":\"pendiente\",\"asignacion\":null,\"operator_id\":1,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":\"2027-01-01\",\"hora\":null,\"folio\":null,"
+    },
+    {
+      "comprobacion": "sin confirmación humana NO hay cita (sigue OPERACION_PREPARADA)",
+      "ok": true,
+      "detalle": "OPERACION_PREPARADA"
+    },
+    {
+      "comprobacion": "confirmación humana de laboratorio -> CONFIRMADA con folio",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":1,\"expediente_id\":2,\"estado\":\"CONFIRMADA\",\"grupo\":\"confirmado\",\"asignacion\":null,\"operator_id\":1,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":\"2027-01-01\",\"hora\":null,\"folio\":\"DIA-20"
+    },
+    {
+      "comprobacion": "el folio existe CONFIRMADO en el portal (comprobación independiente)",
+      "ok": true,
+      "detalle": 200
+    },
+    {
+      "comprobacion": "el plan lo refleja: CONFIRMADO (mantenimiento del motor)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "día que desaparece tras asignarse: el expediente vuelve a EN ESPERA",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "ya no se puede preparar esa operación",
+      "ok": true,
+      "detalle": 409
+    },
+    {
+      "comprobacion": "parpadeo de 1,5 s: visto por ambas estrategias y, al desaparecer, nada queda asignado a ese día",
+      "ok": true,
+      "detalle": [
+        {
+          "duracion_s": 0.15,
+          "visto": false,
+          "estrategias": [],
+          "consumo": null
+        },
+        {
+          "duracion_s": 1.5,
+          "visto": true,
+          "estrategias": [
+            "dom",
+            "visual"
+          ],
+          "consumo": "ASIGNADO"
+        }
+      ]
+    },
+    {
+      "comprobacion": "tras matar y reiniciar el motor, el plan está intacto",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "al reabrir el calendario no se duplican los eventos ya vistos",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "tras el reinicio se sigue detectando y asignando",
+      "ok": true,
+      "detalle": {
+        "fecha": "2027-01-17",
+        "ok": true,
+        "evento_id": 12,
+        "elemento": 2,
+        "esperado": 2,
+        "consumo": "ASIGNADO",
+        "por_que": "prioridad 1, alta n.º 2 en el plan; 3 compatible(s) más quedan en espera",
+        "control_ms": 5.2,
+        "deteccion_dom_ms": 217.4,
+        "deteccion_visual_ms": 456.4,
+        "asignacion_ms": 225.9,
+        "evidencia_dom": true,
+        "evidencia": [
+          "html",
+          "sha256"
+        ]
+      }
+    },
+    {
+      "comprobacion": "sin datos personales en los registros del motor",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "observador": null
+}

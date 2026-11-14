@@ -179,6 +179,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v2.0: identidad del proveedor (portal) de esta instancia
         from .api.proveedor import router as proveedor_router
         app.include_router(proveedor_router)
+        # v2.1: planificador diario, observador de calendario y coincidencias (laboratorio)
+        from .api.planificador import router as planificador_router
+        app.include_router(planificador_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

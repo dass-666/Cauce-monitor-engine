@@ -522,6 +522,8 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
     # v1.6: modo POR DÍA (pantallas /cita, API /api/dias y /api/eventos, controles de días)
     from . import servidor_dias
     servidor_dias.montar(app, portal, fallos, auth, control, CSS)
+    from . import observacion          # v2.1: vista pública EN VIVO del calendario (observador visual)
+    observacion.montar(app, portal, control)
 
     @app.exception_handler(ErrorPortal)
     async def _err(_req, ex: ErrorPortal):

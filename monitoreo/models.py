@@ -651,3 +651,90 @@ class InstanciaMotor(Base):
     proveedor: Mapped[str] = mapped_column(String(32))
     destino: Mapped[str] = mapped_column(String(160))
     visto_en: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+# ====================================================================== v2.1 · planificador diario
+class PlanDiario(Base):
+    """v2.1 · P1: lista de expedientes de una jornada. Un plan por fecha de jornada."""
+    __tablename__ = "planes_diarios"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fecha_jornada: Mapped[date] = mapped_column(Date, unique=True)
+    estado: Mapped[str] = mapped_column(String(12), default="ABIERTO")          # ABIERTO | CERRADO
+    capacidad: Mapped[int] = mapped_column(Integer, default=6)
+    creado_por: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PlanElemento(Base):
+    """v2.1 · Un expediente dentro de un plan, con lo que se acepta para él. `activo_expediente_id`
+    (UNIQUE) vale el id del expediente mientras el elemento está vivo: un expediente no puede estar
+    vivo en dos elementos a la vez, ni consumirse dos veces."""
+    __tablename__ = "plan_elementos"
+    __table_args__ = (UniqueConstraint("plan_id", "expediente_id", name="uq_plan_expediente"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("planes_diarios.id"), index=True)
+    expediente_id: Mapped[int] = mapped_column(ForeignKey("expedientes.id"), index=True)
+    activo_expediente_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+    # EN_ESPERA | ASIGNADO | OPERACION_PREPARADA | CONFIRMADO | RETIRADO
+    estado: Mapped[str] = mapped_column(String(24), default="EN_ESPERA", index=True)
+    prioridad: Mapped[int] = mapped_column(Integer, default=3)
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    tramite: Mapped[str] = mapped_column(String(32))
+    sucursales: Mapped[list] = mapped_column(JSON, default=list)
+    fechas_aceptables: Mapped[list] = mapped_column(JSON, default=list)
+    evento_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fecha_asignada: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    sucursal_asignada: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    operador_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reservacion_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    explicacion: Mapped[dict] = mapped_column(JSON, default=dict)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ObservacionDia(Base):
+    """v2.1 · P2: último estado VISTO por el observador de cada (sucursal, trámite, fecha). Deduplica."""
+    __tablename__ = "observacion_dias"
+    clave: Mapped[str] = mapped_column(String(96), primary_key=True)
+    sucursal: Mapped[str] = mapped_column(String(32))
+    tramite: Mapped[str] = mapped_column(String(32))
+    fecha: Mapped[str] = mapped_column(String(10))
+    estado: Mapped[str] = mapped_column(String(16))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    fuente: Mapped[str] = mapped_column(String(12), default="")
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ObservacionVista(Base):
+    """v2.1 · Estado de la página observada (por observador y estrategia)."""
+    __tablename__ = "observacion_vistas"
+    clave: Mapped[str] = mapped_column(String(96), primary_key=True)
+    estado: Mapped[str] = mapped_column(String(16))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ObservacionEvento(Base):
+    """v2.1 · Evento normalizado del observador (deduplicado por `huella`). Sin datos de personas."""
+    __tablename__ = "observacion_eventos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    huella: Mapped[str] = mapped_column(String(64), unique=True)
+    tipo: Mapped[str] = mapped_column(String(24), index=True)          # DIA_DISPONIBLE | DIA_NO_DISPONIBLE | VISTA
+    clave: Mapped[str] = mapped_column(String(96), index=True)
+    sucursal: Mapped[str] = mapped_column(String(32))
+    tramite: Mapped[str] = mapped_column(String(32))
+    fecha: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    estado_anterior: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    estado: Mapped[str] = mapped_column(String(16))
+    estrategia: Mapped[str] = mapped_column(String(12))
+    observador: Mapped[str] = mapped_column(String(64))
+    detectado_en: Mapped[datetime] = mapped_column(DateTime)
+    registrado_en: Mapped[datetime] = mapped_column(DateTime, index=True)
+    evidencia: Mapped[dict] = mapped_column(JSON, default=dict)
+    detecciones: Mapped[dict] = mapped_column(JSON, default=dict)
+    # NUEVO | EN_PROCESO | ASIGNADO | SIN_CANDIDATOS | DESAPARECIDO | NO_APLICA
+    consumo: Mapped[str] = mapped_column(String(16), default="NUEVO", index=True)
+    plan_elemento_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    explicacion: Mapped[dict] = mapped_column(JSON, default=dict)

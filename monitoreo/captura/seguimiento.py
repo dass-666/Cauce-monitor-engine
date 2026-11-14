@@ -180,6 +180,11 @@ def mantenimiento(db: Database, now: datetime) -> dict:
         log.warning("recuperación de reservaciones falló: %s", e)
         res["recuperacion_error"] = str(e)[:200]
     res["sincronizacion"] = sincronizar(db, now)
+    try:      # v2.1: eventos del observador sin atender y estado del plan diario
+        from ..planificador.observador import mantenimiento as plan_mant
+        res["planificador"] = plan_mant(db, now)
+    except Exception as e:  # noqa: BLE001 - no debe parar al motor
+        log.warning("mantenimiento del planificador falló: %s", e)
     try:
         from . import ventanilla
         res["ventanilla"] = {**ventanilla.resolver_pendientes(db, now),
