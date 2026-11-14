@@ -765,3 +765,59 @@ class ObservadorConfig(Base):
     creado_por: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------------------------------------------------------------- v2.2 · consentimiento
+class Consentimiento(Base):
+    """v2.2 · Autorización de la persona titular para que se gestione su solicitud de UN trámite.
+
+    Sin un consentimiento VIGENTE (otorgado, no revocado, no vencido, del mismo trámite) el
+    expediente no pasa a LISTO, no entra al plan del día, no se toma en Ventanilla y no se prepara,
+    envía, elige día ni confirma ninguna operación. La revocación es definitiva para ese registro:
+    volver a autorizar exige un consentimiento nuevo.
+
+    No se guarda el documento firmado: solo su huella SHA-256 (`evidencia_sha256`) y una referencia
+    corta de dónde está el original (`evidencia_ref`, p. ej. «carpeta 2026-11 / hoja 14»). Sin datos
+    personales aquí: la persona se identifica por el expediente."""
+    __tablename__ = "consentimientos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(32), unique=True)
+    expediente_id: Mapped[int] = mapped_column(ForeignKey("expedientes.id"), index=True)
+    tipo_tramite: Mapped[str] = mapped_column(String(32))
+    finalidad: Mapped[str] = mapped_column(String(32))               # GESTION_CITA | SEGUIMIENTO_CITA
+    medio: Mapped[str] = mapped_column(String(24))                   # FIRMA_PAPEL | FIRMA_DIGITAL | ...
+    otorgado_en: Mapped[datetime] = mapped_column(DateTime)          # cuándo autorizó la persona
+    vigente_hasta: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    responsable: Mapped[str] = mapped_column(String(64))             # usuario que recibió y registró
+    aviso_privacidad: Mapped[str] = mapped_column(String(32))        # versión del aviso que se le mostró
+    evidencia_sha256: Mapped[str] = mapped_column(String(64))
+    evidencia_ref: Mapped[str] = mapped_column(String(64), default="")
+    estado: Mapped[str] = mapped_column(String(12), default="VIGENTE", index=True)   # VIGENTE | REVOCADO
+    revocado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revocado_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    revocacion_medio: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    revocacion_motivo: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ConsentimientoEvento(Base):
+    """v2.2 · Registro ENCADENADO (solo se añade) de lo que pasó con cada consentimiento.
+
+    `sello` = SHA-256(sello anterior + contenido canónico del evento), con una cadena por
+    consentimiento que empieza en una semilla derivada de su código. Cambiar, borrar o intercalar
+    un evento rompe la cadena, y el número de eventos debe coincidir con `Consentimiento.version`:
+    `consentimiento.verificar()` lo señala. Es evidencia de integridad
+    interna (detecta manipulación de la base), no una firma ante terceros."""
+    __tablename__ = "consentimiento_eventos"
+    # Cadena POR consentimiento y sin bifurcaciones: dos eventos no pueden colgar del mismo anterior.
+    __table_args__ = (UniqueConstraint("consentimiento_id", "anterior", name="uq_consentimiento_eventos_cadena"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consentimiento_id: Mapped[int] = mapped_column(ForeignKey("consentimientos.id"), index=True)
+    expediente_id: Mapped[int] = mapped_column(Integer, index=True)
+    tipo: Mapped[str] = mapped_column(String(24))                    # OTORGADO | REVOCADO | VENCIDO | BLOQUEO
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    actor: Mapped[str] = mapped_column(String(64))
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
+    anterior: Mapped[str] = mapped_column(String(64))
+    sello: Mapped[str] = mapped_column(String(64), unique=True)
