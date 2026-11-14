@@ -471,17 +471,56 @@ def check_observador(out: list[Item], db: Database, now: datetime, ctx: dict) ->
                         f"{r['ruta'] or 'node_modules'} ({r['origen']})", "", "obs-navegador"))
 
 
+def check_consentimientos(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """v2.2: la cadena de sellos de cada consentimiento debe cuadrar (CRÍTICO si no) y, con la
+    exigencia activa, ningún expediente en operación debería estar sin consentimiento vigente."""
+    from .captura import consentimiento as cs
+    from .captura import expedientes as ex
+    from .models import Consentimiento, Expediente
+    with db.session() as s:
+        total = s.scalar(select(func.count()).select_from(Consentimiento)) or 0
+    if total > 5000 and not ctx.get("profundo"):
+        out.append(Item("Consentimiento", INFO, f"{total} consentimientos: la cadena completa se revisa en modo profundo",
+                        "", "Ejecuta el diagnóstico profundo."))
+    else:
+        v = cs.verificar(db)
+        if not v["ok"]:
+            out.append(Item("Consentimiento", CRITICO, f"{len(v['problemas'])} problema(s) en la cadena de consentimientos",
+                            "; ".join(f"{p['consentimiento']}: {p['problema']}" for p in v["problemas"][:5]),
+                            "Alguien cambió o borró registros de consentimiento fuera del motor. No operes esos "
+                            "expedientes; restaura el respaldo o revisa la auditoría.", "cons:cadena"))
+        else:
+            out.append(Item("Consentimiento", OK, "Cadena de consentimientos íntegra",
+                            f"{v['consentimientos']} consentimiento(s), {v['eventos']} evento(s)"))
+    if not cs.exigido():
+        out.append(Item("Consentimiento", AVISO, "La exigencia de consentimiento está desactivada",
+                        "MONITOREO_EXIGIR_CONSENTIMIENTO=0: se pueden operar expedientes sin consentimiento.",
+                        "Actívala (quita la variable o ponla en 1) salvo en pruebas heredadas.", "cons:desactivado"))
+        return
+    en_operacion = [x for x in ex.ACTIVOS if x not in (ex.NUEVO, ex.INCOMPLETO)]
+    with db.session() as s:
+        sin = 0
+        for e in s.scalars(select(Expediente).where(Expediente.estado.in_(en_operacion)).limit(2000)):
+            if cs.vigente(s, e, now) is None:
+                sin += 1
+    if sin:
+        out.append(Item("Consentimiento", AVISO, f"{sin} expediente(s) en operación sin consentimiento vigente",
+                        "Probablemente se crearon antes de activar la exigencia. El motor no los prepara ni confirma.",
+                        "Registra el consentimiento de cada persona o cierra el expediente.", "cons:sin-vigente"))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
          "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
          "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad",
-         "check_proveedor": "Proveedor", "check_observador": "Observador"}
+         "check_proveedor": "Proveedor", "check_observador": "Observador",
+         "check_consentimientos": "Consentimiento"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
           check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones,
-          check_proveedor, check_observador]
+          check_proveedor, check_observador, check_consentimientos]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

@@ -28,8 +28,22 @@ router = APIRouter(prefix="/api")
 _s = Field(default=None, max_length=128)
 
 
+class ConsentimientoIn(BaseModel):
+    """v2.2 · Autorización de la persona (ver monitoreo/captura/consentimiento.py)."""
+    model_config = ConfigDict(extra="forbid")
+    tipo_tramite: str | None = Field(default=None, max_length=32)
+    finalidad: str | None = Field(default=None, max_length=32)
+    medio: str = Field(max_length=24)
+    otorgado_en: str | None = Field(default=None, max_length=32)
+    vigente_hasta: str | None = Field(default=None, max_length=32)
+    aviso_privacidad: str = Field(max_length=32)
+    evidencia_sha256: str = Field(max_length=64)
+    evidencia_ref: str | None = Field(default=None, max_length=64)
+
+
 class ExpedienteIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    consentimiento: ConsentimientoIn | None = None          # v2.2: se registra en la misma transacción que el alta
     nombre: str | None = _s
     fecha_nacimiento: str | None = Field(default=None, max_length=10)
     telefono: str | None = Field(default=None, max_length=20)
@@ -298,6 +312,8 @@ def modificar(eid: int, body: ExpedientePatch, user: CurrentUser = Depends(curre
                 raise HTTPException(404, "Expediente no encontrado")
             d = body.model_dump(exclude_none=True)
             version = d.pop("version")
+            if d.pop("consentimiento", None) is not None:
+                raise HTTPException(422, {"mensaje": "El consentimiento se registra en /api/expedientes/{id}/consentimientos"})
             campos = ex.modificar(s, e, d, version, user.username, now)
             security.audit(s, user.username, "expediente_modificado", e.codigo, {"campos": campos})
             return {**ex.vista(s, e, completa=True), "campos_modificados": campos}

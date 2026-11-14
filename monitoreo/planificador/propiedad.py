@@ -43,6 +43,8 @@ class SinPropiedad(Exception):
 
 def tomar_para_plan(s, exp: Expediente, now: datetime) -> None:
     """Pasa la solicitud del expediente al plan (misma transacción que el alta del elemento)."""
+    from ..captura import consentimiento as cs
+    cs.exigir(s, exp, now, "incluir en el plan", error_cls=lambda _h, m, _d: SinPropiedad(m, "SIN_CONSENTIMIENTO"))
     req = s.get(Request, exp.request_id) if exp.request_id else None
     if req is None:
         raise SinPropiedad("el expediente no tiene solicitud en la cola del motor")

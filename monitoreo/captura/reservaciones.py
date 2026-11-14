@@ -35,10 +35,11 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from .. import conexiones, proveedor
-from ..db import Database
+from ..db import Database, utcnow
 from ..engine import assignment as asg
 from ..engine.params import get_params
 from ..models import Assignment, Expediente, Reservacion
+from . import consentimiento as cs
 from . import expedientes as ex
 from . import portal
 from .formularios import contrato as ct
@@ -146,6 +147,7 @@ def preparar(db: Database, exp_id: int, user, now: datetime) -> dict:
         exp = _exp_visible(s, exp_id, user)
         if exp.estado not in (ex.ASIGNADO, ex.CAPTURA, ex.RES_PENDIENTE):
             raise ErrorReservacion(409, f"El expediente está {exp.estado}: no se puede preparar")
+        cs.exigir(s, exp, now, "preparar", error_cls=ErrorReservacion)
         if exp.operator_id is None:
             raise ErrorReservacion(409, "El expediente aún no tiene operador asignado")
         live = s.scalar(select(Assignment).where(Assignment.request_id == exp.request_id,
@@ -201,13 +203,14 @@ def _exigir_proveedor(s, res: Reservacion) -> None:
         raise ErrorReservacion(409, OTRO_PROVEEDOR, {"codigo": "OTRO_PROVEEDOR"})
 
 
-def _datos_intento(db: Database, res_id: int, user, estados: tuple) -> tuple[dict, Expediente]:
+def _datos_intento(db: Database, res_id: int, user, estados: tuple, now: datetime | None = None) -> tuple[dict, Expediente]:
     with db.session() as s:
         res = _res_visible(s, res_id, user)
         _exigir_proveedor(s, res)
         if res.estado not in estados:
             raise ErrorReservacion(409, f"La reservación está {res.estado}")
         exp = s.get(Expediente, res.expediente_id)
+        cs.exigir(s, exp, now or utcnow(), "operar con el portal", error_cls=ErrorReservacion)
         s.expunge(exp)
         return {"id": res.id, "sesion": res.sesion_portal, "estado": res.estado, "aid": res.assignment_id,
                 "clave": res.clave, "vence_en": res.vence_en, "folio": res.folio, "modo": res.modo,
@@ -277,7 +280,7 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
                  sucursal: str | None = None, mes: str | None = None) -> dict:
     if not revisado:
         raise ErrorReservacion(422, "Revisa los campos preparados y marca 'revisado' antes de enviarlos")
-    d, exp = _datos_intento(db, res_id, user, (PREPARADA, DATOS_ENVIADOS, FECHA_ELEGIDA))
+    d, exp = _datos_intento(db, res_id, user, (PREPARADA, DATOS_ENVIADOS, FECHA_ELEGIDA), now)
     c = portal.contrato(d["modo"])
     auto = ct.valores_desde(c, exp)
     limpios, errores = ct.validar_manuales(c, manuales, auto)
@@ -324,7 +327,7 @@ def enviar_datos(db: Database, res_id: int, user, now: datetime, revisado: bool,
 
 def calendario(db: Database, res_id: int, user, now: datetime, region: str | None = None,
                sucursal: str | None = None, mes: str | None = None) -> dict:
-    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA))
+    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA, FECHA_ELEGIDA), now)
     nav = _nav(db, sesion=d["sesion"], modo=d["modo"], conexion=d["conexion"], ref={"reservacion_id": res_id})
     try:
         if d["modo"] == "POR_DIA":
@@ -346,7 +349,7 @@ def seleccionar(db: Database, res_id: int, user, now: datetime, horario_id: str,
                 sucursal: str | None = None) -> dict:
     if not horario_id or len(horario_id) > 64:
         raise ErrorReservacion(422, "Horario no válido")
-    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA))
+    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, RETENIDA), now)
     _tocar(db, d["aid"], user, now)
     nav = _nav(db, sesion=d["sesion"], conexion=d["conexion"], ref={"reservacion_id": res_id})
     filtros = _filtros(exp, region, sucursal)
@@ -405,7 +408,7 @@ def seleccionar_dia(db: Database, res_id: int, user, now: datetime, fecha: str, 
         date.fromisoformat(fecha or "")
     except ValueError:
         raise ErrorReservacion(422, "Fecha no válida (AAAA-MM-DD)") from None
-    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, FECHA_ELEGIDA))
+    d, exp = _datos_intento(db, res_id, user, (DATOS_ENVIADOS, FECHA_ELEGIDA), now)
     if d["modo"] != "POR_DIA":
         raise ErrorReservacion(409, "Esta reservación es por horario: usa 'seleccionar'")
     suc = sucursal or d["sucursal"]
@@ -571,6 +574,8 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         if res.estado == CONFIRMADA:
             return 200, {"reservacion": vista(res), "repetida": True}
         _exigir_proveedor(s, res)
+        # v2.2: bloquea la fila del consentimiento: una revocación simultánea espera o gana, nunca se cruza
+        cs.exigir(s, s.get(Expediente, res.expediente_id), now, "confirmar", error_cls=ErrorReservacion, bloquear=True)
         t = Reservacion.__table__
         cond = [t.c.id == res_id, t.c.estado.in_(list(LISTAS_PARA_CONFIRMAR))]
         if not user.is_admin:

@@ -54,7 +54,8 @@ TRANSICIONES = {
 GRUPO = {NUEVO: "preparacion", INCOMPLETO: "preparacion", EN_VALIDACION: "preparacion", LISTO: "pendiente",
          ASIGNADO: "pendiente", CAPTURA: "en_proceso", RES_PENDIENTE: "en_proceso", RES_CONFIRMADA: "confirmado",
          REVISION: "revision", CERRADO: "cerrado"}
-MOTIVOS_CIERRE = ("CANCELADO", "FALLIDO", "SIN_DISPONIBILIDAD", "DUPLICADO", "RETENCION", "REPROGRAMADO", "OTRO")
+MOTIVOS_CIERRE = ("CANCELADO", "FALLIDO", "SIN_DISPONIBILIDAD", "DUPLICADO", "RETENCION", "REPROGRAMADO", "OTRO",
+                  "CONSENTIMIENTO_REVOCADO")
 TIPO_RECURSO = {"POR_HORARIO": "cita", "POR_DIA": "cita_dia"}
 CAMPOS_COINCIDENCIA = {"region", "sucursal", "sucursales_alternativas", "tipo_tramite", "modo"}
 
@@ -89,7 +90,11 @@ AVISOS_ESTADO = {INCOMPLETO: ("EXPEDIENTE_INCOMPLETO", "le faltan datos"),
                  REVISION: ("REQUIERE_INTERVENCION", "requiere revisión de un administrador"),
                  RES_CONFIRMADA: ("RESERVACION_CONFIRMADA", "reservación confirmada")}
 AVISOS_TIPO = {"CONFIRMACION_EN_VERIFICACION": ("CONFIRMACION_PENDIENTE",
-                                                "confirmación incierta: el motor la verifica con el portal")}
+                                                "confirmación incierta: el motor la verifica con el portal"),
+               # v2.2: la persona revocó su consentimiento y ya tenía cita: decide una persona, no el motor
+               "CONSENTIMIENTO_REVOCADO_CON_CITA": ("CONSENTIMIENTO_CON_CITA",
+                                                    "consentimiento revocado con cita confirmada: acordar con la "
+                                                    "persona si se cancela")}
 
 
 def _aviso(s: Session, exp_id: int, tipo: str, now: datetime, assignment_id: int | None, detalle: dict) -> None:
@@ -195,12 +200,71 @@ def _region_de_sucursal(s: Session, suc: str) -> str | None:
     return s.scalar(select(CalendarioDia.region).where(CalendarioDia.sucursal == suc).limit(1))
 
 
+UMBRAL_NOMBRE = 0.85        # parecido mínimo entre nombres (0-1) para avisar de un posible duplicado
+
+
+def _descartados(s: Session, exp_id: int) -> set[int]:
+    """Pares ya revisados por una persona: «son personas distintas» (no se vuelven a señalar)."""
+    out = set()
+    for d in s.scalars(select(ExpedienteEvento.detalle).where(ExpedienteEvento.expediente_id == exp_id,
+                                                             ExpedienteEvento.tipo == "DUPLICADO_DESCARTADO")):
+        if (d or {}).get("otro_id"):
+            out.add(int(d["otro_id"]))
+    return out
+
+
+def posibles_duplicados(s: Session, exp: Expediente) -> list[dict]:
+    """v2.2 · Duplicados NO exactos entre expedientes activos del mismo trámite: misma fecha de
+    nacimiento y nombre muy parecido (acentos, letras cambiadas, un apellido de más), o el mismo
+    teléfono o correo. No bloquea solo: lleva el expediente a REQUIERE_REVISION para que una
+    persona decida (y, si son distintas, lo descarte con `descartar_duplicado`)."""
+    from difflib import SequenceMatcher
+    excluir = _descartados(s, exp.id) | {exp.id}
+    base = select(Expediente).where(Expediente.tipo_tramite == exp.tipo_tramite, Expediente.estado.in_(ACTIVOS),
+                                    Expediente.id.notin_(excluir))
+    vistos: dict[int, dict] = {}
+    mio = val.clave_nombre(exp.nombre)
+    if exp.fecha_nacimiento:
+        for o in s.scalars(base.where(Expediente.fecha_nacimiento == exp.fecha_nacimiento).limit(50)):
+            suyo = val.clave_nombre(o.nombre)
+            r = SequenceMatcher(None, mio, suyo).ratio()
+            fichas = set(mio.split()), set(suyo.split())
+            contenido = fichas[0] <= fichas[1] or fichas[1] <= fichas[0]
+            if r >= UMBRAL_NOMBRE or (contenido and min(map(len, fichas)) >= 2):
+                vistos.setdefault(o.id, {"id": o.id, "codigo": o.codigo, "razones": []})["razones"].append(
+                    f"misma fecha de nacimiento y nombre parecido ({r:.2f})")
+    if exp.telefono:
+        for o in s.scalars(base.where(Expediente.telefono == exp.telefono).limit(20)):
+            vistos.setdefault(o.id, {"id": o.id, "codigo": o.codigo, "razones": []})["razones"].append("mismo teléfono")
+    if exp.correo:
+        for o in s.scalars(base.where(Expediente.correo == exp.correo).limit(20)):
+            vistos.setdefault(o.id, {"id": o.id, "codigo": o.codigo, "razones": []})["razones"].append("mismo correo")
+    return sorted(vistos.values(), key=lambda x: x["id"])
+
+
+def descartar_duplicado(s: Session, exp: Expediente, otro: Expediente, actor: str, motivo: str, now: datetime) -> None:
+    """Una persona revisó el par y son personas distintas: queda registrado en los DOS expedientes."""
+    if otro.id == exp.id:
+        raise ErrorExpediente(422, "Un expediente no es duplicado de sí mismo")
+    nota = " ".join(str(motivo or "").split())[:120]
+    if len(nota) < 5:
+        raise ErrorExpediente(422, "Explica brevemente por qué son personas distintas (sin datos personales)")
+    evento(s, exp.id, "DUPLICADO_DESCARTADO", actor, now, otro_id=otro.id, otro=otro.codigo, nota=nota)
+    evento(s, otro.id, "DUPLICADO_DESCARTADO", actor, now, otro_id=exp.id, otro=exp.codigo, nota=nota)
+
+
 def validar_expediente(s: Session, exp: Expediente, actor: str, now: datetime) -> str:
     """NUEVO/INCOMPLETO -> EN_VALIDACION -> LISTO | INCOMPLETO | REQUIERE_REVISION. Devuelve el estado.
     Al llegar a LISTO crea la solicitud del motor (solo entonces puede asignarse)."""
     if exp.estado not in (NUEVO, INCOMPLETO):
         return exp.estado
     falta = faltantes(exp)
+    from . import consentimiento as cs
+    if cs.exigido() and cs.vigente(s, exp, now) is None:
+        # v2.2: sin consentimiento vigente no llega a LISTO (la cola del motor nunca lo recibe)
+        falta = [*falta, "consentimiento"]
+        if exp.estado == INCOMPLETO and not faltantes(exp):
+            exp.ultimo_error = cs.motivo_bloqueo(s, exp, now)["mensaje"][:500]
     if falta:
         if exp.estado == NUEVO:
             cambiar_estado(s, exp, INCOMPLETO, actor, now, faltan=falta)
@@ -216,6 +280,8 @@ def validar_expediente(s: Session, exp: Expediente, actor: str, now: datetime) -
             Expediente.id != exp.id, Expediente.id_registro_previo == exp.id_registro_previo,
             Expediente.tipo_tramite == exp.tipo_tramite, Expediente.estado.in_(ACTIVOS))):
         problemas.append("REGISTRO_PREVIO_REPETIDO")
+    if "DUPLICADO_PROBABLE" not in problemas:
+        problemas.extend(f"POSIBLE_DUPLICADO:{d['codigo']}" for d in posibles_duplicados(s, exp))
     for suc in [x for x in [exp.sucursal, *(exp.sucursales_alternativas or [])] if x]:
         reg = _region_de_sucursal(s, suc)
         if reg is not None and reg != exp.region:
@@ -288,10 +354,21 @@ def crear_seguro(db, entrada: dict, actor: str, now: datetime, modo_defecto: str
     """Crea en su propia transacción; dos altas simultáneas del mismo titular: una gana y la
     otra recibe 409 (lo garantiza el UNIQUE de `dedup_activo`, no solo la comprobación previa)."""
     from ..engine.params import get_params
+    from . import consentimiento as cs
+    entrada = dict(entrada)
+    consentimiento = entrada.pop("consentimiento", None)
     try:
         with db.session() as s:
             modo = modo_defecto or str(get_params(s).get("captura_modo", "POR_DIA"))
             exp = crear(s, entrada, actor, now, modo)
+            if consentimiento:
+                # v2.2: alta y consentimiento en la MISMA transacción: si el consentimiento no es válido,
+                # no se crea el expediente
+                try:
+                    cs.otorgar(s, exp, consentimiento, actor, now)
+                except cs.ErrorConsentimiento as e:
+                    raise ErrorExpediente(e.http, e.mensaje, {f"consentimiento.{k}": v for k, v in
+                                                              (e.detalle.get("errores") or {}).items()}) from e
             return vista(s, exp, completa=True)
     except IntegrityError as e:
         raise ErrorExpediente(409, "Expediente duplicado (alta simultánea)") from e

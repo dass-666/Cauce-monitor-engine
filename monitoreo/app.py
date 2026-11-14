@@ -174,6 +174,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v1.5: captura y reservaciones de LABORATORIO (portal de prueba propio): nunca en producción
         from .api.captura import router as captura_router
         app.include_router(captura_router)
+        # v2.2: consentimiento verificable y trazabilidad por expediente
+        from .api.consentimiento import router as consentimiento_router
+        app.include_router(consentimiento_router)
         # v2.0: modo ventanilla (atención presencial) sobre la captura de laboratorio
         from .api.ventanilla import router as ventanilla_router
         app.include_router(ventanilla_router)

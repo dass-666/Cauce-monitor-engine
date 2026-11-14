@@ -10,6 +10,8 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("MONITOREO_INICIAR_MOTOR", "0")
 os.environ.setdefault("MONITOREO_SECRET_KEY", "clave-de-pruebas")
 os.environ.setdefault("MONITOREO_DETECTAR_ANIDADAS", "1")  # una sesión anidada falla al instante
+# v2.2: las pruebas anteriores a la 2.2 crean expedientes sin consentimiento; las de la 2.2 lo activan
+os.environ.setdefault("MONITOREO_EXIGIR_CONSENTIMIENTO", "0")
 
 from monitoreo.config import settings  # noqa: E402
 from monitoreo.db import Database  # noqa: E402

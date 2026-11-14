@@ -7,14 +7,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..captura import ventanilla as vt
 from ..db import Database, utcnow
-from .captura import ExpedienteIn
-from .deps import CurrentUser, current_user, get_db
+from .captura import ConsentimientoIn, ExpedienteIn
+from .deps import CurrentUser, client_ip, current_user, get_db
 
 router = APIRouter(prefix="/api/ventanilla")
 
@@ -87,6 +87,17 @@ def vincular(aid: int, body: VincularIn, user: CurrentUser = Depends(current_use
     try:
         return vt.vincular(db, user, aid, utcnow(), expediente_id=body.expediente_id,
                            datos=body.datos.model_dump(exclude_none=True) if body.datos else None)
+    except vt.ErrorVentanilla as e:
+        _err(e)
+
+
+@router.post("/atenciones/{aid}/consentimiento", status_code=201)
+def consentimiento(aid: int, body: ConsentimientoIn, request: Request, user: CurrentUser = Depends(current_user),
+                   db: Database = Depends(get_db)):
+    """v2.2: consentimiento de la persona presente, desde su atención."""
+    try:
+        return vt.registrar_consentimiento(db, user, aid, body.model_dump(exclude_none=True), utcnow(),
+                                           client_ip(request))
     except vt.ErrorVentanilla as e:
         _err(e)
 

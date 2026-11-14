@@ -355,16 +355,22 @@ def revocar(db, consentimiento_id: int, d: dict, user, now: datetime, ip: str = 
 
 def _retirar_del_plan(s, exp_id: int, actor: str, now: datetime) -> int:
     from ..planificador import plan as pl
+    from . import expedientes as ex
     n = 0
     for el in s.scalars(select(PlanElemento).where(PlanElemento.activo_expediente_id == exp_id)):
+        if el.reservacion_id and s.scalar(select(Reservacion.estado).where(Reservacion.id == el.reservacion_id)) == "CONFIRMADA":
+            continue        # cita ya confirmada: el plan debe seguir contándola (lo refleja su mantenimiento)
         if el.estado in (pl.EN_ESPERA, pl.ASIGNADO, pl.PREPARADO, pl.NO_DISPONIBLE):
+            antes = el.estado
             el.estado, el.activo_expediente_id, el.updated_at, el.version = pl.RETIRADO, None, now, el.version + 1
-            el.motivo = MOTIVO_CIERRE if hasattr(el, "motivo") else None
+            el.explicacion = {**(el.explicacion or {}), "retirado_por": MOTIVO_CIERRE}
+            ex.evento(s, exp_id, "PLAN_RETIRADO", actor[:64], now, motivo=MOTIVO_CIERRE, estado_anterior=antes,
+                      elemento=el.id)
             n += 1
     return n
 
 
-def aplicar_revocacion(db, exp_id: int, actor: str, now: datetime) -> dict:
+def aplicar_revocacion(db, exp_id: int, actor: str, now: datetime, cerrar_atencion: bool = True) -> dict:
     """Detiene lo pendiente del expediente cuyo consentimiento se revocó. Idempotente; si algo no
     puede hacerse aún (confirmación en curso), lo deja para el mantenimiento."""
     from ..engine import assignment as asg
@@ -410,7 +416,7 @@ def aplicar_revocacion(db, exp_id: int, actor: str, now: datetime) -> dict:
         out["solicitud_cancelada"] = asg.cancel_request(db, req_id, now, actor[:64])
     with db.session() as s:
         exp = s.get(Expediente, exp_id)
-        a = s.scalar(select(Atencion).where(Atencion.viva_expediente_id == exp_id))
+        a = s.scalar(select(Atencion).where(Atencion.viva_expediente_id == exp_id)) if cerrar_atencion else None
         if a is not None:
             a.estado, a.resultado, a.viva_expediente_id, a.cerrada_en, a.updated_at = (
                 "CANCELADA", MOTIVO_CIERRE, None, now, now)
@@ -431,6 +437,13 @@ def aplicar_revocaciones(db, now: datetime, limite: int = 100) -> list[dict]:
         ids = list(s.scalars(select(Expediente.id).join(Consentimiento, Consentimiento.expediente_id == Expediente.id)
                              .where(Consentimiento.estado == REVOCADO, Expediente.estado.in_(ex.ACTIVOS))
                              .distinct().limit(limite)))
+        # Una confirmación que estaba en curso al revocar y que después se resolvió como CONFIRMADA:
+        # el expediente ya no está activo, pero falta el aviso a la persona responsable.
+        con_aviso = select(ConsentimientoEvento.expediente_id).where(ConsentimientoEvento.tipo == "AVISO_CITA_CONFIRMADA")
+        ids += [i for i in s.scalars(
+            select(Expediente.id).join(Consentimiento, Consentimiento.expediente_id == Expediente.id)
+            .where(Consentimiento.estado == REVOCADO, Expediente.estado == ex.RES_CONFIRMADA,
+                   Expediente.id.notin_(con_aviso)).distinct().limit(limite)) if i not in ids]
     out = []
     for i in ids:
         try:
@@ -438,7 +451,7 @@ def aplicar_revocaciones(db, now: datetime, limite: int = 100) -> list[dict]:
         except Exception as e:  # noqa: BLE001 - se reintenta en el siguiente ciclo
             log.warning("aplicar revocación de %s falló: %s", i, type(e).__name__)
             continue
-        if r["expediente_cerrado"] or r["intento_descartado"] or r["solicitud_cancelada"]:
+        if r["expediente_cerrado"] or r["intento_descartado"] or r["solicitud_cancelada"] or r["aviso_cita_confirmada"]:
             out.append({"expediente_id": i, **r})
     return out
 

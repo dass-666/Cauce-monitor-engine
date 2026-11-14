@@ -25,7 +25,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from ..db import Database
+from ..db import Database, utcnow
 from ..engine import assignment as asg
 from ..models import Atencion, Expediente, Operator, Request, Reservacion
 from .. import security
@@ -88,6 +88,14 @@ def vista(s, a: Atencion) -> dict:
     exp = s.get(Expediente, a.expediente_id) if a.expediente_id else None
     res = _reservacion(s, a)
     dur = ((a.cerrada_en or a.updated_at) - a.iniciada_en).total_seconds()
+    con = _consentimiento(s, exp)
+    siguiente = _paso(a, exp, res)
+    falta = ex.faltantes(exp) if exp is not None and exp.estado in ex.PREPARACION else []
+    if exp is not None and exp.estado in ex.PREPARACION and con["exigido"] and not con["vigente"]:
+        falta = [*falta, "consentimiento"]
+        if siguiente["clave"] == "datos" and falta == ["consentimiento"] and abierta(a):
+            siguiente = {"clave": "consentimiento",
+                         "texto": "Registra el consentimiento firmado de la persona para continuar."}
     return {
         "id": a.id, "codigo": a.codigo, "estado": a.estado, "estado_nombre": NOMBRES.get(a.estado, a.estado),
         "resultado": a.resultado, "folio": a.folio, "abierta": abierta(a), "region": a.region, "sucursal": a.sucursal,
@@ -97,10 +105,24 @@ def vista(s, a: Atencion) -> dict:
             "id": exp.id, "codigo": exp.codigo, "estado": exp.estado, "tipo_tramite": exp.tipo_tramite,
             "region": exp.region, "sucursal": exp.sucursal, "modo": exp.modo,
             "titular": val.enmascarar_nombre(exp.nombre) if exp.nombre else None,
-            "faltan": ex.faltantes(exp) if exp.estado in ex.PREPARACION else []},
+            "faltan": falta},
         "reservacion": None if res is None else rs.vista(res),
-        "siguiente": _paso(a, exp, res),
+        "siguiente": siguiente,
+        "consentimiento": con,
     }
+
+
+def _consentimiento(s, exp: Expediente | None) -> dict | None:
+    """v2.2: estado del consentimiento del expediente, para la pantalla (sin datos personales)."""
+    if exp is None:
+        return None
+    from . import consentimiento as cs
+    now = utcnow()
+    c = cs.vigente(s, exp, now)
+    return {"exigido": cs.exigido(), "vigente": c is not None, "id": c.id if c else None,
+            "codigo": c.codigo if c else None, "medio": c.medio if c else None,
+            "otorgado_en": c.otorgado_en.isoformat() + "Z" if c else None,
+            "bloqueo": None if c else cs.motivo_bloqueo(s, exp, now)}
 
 
 def _reservacion(s, a: Atencion) -> Reservacion | None:
@@ -227,6 +249,8 @@ def _tomar(db: Database, user, exp_id: int, now: datetime, desde_plan: bool = Fa
             return            # se atiende para completar o corregir datos; no se toma de la cola
         if e.estado in ex.OPERACION_ACTIVA:
             return            # ya es suyo (asignado por el motor o tomado antes en ventanilla)
+        from . import consentimiento as cs
+        cs.exigir(s, e, now, "tomar en ventanilla", error_cls=ErrorVentanilla)
         if e.estado != ex.LISTO or e.request_id is None:
             raise ErrorVentanilla(409, f"El expediente está {e.estado}")
         req = s.get(Request, e.request_id)
@@ -305,6 +329,29 @@ def vincular(db: Database, user, aid: int, now: datetime, expediente_id: int | N
         raise ErrorVentanilla(409, "Este expediente ya tiene otra atención abierta") from err
 
 
+# ---------------------------------------------------------------- v2.2 · consentimiento en ventanilla
+def registrar_consentimiento(db: Database, user, aid: int, datos: dict, now: datetime, ip: str = "") -> dict:
+    """La persona está presente y firma: el operador registra su consentimiento desde la atención.
+    Si con eso el expediente queda LISTO, se toma para esta atención (como al vincularlo)."""
+    from . import consentimiento as cs
+    with db.session() as s:
+        a = _visible(s, aid, user)
+        if not abierta(a):
+            raise ErrorVentanilla(409, "La atención ya está cerrada")
+        if a.expediente_id is None:
+            raise ErrorVentanilla(409, "Primero vincula el expediente de la persona")
+        e = s.get(Expediente, a.expediente_id)
+        try:
+            c = cs.otorgar(s, e, datos, _actor(user), now, ip)
+        except cs.ErrorConsentimiento as err:
+            raise ErrorVentanilla(err.http, err.mensaje, err.detalle) from err
+        codigo, estado, exp_id = c.codigo, e.estado, e.id
+    if estado == ex.LISTO:
+        _tomar(db, user, exp_id, now)
+    with db.session() as s:
+        return {"consentimiento": codigo, "atencion": vista(s, s.get(Atencion, aid))}
+
+
 # ---------------------------------------------------------------- 4. cerrar
 def _devolver_a_la_cola(db: Database, user, exp_id: int, now: datetime, motivo: str) -> bool:
     """Sin cita: la persona vuelve a la cola del motor (que seguirá vigilando por ella)."""
@@ -313,6 +360,13 @@ def _devolver_a_la_cola(db: Database, user, exp_id: int, now: datetime, motivo: 
         viva_id, viva_estado = (viva.id, viva.estado) if viva else (None, None)
     if viva_id and viva_estado in (rs.PREPARADA, rs.DATOS_ENVIADOS, rs.RETENIDA, rs.FECHA_ELEGIDA):
         rs.cancelar(db, viva_id, user, now)      # descarta el intento; un apartado del portal vence solo
+    from . import consentimiento as cs
+    with db.session() as s:
+        retirado = cs.revocado(s, exp_id) is not None
+    if retirado:
+        # v2.2: con el consentimiento revocado no vuelve ni al plan ni a la cola: se cierra
+        cs.aplicar_revocacion(db, exp_id, _actor(user), now, cerrar_atencion=False)   # la cierra quien llama
+        return False
     with db.session() as s:
         e = s.get(Expediente, exp_id)
         req = s.get(Request, e.request_id) if e.request_id else None

@@ -201,6 +201,8 @@ async function pantallaAtencion(aid) {
       "Volver a la lista (la atención queda abierta)")));
   if (!a.abierta) return h("div", {}, cab, resultadoFinal(a));
   if (!a.expediente) return h("div", {}, cab, h("div", { class: "grid cols-2 section" }, buscarPersona(a), registrarPersona(a)));
+  // v2.2: sin consentimiento vigente no se prepara nada: primero se registra (la persona está presente)
+  if (a.siguiente.clave === "consentimiento") return h("div", {}, cab, tarjetaConsentimiento(a), cierre(a, false, null));
   const e = await api(`/api/expedientes/${a.expediente.id}`);
   const viva = (e.reservaciones || []).find((r) => ["PREPARADA", "DATOS_ENVIADOS", "RETENIDA", "FECHA_ELEGIDA",
     "CONFIRMANDO", "EN_VERIFICACION"].includes(r.estado));
@@ -212,7 +214,104 @@ async function pantallaAtencion(aid) {
     ? "preparar" : undefined);
   S.ventanilla.paso = null;
   await pintarFlujo(flujo, e, viva, conf, paso);
-  return h("div", {}, cab, flujo, cierre(a, !!conf, viva));
+  return h("div", {}, cab, barraConsentimiento(a), flujo, cierre(a, !!conf, viva));
+}
+
+// ---------------------------------------------------------------- v2.2 · consentimiento de la persona
+const MEDIOS_CONS = { FIRMA_PAPEL: "Formato firmado en papel", FIRMA_DIGITAL: "Firma digital o electrónica",
+  PRESENCIAL_VENTANILLA: "Firmado aquí, en ventanilla" };
+const MEDIOS_REV = { PRESENCIAL: "En persona", ESCRITO: "Por escrito", TELEFONO: "Por teléfono", CORREO: "Por correo" };
+const MOTIVOS_REV = { PERSONA_LO_PIDE: "La persona lo pidió", YA_NO_REQUIERE: "Ya no requiere la cita",
+  ERROR_REGISTRO: "Se registró por error", OTRO: "Otro" };
+
+async function huellaArchivo(file) {
+  // La huella se calcula EN ESTE EQUIPO: el documento nunca se envía al motor.
+  const d = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function camposConsentimiento(requerido) {
+  const huella = h("input", { name: "cons_evidencia_sha256", maxlength: 64, autocomplete: "off", required: requerido || null,
+    pattern: "[0-9a-fA-F]{64}", placeholder: "64 caracteres hexadecimales", id: "cons-huella" });
+  const nota = h("span", { class: "muted", id: "cons-huella-nota" });
+  const archivo = h("input", { type: "file", id: "cons-archivo", accept: ".pdf,.jpg,.jpeg,.png", onchange: async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    if (!(window.crypto && crypto.subtle)) {
+      nota.textContent = "Este navegador no puede calcularla: en Windows usa «certutil -hashfile ARCHIVO SHA256».";
+      return;
+    }
+    huella.value = await huellaArchivo(f);
+    nota.textContent = "Huella calculada en este equipo; el documento no se envía.";
+  } });
+  return [
+    h("p", { class: "muted full" }, "La persona autoriza que se gestione su cita con sus datos. Registra cómo lo autorizó y la ",
+      "huella del formato firmado (escaneado o foto). El documento se queda en tu archivo; aquí solo se guarda su huella."),
+    field("Cómo lo autorizó", h("select", { name: "cons_medio", required: requerido || null, id: "cons-medio" },
+      h("option", { value: "" }, requerido ? "Elige…" : "Lo registro después"),
+      Object.entries(MEDIOS_CONS).map(([k, v]) => h("option", { value: k }, v)))),
+    field("Versión del aviso de privacidad mostrado", h("input", { name: "cons_aviso_privacidad", maxlength: 32, placeholder: "AP-2026-01",
+      autocomplete: "off", required: requerido || null, pattern: "[A-Za-z0-9._\\-]{1,32}", id: "cons-aviso" })),
+    field("Documento firmado (solo para calcular la huella)", archivo, "full"),
+    field("Huella SHA-256 del documento", huella, "full"), h("div", { class: "full" }, nota),
+    field("Dónde está el original", h("input", { name: "cons_evidencia_ref", maxlength: 64, placeholder: "Carpeta 2026-11, hoja 14",
+      autocomplete: "off", id: "cons-ref" }), "full"),
+  ];
+}
+
+function sacarConsentimiento(d) {
+  const c = {};
+  for (const k of Object.keys(d)) if (k.startsWith("cons_")) { c[k.slice(5)] = d[k]; delete d[k]; }
+  return c.medio ? c : null;
+}
+
+function tarjetaConsentimiento(a) {
+  const errs = h("div", { class: "error full", role: "alert" });
+  const bq = (a.consentimiento && a.consentimiento.bloqueo) || {};
+  const form = h("form", { class: "form", id: "form-consentimiento", onsubmit: async (ev) => {
+    ev.preventDefault(); errs.textContent = "";
+    const boton = ev.target.querySelector("button[type=submit]");
+    boton.disabled = true;                       // contra el doble clic
+    try {
+      await api(`/api/ventanilla/atenciones/${a.id}/consentimiento`, { method: "POST", body: sacarConsentimiento(formData(ev.target)) });
+      S.dirty = false; refresh(true, true);
+    } catch (err) {
+      const d = err.detalle || {};
+      errs.replaceChildren(err.message, d.errores ? h("ul", {}, Object.entries(d.errores).map(([k, v]) => h("li", {}, `${k}: ${v}`))) : "");
+    } finally { boton.disabled = false; }
+  } }, ...camposConsentimiento(true), h("button", { class: "btn primary", type: "submit", id: "btn-registrar-consentimiento" },
+    "Registrar consentimiento y continuar"), errs);
+  return h("div", { class: "card section", id: "paso-consentimiento", "data-bloqueo": bq.codigo || "" },
+    h("h2", {}, "Consentimiento de la persona"),
+    bq.mensaje ? h("p", { class: bq.codigo === "CONSENTIMIENTO_REVOCADO" ? "error" : "muted" }, bq.mensaje) : null, form);
+}
+
+function barraConsentimiento(a) {
+  const c = a.consentimiento;
+  if (!c || !c.exigido) return null;
+  if (!c.vigente) {
+    return h("div", { class: "card section error", id: "consentimiento-bloqueo" },
+      (c.bloqueo && c.bloqueo.mensaje) || "Sin consentimiento vigente: no se permiten nuevas operaciones.");
+  }
+  const errs = h("div", { class: "error", role: "alert" });
+  const medio = h("select", { id: "rev-medio" }, Object.entries(MEDIOS_REV).map(([k, v]) => h("option", { value: k }, v)));
+  const motivo = h("select", { id: "rev-motivo" }, Object.entries(MOTIVOS_REV).map(([k, v]) => h("option", { value: k }, v)));
+  const seguro = h("input", { type: "checkbox", id: "rev-seguro" });
+  const boton = h("button", { class: "btn danger", id: "btn-revocar", onclick: async () => {
+    errs.textContent = "";
+    if (!seguro.checked) { errs.textContent = "Marca la casilla para confirmar que la persona lo pidió."; return; }
+    boton.disabled = true;
+    try {
+      await api(`/api/consentimientos/${c.id}/revocar`, { method: "POST", body: { medio: medio.value, motivo: motivo.value } });
+      refresh(true, true);
+    } catch (err) { errs.textContent = err.message; boton.disabled = false; }
+  } }, "Registrar la revocación");
+  return h("details", { class: "card section", id: "consentimiento-vigente", "data-consentimiento": c.codigo },
+    h("summary", {}, `Consentimiento ${c.codigo} vigente (${MEDIOS_CONS[c.medio] || c.medio})`),
+    h("p", { class: "muted" }, "Si la persona retira su autorización, regístralo aquí. Es definitivo: se detiene todo lo pendiente ",
+      "de su expediente. Una cita ya confirmada NO se cancela sola: acuérdalo con la persona."),
+    h("div", { class: "form" }, field("Cómo lo pidió", medio), field("Motivo", motivo),
+      h("label", { class: "check-line full" }, seguro, "La persona pidió retirar su consentimiento"), boton), errs);
 }
 
 function resultadoFinal(a) {
@@ -220,7 +319,9 @@ function resultadoFinal(a) {
   return h("div", { class: "card section resultado " + (conCita ? "con-cita" : "sin-cita"), id: "resultado-atencion" },
     h("h2", {}, conCita ? "Cita confirmada" : a.estado === "PENDIENTE" ? "Confirmación en verificación" : "Atención terminada SIN cita"),
     conCita ? h("p", {}, "Folio: ", h("b", { id: "folio-atencion", "data-folio": a.folio }, a.folio)) : null,
-    !conCita && a.estado !== "PENDIENTE" ? h("p", {}, `Resultado: ${AT_NOMBRE[a.estado]} (${(a.resultado || "").replace(/_/g, " ").toLowerCase()}). `,
+    !conCita && a.estado !== "PENDIENTE" && a.resultado === "CONSENTIMIENTO_REVOCADO" ? h("p", { id: "atencion-revocada" },
+      "La persona retiró su consentimiento: su expediente se cerró y no habrá más operaciones con sus datos.") : null,
+    !conCita && a.estado !== "PENDIENTE" && a.resultado !== "CONSENTIMIENTO_REVOCADO" ? h("p", {}, `Resultado: ${AT_NOMBRE[a.estado]} (${(a.resultado || "").replace(/_/g, " ").toLowerCase()}). `,
       "Si la persona sigue esperando una cita, el motor seguirá buscando por ella.") : null,
     a.estado === "PENDIENTE" ? h("p", {}, "El motor comprueba con el portal si la cita quedó registrada. No repitas la confirmación.") : null,
     h("p", { class: "muted" }, `Duración: ${fmtDur(Math.round(a.duracion_s))}`),
@@ -304,6 +405,8 @@ function registrarPersona(a) {
   const form = h("form", { class: "form", id: "form-persona", onsubmit: (ev) => {
     ev.preventDefault();
     const d = formData(ev.target);
+    const c = sacarConsentimiento(d);
+    if (c) d.consentimiento = c;
     if (d.sucursales_alternativas) d.sucursales_alternativas = d.sucursales_alternativas.split(/[,;\s]+/).filter(Boolean);
     vincular(a, { datos: d }, errs, (lista, msg) => dup.replaceChildren(h("p", { class: "error" }, msg),
       ...lista.map((x) => h("div", { class: "trabajo-item vt" }, h("div", {}, h("b", {}, x.codigo), " ", badge(x.estado), ` · ${x.titular || ""}`,
@@ -323,6 +426,7 @@ function registrarPersona(a) {
     field("Región", regionSelect("region")),
     field("Sucursal preferida", inp("sucursal", { maxlength: 32, placeholder: "NOR-1" })),
     field("Otras sucursales que le sirven", inp("sucursales_alternativas", { maxlength: 170, placeholder: "NOR-2" })),
+    h("h3", { class: "full" }, "Consentimiento"), ...camposConsentimiento(false),
     h("button", { class: "btn primary" }, "Registrar y continuar"), errs, dup);
   return card("Persona nueva", form);
 }

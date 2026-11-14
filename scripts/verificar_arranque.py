@@ -124,6 +124,8 @@ def base_env(tmp: Path, entorno: str) -> dict:
         "MONITOREO_ADMIN_PASSWORD": PWD, "MONITOREO_SECRET_KEY": secrets.token_urlsafe(48),
         "MONITOREO_DATOS_DEMO": "1" if entorno != "produccion" else "0", "MONITOREO_INICIAR_MOTOR": "1",
         "MONITOREO_ABRIR_NAVEGADOR": "0", "MONITOREO_LEASE_S": "5", "PYTHONUNBUFFERED": "1",
+        # v2.2: los recorridos anteriores no registran consentimientos; demo_v22.py lo activa
+        "MONITOREO_EXIGIR_CONSENTIMIENTO": "0",
     })
     return env
 
