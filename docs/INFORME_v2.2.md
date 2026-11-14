@@ -144,7 +144,7 @@ y en CI como controles. No se añadieron metas de velocidad.
 | Suite completa, SQLite y PostgreSQL (Linux, este contenedor) | 701 pasan, 4 omitidas, 0 fallan (13 min; `docs/resultados/v2.2/pytest_sqlite_y_postgresql.txt`) |
 | Demostración `scripts/demo_v22.py`, SQLite | 36 de 36 comprobaciones (`docs/resultados/v2.2/demo_v22_sqlite.json`) |
 | Demostración con PostgreSQL detenido a mitad | 38 de 38 comprobaciones, con 503 durante la caída y recuperación al volver (`docs/resultados/v2.2/demo_v22_postgresql.json`) |
-| GitHub Actions (Linux y Windows) | CI_PENDIENTE |
+| GitHub Actions (Linux y Windows) | 22 de 22 trabajos en verde (ejecución 43596450341, commit b5fb73f), incluidos la demostración v2.2 y las pruebas de consentimiento en Windows Server con Python 3.11, 3.12 y 3.13. Windows Server de GitHub **no** es el MSI físico |
 
 La confirmación «humana» de la demostración la hace el script: es **SIMULADA**.
 
