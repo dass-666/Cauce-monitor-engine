@@ -602,7 +602,7 @@ jobs:
             --parar "docker stop -t 20 $PG" --parar-golpe "docker kill $PG" --arrancar "docker start $PG" \
             --caida-s 8 --salida resultados/resistencia_v20
       - name: v2.1 · Observador de calendario con navegador real (pytest, SQLite y PostgreSQL)
-        run: mkdir -p resultados; python -m pytest -q -rs tests/test_observador.py tests/test_planificador.py 2>&1 | tee resultados/pytest_v21.txt; exit ${PIPESTATUS[0]}
+        run: mkdir -p resultados; python -m pytest -q -vv -rs tests/test_observador.py tests/test_planificador.py 2>&1 | tee resultados/pytest_v21.txt; exit ${PIPESTATUS[0]}
       - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio (SQLite)
         run: python scripts/recorrido_v21.py --salida resultados/recorrido_v21
       - name: v2.1 · Recorrido integrado con PostgreSQL detenido de verdad a mitad
@@ -671,7 +671,7 @@ jobs:
           exit $LASTEXITCODE
       - name: v2.1 · Observador de calendario con navegador real (pytest)
         run: |
-          python -m pytest -q -rs tests/test_observador.py tests/test_planificador.py
+          python -m pytest -q -vv -rs tests/test_observador.py tests/test_planificador.py
           exit $LASTEXITCODE
       - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio
         run: |

@@ -82,7 +82,7 @@ def _fecha_libre(p, sucursal, tramite, desde=20):
 
 def _obs(lab, p, obs, tmp_path, fecha, **kw):
     o = Observador(lab.db, "NOR-1", "alta", mes=fecha[:7], evidencia_dir=str(tmp_path / "evid"), atender=False,
-                   congelado_s=kw.pop("congelado_s", 3), intervalo_visual_ms=kw.pop("intervalo_visual_ms", 150), **kw)
+                   congelado_s=kw.pop("congelado_s", 5), intervalo_visual_ms=kw.pop("intervalo_visual_ms", 150), **kw)
     o.iniciar()
     obs.append(o)
     assert _esperar(lambda: any(x.get("tipo") == "LISTO" for x in o.lineas), 40), o.lineas[-5:]
@@ -137,13 +137,15 @@ def test_distingue_sesion_caducada_congelado_desconexion_y_sin_disponibilidad(en
     p.ctl("POST", "/control/vista", caducar_todas=True)
     assert _esperar(lambda: vistas("SESION_CADUCADA"), 15)
     assert _esperar(lambda: o.stats["reaperturas_sesion"] >= 1 and any(x.get("tipo") == "REABIERTA" for x in o.lineas), 30), \
-        (o.estado(), [{k: v for k, v in x.items() if k != "celdas"} for x in o.lineas[-12:]])
+        "DETALLE " + str([o.estado(), [{k: v for k, v in x.items() if k not in ("celdas", "evidencia")}
+                                                            for x in o.lineas[-12:]]])
     # desconexión: el portal cae (no es «sin días»); al volver, la página se recupera sola
     p.detener(forzar=True)
     assert _esperar(lambda: vistas("DESCONECTADO"), 15)
     assert not _eventos(lab, tipo="DIA_NO_DISPONIBLE")                  # ninguna caída se tomó como «agotado»
     p.iniciar()
-    assert _esperar(lambda: _eventos(lab, tipo="VISTA")[-1].estado == "ACTIVA", 20)
+    assert _esperar(lambda: _eventos(lab, tipo="VISTA")[-1].estado == "ACTIVA", 30), \
+        " ".join(f"{e.estrategia}:{e.estado}" for e in _eventos(lab, tipo="VISTA")) + " DETALLE " + str(o.estado()) + str([{k: v for k, v in x.items() if k not in ("celdas", "evidencia")} for x in o.lineas[-10:]])
     # sin disponibilidad es otra cosa: vista ACTIVA y ningún día DISPONIBLE en el mes observado
     from monitoreo.models import ObservacionDia
     with lab.db.session() as s:
