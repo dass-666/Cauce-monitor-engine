@@ -58,6 +58,9 @@ class Observador:
         self.eventos: list[dict] = []          # eventos nuevos (para el recorrido y las pruebas)
         self.lineas: list[dict] = []           # todo lo que emitió el observador (CELDA crudas incluidas)
         self._espera_reabrir = 2.0
+        self._reabrir_pedido: float | None = None     # monotónico: reapertura pedida y aún sin confirmar
+        self._latido_mono = time.monotonic()
+        self.stats["reinicios_por_vigilancia"] = 0
         self._reabriendo = threading.Event()
         self._cfg_file: str | None = None
 
@@ -70,6 +73,23 @@ class Observador:
             json.dump(self.cfg, f)
         self._hilo = threading.Thread(target=self._bucle, name=f"observador-{self.nombre}", daemon=True)
         self._hilo.start()
+        threading.Thread(target=self._vigilar, name=f"vigia-{self.nombre}", daemon=True).start()
+
+    def _vigilar(self, reapertura_s: float = 20.0, latido_s: float = 20.0) -> None:
+        """Vigilante: si una reapertura no se confirma o el observador deja de latir, se reinicia el
+        navegador (el relanzamiento vuelve a abrir la página y compara con lo guardado)."""
+        while not self._stop.wait(2.0):
+            ahora = time.monotonic()
+            motivo = None
+            if self._reabrir_pedido is not None and ahora - self._reabrir_pedido > reapertura_s:
+                motivo = f"la página no se reabrió en {reapertura_s:.0f} s"
+            elif self.proc and self.proc.poll() is None and ahora - self._latido_mono > latido_s:
+                motivo = f"sin latido en {latido_s:.0f} s"
+            if motivo:
+                self._reabrir_pedido, self._latido_mono = None, ahora
+                self.stats["reinicios_por_vigilancia"] += 1
+                log.warning("observador %s: %s; se reinicia el navegador", self.nombre, motivo)
+                self.matar_navegador()
 
     def detener(self, espera: float = 15) -> None:
         self._stop.set()
@@ -107,6 +127,7 @@ class Observador:
         espera = 1.0
         while not self._stop.is_set():
             self.stats["arranques"] += 1
+            self._latido_mono, self._reabrir_pedido = time.monotonic(), None
             self.proc = subprocess.Popen(["node", str(SCRIPT), self._cfg_file], cwd=ROOT, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
                                          bufsize=1)
@@ -137,6 +158,7 @@ class Observador:
         tipo = obs.get("tipo")
         if tipo == "LATIDO":
             self.stats["ultimo_latido"] = obs.get("ts_ms")
+            self._latido_mono = time.monotonic()
             self._reintentar()
             return
         self.lineas.append(obs)
@@ -150,6 +172,9 @@ class Observador:
                 threading.Thread(target=self._reabrir, daemon=True).start()
             elif obs.get("estado") == "ACTIVA":
                 self._espera_reabrir = 2.0
+                self._reabrir_pedido = None
+        if tipo in ("REABIERTA", "LISTO"):
+            self._latido_mono = time.monotonic()
 
     def _reabrir(self) -> None:
         espera = self._espera_reabrir
@@ -159,6 +184,7 @@ class Observador:
         self.stats["reaperturas_sesion"] += 1
         log.warning("observador %s: la sesión de consulta caducó; se reabre la página (espera %.0f s)", self.nombre, espera)
         try:
+            self._reabrir_pedido = time.monotonic()
             self.orden("reabrir")
         finally:
             self._reabriendo.clear()
