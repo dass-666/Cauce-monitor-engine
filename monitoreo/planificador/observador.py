@@ -58,6 +58,7 @@ class Observador:
         self.eventos: list[dict] = []          # eventos nuevos (para el recorrido y las pruebas)
         self.lineas: list[dict] = []           # todo lo que emitió el observador (CELDA crudas incluidas)
         self._espera_reabrir = 2.0
+        self._reabriendo = threading.Event()
         self._cfg_file: str | None = None
 
     # ------------------------------------------------------------------ ciclo de vida
@@ -144,7 +145,8 @@ class Observador:
             self._reintentar()
         if tipo == "VISTA":
             self.stats["vista"][obs.get("estrategia") or "?"] = obs.get("estado")
-            if obs.get("estado") == "SESION_CADUCADA" and obs.get("estrategia") in ("dom", self.estrategia):
+            if obs.get("estado") == "SESION_CADUCADA" and not self._reabriendo.is_set():
+                self._reabriendo.set()            # una sola reapertura aunque lo digan las dos estrategias
                 threading.Thread(target=self._reabrir, daemon=True).start()
             elif obs.get("estado") == "ACTIVA":
                 self._espera_reabrir = 2.0
@@ -156,7 +158,10 @@ class Observador:
             return
         self.stats["reaperturas_sesion"] += 1
         log.warning("observador %s: la sesión de consulta caducó; se reabre la página (espera %.0f s)", self.nombre, espera)
-        self.orden("reabrir")
+        try:
+            self.orden("reabrir")
+        finally:
+            self._reabriendo.clear()
 
     def _reintentar(self) -> None:
         while self.pendientes:

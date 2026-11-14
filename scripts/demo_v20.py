@@ -125,17 +125,26 @@ def run(a) -> dict:
     # Vuelve a la cola: LISTO sin operador. El motor puede volver a asignarlo enseguida (sigue buscando
     # por la persona), así que se comprueba por su HISTORIAL y no por el estado del instante
     # (antes era una carrera: falló una vez en Windows, corrida 43403982589, con el motor ya reasignándolo).
-    exps = {e["codigo"]: e for e in c.get("/api/expedientes", params={"limit": 200}).json()}
-    devueltos = []
-    for e in exps.values():
-        if e["estado"] in ("RESERVACION_CONFIRMADA", "CERRADO"):
-            continue
-        hist = c.get(f"/api/expedientes/{e['id']}").json().get("historial", [])
-        if any(x["tipo"] == "ESTADO" and x["detalle"].get("despues") == "LISTO"
-               and x["detalle"].get("motivo") == "atencion_sin_cita" for x in hist):
-            devueltos.append((e["codigo"], e["estado"]))
+    # v2.1: se reintenta unos segundos y, si falla, se muestran los motivos vistos (falló otra vez en
+    # Windows/3.11, corrida 43540639238, sin detalle: la lista salió vacía).
+    devueltos, motivos = [], []
+    for _ in range(20):
+        exps = {e["codigo"]: e for e in c.get("/api/expedientes", params={"limit": 200}).json()}
+        devueltos, motivos = [], []
+        for e in exps.values():
+            if e["estado"] in ("RESERVACION_CONFIRMADA", "CERRADO"):
+                continue
+            hist = c.get(f"/api/expedientes/{e['id']}").json().get("historial", [])
+            motivos += [(e["codigo"], x["detalle"].get("motivo")) for x in hist
+                        if x["tipo"] == "ESTADO" and x["detalle"].get("despues") == "LISTO"]
+            if any(x["tipo"] == "ESTADO" and x["detalle"].get("despues") == "LISTO"
+                   and x["detalle"].get("motivo") == "atencion_sin_cita" for x in hist):
+                devueltos.append((e["codigo"], e["estado"]))
+        if devueltos:
+            break
+        time.sleep(0.5)
     ck("su expediente vuelve a la cola del motor (LISTO, sin operador; el motor puede volver a tomarlo)",
-       len(devueltos) == 1 and devueltos[0][1] not in ("EN_VENTANILLA",), devueltos)
+       len(devueltos) == 1 and devueltos[0][1] not in ("EN_VENTANILLA",), devueltos or {"motivos_a_LISTO": motivos[:10]})
 
     p8 = personas[7]
     antes = len(c.get("/api/expedientes", params={"limit": 500}).json())

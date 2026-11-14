@@ -136,7 +136,8 @@ def test_distingue_sesion_caducada_congelado_desconexion_y_sin_disponibilidad(en
     # sesión caducada: el supervisor reabre la página (con espera) y vuelve a ACTIVA
     p.ctl("POST", "/control/vista", caducar_todas=True)
     assert _esperar(lambda: vistas("SESION_CADUCADA"), 15)
-    assert _esperar(lambda: o.stats["reaperturas_sesion"] >= 1 and any(x.get("tipo") == "REABIERTA" for x in o.lineas), 20)
+    assert _esperar(lambda: o.stats["reaperturas_sesion"] >= 1 and any(x.get("tipo") == "REABIERTA" for x in o.lineas), 30), \
+        (o.estado(), [{k: v for k, v in x.items() if k != "celdas"} for x in o.lineas[-12:]])
     # desconexión: el portal cae (no es «sin días»); al volver, la página se recupera sola
     p.detener(forzar=True)
     assert _esperar(lambda: vistas("DESCONECTADO"), 15)
