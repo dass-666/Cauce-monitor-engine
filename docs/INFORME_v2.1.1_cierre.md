@@ -207,6 +207,25 @@ Archivos en `docs/resultados/v2.1.1/`.
 5. Lo que ya estaba abierto en la 2.1 sigue igual: portal real, confirmación humana real (en los
    recorridos es SIMULADA) y Telegram real (ver §8 de `INFORME_v2.1.md`).
 
-## 6. GitHub Actions
+## 6. GitHub Actions (MEDIDO)
 
-PENDIENTE de completar con el resultado de la corrida 43589183718.
+| Corrida | Commit | Resultado |
+|---|---|---|
+| 43589183718 | 847d306 | Linux 15/15 en verde. **Windows: 7 trabajos fallaron, todos por la misma prueba nueva**, `test_script_del_observador_avisa_si_falta_el_modulo_playwright`: leía la salida de Node con la codificación por omisión de Windows (cp1252) y no con UTF-8 |
+| 43591574542 | 459553c | **22/22 en verde** |
+
+**Defecto encontrado por CI y corregido en 459553c.** El mismo problema de codificación estaba en
+`monitoreo/navegador.py`: con una ruta con acentos en Windows, el diagnóstico habría leído mal la
+ruta del ejecutable y habría dicho «no existe» sin ser cierto. Ahora todo lo que se lee de Node se
+decodifica como UTF-8.
+
+**Evidencia en la corrida verde** (registros de los trabajos «Reservaciones de laboratorio»):
+- En Linux y en Windows (3.11, 3.12 y 3.13), `preparar_navegador.py` instaló Chromium en `.browsers`
+  de la copia del repositorio, **sin** `PLAYWRIGHT_BROWSERS_PATH` (el paso lo comprueba).
+- `python -m monitoreo.navegador --probar` dijo «carpeta .browsers de la instalación» y arrancó
+  Chromium 153.
+- Todos los pasos siguientes usaron ese navegador sin exportar nada: pruebas del observador (69 en
+  Linux, 41 en cada Windows), recorrido v2.1 y aceptación v2.1.
+- Cada paso termina con código distinto de 0 ante cualquier FALLA, y todos terminaron en verde.
+
+Windows sigue verificado **solo en GitHub Actions** (Windows Server), no en el MSI.
