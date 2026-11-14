@@ -32,14 +32,19 @@ EXPIRADO, CANCELADO, ERROR, REINTENTO = "EXPIRADO", "CANCELADO", "ERROR", "REINT
 # v2.0: la persona está siendo atendida en VENTANILLA. El motor no la asigna a nadie mientras tanto
 # (no es MATCHABLE); al cerrar la atención vuelve a la cola (ELEGIBLE) o termina (COMPLETADO).
 EN_VENTANILLA = "EN_VENTANILLA"
+# v2.1: el expediente está en el PLAN DIARIO. El planificador es su única autoridad de asignación:
+# el motor no lo asigna (no es MATCHABLE). Sale del plan hacia la ventanilla del operador que prepara
+# la operación (EN_VENTANILLA), o vuelve a la cola general (ELEGIBLE) si se retira o termina la jornada.
+EN_PLAN = "EN_PLAN"
 
 TRANSITIONS: dict[str, set[str]] = {
     PENDIENTE: {ELEGIBLE, ERROR, CANCELADO},
-    ELEGIBLE: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA},
+    ELEGIBLE: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA, EN_PLAN},
     ASIGNADO: {EN_PROCESO, REINTENTO, EXPIRADO, CANCELADO, EN_VENTANILLA},
     EN_PROCESO: {COMPLETADO, REINTENTO, ERROR, CANCELADO, EXPIRADO},
-    REINTENTO: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA},
-    EN_VENTANILLA: {ELEGIBLE, COMPLETADO, CANCELADO},
+    REINTENTO: {ASIGNADO, CANCELADO, EXPIRADO, EN_VENTANILLA, EN_PLAN},
+    EN_VENTANILLA: {ELEGIBLE, COMPLETADO, CANCELADO, EN_PLAN},
+    EN_PLAN: {ELEGIBLE, EN_VENTANILLA, CANCELADO, EXPIRADO},
     ERROR: {ELEGIBLE, CANCELADO},
     COMPLETADO: set(), CANCELADO: set(), EXPIRADO: set(),
 }
@@ -568,7 +573,7 @@ def expire_requests(db: Database, now: datetime) -> int:
     """Solicitudes con fecha de vencimiento (conditions.vence) superada."""
     n = 0
     with db.session() as s:
-        for req in s.scalars(select(Request).where(Request.status.in_([ELEGIBLE, REINTENTO, PENDIENTE]))):
+        for req in s.scalars(select(Request).where(Request.status.in_([ELEGIBLE, REINTENTO, PENDIENTE, EN_PLAN]))):
             v = (req.conditions or {}).get("vence")
             if v:
                 try:

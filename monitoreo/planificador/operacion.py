@@ -70,14 +70,17 @@ def preparar(db, elemento_id: int, user, now: datetime) -> dict:
             raise ErrorOperacion(409, "Otro operador acaba de tomar esta coincidencia", {"codigo": "TOMADA"})
         exp_id, fecha, sucursal = el.expediente_id, el.fecha_asignada, el.sucursal_asignada
     try:
-        vt._tomar(db, user, exp_id, now)
-        r = rs.preparar(db, exp_id, user, now)
-    except (vt.ErrorVentanilla, rs.ErrorReservacion) as e:
+        vt._tomar(db, user, exp_id, now, desde_plan=True)
+    except vt.ErrorVentanilla as e:          # no se tomó nada: la coincidencia sigue ofrecida
         with db.session() as s:
-            el = s.get(PlanElemento, elemento_id)
             pe = PlanElemento.__table__
             s.execute(update(pe).where(pe.c.id == elemento_id, pe.c.estado == pl.PREPARADO)
                       .values(estado=pl.ASIGNADO, operador_id=None, version=pe.c.version + 1, updated_at=now))
+        raise ErrorOperacion(e.http, e.mensaje, getattr(e, "detalle", {}) or {}) from e
+    try:
+        r = rs.preparar(db, exp_id, user, now)
+    except rs.ErrorReservacion as e:         # ya era suyo: vuelve al plan (no a la cola general)
+        vt._devolver_a_la_cola(db, user, exp_id, now, "NO_SE_PUDO_PREPARAR")
         raise ErrorOperacion(e.http, e.mensaje, getattr(e, "detalle", {}) or {}) from e
     rid = r["reservacion"]["id"]
     with db.session() as s:
@@ -99,8 +102,9 @@ def devolver(db, elemento_id: int, user, now: datetime, motivo: str = "sin dispo
         if el.estado == pl.PREPARADO and not user.is_admin and el.operador_id != user.operator_id:
             raise ErrorOperacion(403, "Esta operación la tiene otro operador")
         exp_id, estado = el.expediente_id, el.estado
-    if estado == pl.PREPARADO:
-        vt._devolver_a_la_cola(db, user, exp_id, now, motivo[:80])
+    if estado == pl.PREPARADO and vt._devolver_a_la_cola(db, user, exp_id, now, motivo[:80]):
+        with db.session() as s:            # ya volvió al plan (solicitud EN_PLAN, elemento EN_ESPERA)
+            return pl.vista_elemento(s.get(PlanElemento, elemento_id))
     with db.session() as s:
         el = s.get(PlanElemento, elemento_id)
         if not _a_espera(s, el, now, motivo[:120], (pl.ASIGNADO, pl.PREPARADO)):

@@ -48,11 +48,12 @@ def _prioridad(lab, eid, p):
 
 
 def _ver(lab, ctx_suc="NOR-1", tramite="alta", fecha=None, estado="DISPONIBLE", estrategia="dom", obs="obs-test",
-         tipo="CELDA"):
+         tipo="CELDA", libres=None):
     ctx = {"observador": obs, "sucursal": ctx_suc, "tramite": tramite}
-    o = ({"tipo": "CELDA", "estrategia": estrategia, "fecha": fecha, "estado": estado, "ts_ms": utcnow().timestamp() * 1000}
+    o = ({"tipo": "CELDA", "estrategia": estrategia, "fecha": fecha, "estado": estado, "ts_ms": utcnow().timestamp() * 1000,
+          "libres": libres}
          if tipo == "CELDA" else {"tipo": "INICIAL", "estrategia": estrategia, "ts_ms": utcnow().timestamp() * 1000,
-                                  "celdas": [{"fecha": fecha, "estado": estado}]})
+                                  "celdas": [{"fecha": fecha, "estado": estado, "libres": libres}]})
     return observaciones.registrar(lab.db, o, ctx, utcnow())
 
 
@@ -154,10 +155,15 @@ def test_coincidencia_determinista_explicada_y_deduplicada(lab):
     assert coincidencias.atender(lab.db, ev["id"], utcnow())["asignado"] is False
     with lab.db.session() as s:
         assert s.get(ObservacionEvento, ev["id"]).consumo == "ASIGNADO"
-    # mismo resultado con la misma entrada: otro día igual elige a d (siguiente en el orden)
+    # v2.1 (unidades): si la MISMA unidad reaparece, sigue comprometida con c: no se reparte dos veces
     _ver(lab, fecha=dia, estado="AGOTADO")
     out2 = coincidencias.atender(lab.db, _ver(lab, fecha=dia)[0]["id"], utcnow())
-    assert out2["elemento_id"] == els[d["id"]]["id"], out2
+    assert out2["asignado"] is False and "comprometidas" in out2["motivo"], out2
+    # con una unidad MÁS, la siguiente en el orden (d)
+    nuevos = _ver(lab, fecha=dia, libres=2)
+    assert len(nuevos) == 1 and nuevos[0]["unidades"] == 2 and nuevos[0]["unidades_anteriores"] is None
+    out3 = coincidencias.atender(lab.db, nuevos[0]["id"], utcnow())
+    assert out3["elementos"] == [els[d["id"]]["id"]], out3
 
 
 def test_sin_disponibilidad_o_sin_candidatos_conserva_la_lista(lab):

@@ -155,6 +155,9 @@ def iniciar(db: Database, user, clave: str, now: datetime, conexion: str | None 
 # ---------------------------------------------------------------- 2. buscar un expediente (coincidencia exacta)
 def _resumen_exp(s, e: Expediente, user) -> dict:
     disponible, motivo = _disponible(s, e, user)
+    if disponible and e.estado == ex.LISTO and e.request_id and \
+            s.scalar(select(Request.status).where(Request.id == e.request_id)) == asg.EN_PLAN:
+        disponible, motivo = False, "está en el plan de la jornada: se atiende desde «Plan del día»"
     return {"id": e.id, "codigo": e.codigo, "estado": e.estado, "tipo_tramite": e.tipo_tramite, "region": e.region,
             "sucursal": e.sucursal, "titular": val.enmascarar_nombre(e.nombre) if e.nombre else None,
             "puede_atenderse": disponible, "motivo": motivo}
@@ -212,7 +215,7 @@ def buscar(db: Database, user, aid: int, codigo: str | None = None, nombre: str 
 
 
 # ---------------------------------------------------------------- 3. vincular: crear o recuperar y TOMAR
-def _tomar(db: Database, user, exp_id: int, now: datetime) -> None:
+def _tomar(db: Database, user, exp_id: int, now: datetime, desde_plan: bool = False) -> None:
     """La persona está delante: el operador toma el expediente. Transacción con UPDATE condicional
     sobre la solicitud del motor (si el motor la asignó a la vez, gana uno y el otro recibe 409)."""
     with db.session() as s:
@@ -232,6 +235,11 @@ def _tomar(db: Database, user, exp_id: int, now: datetime) -> None:
                 asg.validate_request(s, req, now, actor=_actor(user))
             if req.status in asg.MATCHABLE:
                 asg.transition(s, req, asg.EN_VENTANILLA, _actor(user), "atención presencial", now)
+            elif req.status == asg.EN_PLAN:      # v2.1: su única autoridad es el plan diario
+                if not desde_plan:
+                    raise ErrorVentanilla(409, "Este expediente está en el plan de la jornada: atiéndelo desde "
+                                          "«Plan del día» cuando tenga una coincidencia", {"codigo": "EN_PLAN"})
+                asg.transition(s, req, asg.EN_VENTANILLA, _actor(user), "operación del plan diario", now)
             elif not (user.operator_id is not None and          # el motor se lo acaba de asignar A ÉL
                       asg.pasar_a_ventanilla(s, req, user.operator_id, _actor(user), now)):
                 raise ErrorVentanilla(409, "El motor acaba de asignar este expediente; vuelve a buscarlo",
@@ -312,7 +320,9 @@ def _devolver_a_la_cola(db: Database, user, exp_id: int, now: datetime, motivo: 
             return False
         if rs.viva_bloquea(s, e.id):
             return False
-        asg.transition(s, req, asg.ELEGIBLE, _actor(user), f"atención cerrada sin cita: {motivo}", now)
+        from ..planificador.propiedad import regresar_al_plan
+        if not regresar_al_plan(s, e.id, req, _actor(user), now, motivo):   # v2.1: si es del plan, vuelve al plan
+            asg.transition(s, req, asg.ELEGIBLE, _actor(user), f"atención cerrada sin cita: {motivo}", now)
         ex.cambiar_estado(s, e, ex.LISTO, _actor(user), now, motivo="atencion_sin_cita")
         e.operator_id = None
         return True

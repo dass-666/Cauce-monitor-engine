@@ -106,7 +106,13 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()
+        if not production:     # v2.1: restaura los observadores de calendario configurados (laboratorio)
+            from .planificador.observador import Supervisor
+            app.state.supervisor = Supervisor(db)
+            app.state.supervisor.start()
         yield
+        if app.state.supervisor is not None:
+            app.state.supervisor.stop()
         if start and app.state.scheduler:
             await app.state.scheduler.stop()
         db.engine.dispose()
@@ -116,6 +122,7 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
                   openapi_url=None if production else "/api/openapi.json")
     app.state.db = db
     app.state.scheduler = None
+    app.state.supervisor = None
     app.state.entorno = review
     from .api.ratelimit import ApiRateLimiter, middleware as rate_middleware
     app.state.api_limiter = ApiRateLimiter()

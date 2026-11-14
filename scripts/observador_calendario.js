@@ -6,7 +6,8 @@
 //             evidencia_dir, perfil: {...selectores...} }
 // Mantiene la página ABIERTA (no la recarga) y emite una línea "OBS {json}" por cada hallazgo:
 //   INICIAL  estado de todas las celdas al abrir (por estrategia)
-//   CELDA    una celda cambió de estado (fecha, anterior, estado, libres, ts_ms, evidencia)
+//   CELDA    una celda cambió de estado o de unidades libres (fecha, anterior, estado, libres, ts_ms, evidencia);
+//            la estrategia visual solo ve colores: sus CELDA no traen unidades
 //   VISTA    estado de la página: ACTIVA | SESION_CADUCADA | DESCONECTADO | CONGELADO
 //   LATIDO   cada 2 s (el supervisor detecta un observador colgado)
 // Órdenes por stdin (una por línea, JSON): {"cmd":"reabrir"} · {"cmd":"salir"}
@@ -97,7 +98,9 @@ async function instalarDom() {
     window.__obsInstalado = true;
     const tabla = document.querySelector(p.calendario);
     const previo = new Map();
-    for (const el of tabla.querySelectorAll(p.celda)) previo.set(el.getAttribute(p.atr_fecha), el.getAttribute(p.atr_estado));
+    // v2.1 (unidades): el estado de una celda es estado + unidades libres (3 -> 1 también es un cambio)
+    const firma = (el) => el.getAttribute(p.atr_estado) + "|" + (el.getAttribute(p.atr_libres) || "");
+    for (const el of tabla.querySelectorAll(p.celda)) previo.set(el.getAttribute(p.atr_fecha), firma(el));
     new MutationObserver((muts) => {
       const ts = Date.now();
       const vistos = new Set();
@@ -106,9 +109,10 @@ async function instalarDom() {
         if (!el || vistos.has(el)) continue;
         vistos.add(el);
         const fecha = el.getAttribute(p.atr_fecha), estado = el.getAttribute(p.atr_estado);
-        const anterior = previo.get(fecha);
-        if (anterior === estado) continue;
-        previo.set(fecha, estado);
+        const antes = previo.get(fecha) || "", ahora = firma(el);
+        if (antes === ahora) continue;
+        previo.set(fecha, ahora);
+        const anterior = antes.split("|")[0] || null;
         window.__obsCambio({ fecha, anterior, estado, libres: Number(el.getAttribute(p.atr_libres) || 0), ts,
                              html: el.outerHTML.slice(0, 300) });
       }

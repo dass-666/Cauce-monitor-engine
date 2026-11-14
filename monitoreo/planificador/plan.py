@@ -11,6 +11,8 @@ Reglas (todas se comprueban en el servidor, con el motivo en la respuesta):
 - Un expediente no puede estar dos veces en el mismo plan (UNIQUE plan+expediente) ni vivo en dos
   planes a la vez (`activo_expediente_id` UNIQUE mientras el elemento está vivo).
 - `capacidad` limita cuántos elementos vivos admite el plan (6 al principio); se puede ampliar.
+- Propiedad (v2.1, `propiedad.py`): al entrar, la solicitud del motor pasa a EN_PLAN en la misma
+  transacción; si la cola general ya lo asignó, el expediente no entra. Al retirarlo vuelve a la cola.
 """
 from __future__ import annotations
 
@@ -171,6 +173,11 @@ def agregar(db, plan_id: int, elementos: list[dict], usuario: str, now: datetime
                     PlanElemento.plan_id == plan_id, PlanElemento.estado.in_(VIVOS))) or 0
                 if vivos >= p.capacidad:
                     raise ErrorPlan(409, f"El plan está completo ({p.capacidad}); amplía la capacidad para agregar más")
+                from .propiedad import SinPropiedad, tomar_para_plan
+                try:
+                    tomar_para_plan(s, exp, now)      # UPDATE condicional: la cola general ya no lo asigna
+                except SinPropiedad as sp:
+                    raise ErrorPlan(409, sp.mensaje, {"estado_solicitud": sp.estado}) from None
                 orden = (s.scalar(select(func.max(PlanElemento.orden)).where(PlanElemento.plan_id == plan_id)) or 0) + 1
                 el = PlanElemento(plan_id=plan_id, expediente_id=exp.id, activo_expediente_id=exp.id, estado=EN_ESPERA,
                                   orden=orden, created_at=now, updated_at=now, explicacion={}, **n)
@@ -247,5 +254,7 @@ def retirar(db, elemento_id: int, usuario: str, now: datetime) -> dict:
         if el.estado != EN_ESPERA:
             raise ErrorPlan(409, f"Solo se retira un elemento en espera (está {el.estado})")
         el.estado, el.activo_expediente_id, el.updated_at, el.version = RETIRADO, None, now, el.version + 1
+        from .propiedad import devolver_a_cola
+        devolver_a_cola(s, el.expediente_id, now, "retirado del plan")
         ex.evento(s, el.expediente_id, "PLAN_RETIRADO", usuario[:64], now)
         return vista_elemento(el)

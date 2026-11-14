@@ -2,7 +2,7 @@
 Solo fuera de producción (trabaja con el portal de laboratorio, como la captura)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..db import Database, utcnow
@@ -11,7 +11,6 @@ from ..planificador import plan as pl
 from .deps import CurrentUser, current_user, get_db, require_admin
 
 router = APIRouter(prefix="/api")
-_observadores: dict[str, object] = {}
 
 
 def _err(e):
@@ -111,32 +110,47 @@ class ObservadorIn(BaseModel):
     intervalo_visual_ms: int = Field(default=250, ge=50, le=10_000)
 
 
+def _sup(request: Request):
+    sup = getattr(request.app.state, "supervisor", None)
+    if sup is None:
+        raise HTTPException(503, "El supervisor de observadores no está en marcha en este proceso")
+    return sup
+
+
 @router.get("/observador")
-def observadores(user: CurrentUser = Depends(require_admin)):
-    return {"observadores": [o.estado() for o in _observadores.values()]}
+def observadores(request: Request, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
+    from ..planificador import observador as ob
+    sup = getattr(request.app.state, "supervisor", None)
+    return {"configurados": ob.listar_config(db), "proceso": sup.estado() if sup else None,
+            "observadores": sup.estado()["observadores"] if sup else []}
 
 
 @router.post("/observador")
-def iniciar_observador(body: ObservadorIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
-    from ..planificador.observador import Observador
-    clave = f"{body.sucursal}|{body.tramite}"
-    if clave in _observadores:
+def iniciar_observador(body: ObservadorIn, request: Request, user: CurrentUser = Depends(require_admin),
+                       db: Database = Depends(get_db)):
+    """Guarda la configuración (persistente) y la pone en marcha. Tras reiniciar el motor se restaura sola."""
+    from ..planificador import observador as ob
+    sup = _sup(request)
+    c = ob.configurar(db, body.sucursal, body.tramite, body.mes, body.estrategia, body.intervalo_visual_ms,
+                      user.username, utcnow())
+    if c["ya_existia"]:
         raise HTTPException(409, "Ya hay un observador para esa sucursal y trámite")
-    o = Observador(db, body.sucursal, body.tramite, body.mes, body.estrategia, body.intervalo_visual_ms)
-    try:
-        o.iniciar()
-    except RuntimeError as e:
-        raise HTTPException(503, str(e)) from None
-    _observadores[clave] = o
-    return o.estado()
+    r = sup.ciclo(utcnow())
+    if c["clave"] in r["fallidos"]:
+        cfg = next((x for x in ob.listar_config(db) if x["clave"] == c["clave"]), c)
+        raise HTTPException(503, cfg.get("motivo") or "no se pudo iniciar el observador")
+    o = sup.activos.get(c["clave"])
+    return {**(o.estado() if o else {}), "configuracion": c,
+            "en_otro_proceso": c["clave"] in r["de_otro_proceso"]}
 
 
 @router.delete("/observador")
-def detener_observadores(user: CurrentUser = Depends(require_admin)):
-    n = len(_observadores)
-    for o in list(_observadores.values()):
-        o.detener()
-    _observadores.clear()
+def detener_observadores(request: Request, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
+    from ..planificador import observador as ob
+    n = ob.desactivar(db, user.username, utcnow())
+    sup = getattr(request.app.state, "supervisor", None)
+    if sup is not None:
+        sup.ciclo(utcnow())
     return {"detenidos": n}
 
 

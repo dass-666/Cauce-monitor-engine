@@ -705,6 +705,8 @@ class ObservacionDia(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     fuente: Mapped[str] = mapped_column(String(12), default="")
     actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # v2.1 (unidades): cuántas unidades libres mostraba la página (None = solo se vio el color)
+    libres: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ObservacionVista(Base):
@@ -738,3 +740,28 @@ class ObservacionEvento(Base):
     consumo: Mapped[str] = mapped_column(String(16), default="NUEVO", index=True)
     plan_elemento_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     explicacion: Mapped[dict] = mapped_column(JSON, default=dict)
+    # v2.1 (unidades): libres antes y después del cambio (None si la estrategia no las ve)
+    unidades: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unidades_anteriores: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class ObservadorConfig(Base):
+    """v2.1 · Configuración PERSISTENTE de un observador de calendario: se restaura al reiniciar el
+    motor. Una fila por (sucursal, trámite). Solo una instancia lo ejecuta a la vez (arrendamiento
+    `scheduler_leases` con nombre `obs:<clave>`)."""
+    __tablename__ = "observadores_config"
+    clave: Mapped[str] = mapped_column(String(96), primary_key=True)        # sucursal|tramite
+    sucursal: Mapped[str] = mapped_column(String(32))
+    tramite: Mapped[str] = mapped_column(String(32))
+    mes: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    estrategia: Mapped[str] = mapped_column(String(8), default="ambas")
+    intervalo_visual_ms: Mapped[int] = mapped_column(Integer, default=250)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # ACTIVO | DETENIDO (por una persona) | DETENIDO_POR_FALLOS (superó el límite de reinicios)
+    estado: Mapped[str] = mapped_column(String(24), default="ACTIVO")
+    motivo: Mapped[str] = mapped_column(String(200), default="")
+    titular: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reinicios: Mapped[int] = mapped_column(Integer, default=0)
+    creado_por: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
