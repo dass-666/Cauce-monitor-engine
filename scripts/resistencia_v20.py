@@ -93,9 +93,17 @@ def hasta_fecha(c: httpx.Client, p: dict) -> tuple[int, int, int]:
                                                                  "sucursal": cal["sucursal"]})
         r.raise_for_status()
         cal = r.json().get("calendario", r.json())
-    r = c.post(f"/api/reservaciones/{rid}/seleccionar-dia", json={"fecha": libres[0]["fecha"], "sucursal": cal["sucursal"]})
+    # Un día distinto por persona: si dos eligen el mismo día con una sola plaza libre, la segunda
+    # confirmación recibe DIA_AGOTADO (es correcto, pero no es lo que mide este escenario). Pasó en la
+    # corrida 43530602041 de CI según las plazas que quedaban ese día.
+    dia = next((d for d in libres if d["fecha"] not in _ELEGIDOS), libres[0])
+    _ELEGIDOS.add(dia["fecha"])
+    r = c.post(f"/api/reservaciones/{rid}/seleccionar-dia", json={"fecha": dia["fecha"], "sucursal": cal["sucursal"]})
     r.raise_for_status()
     return aid, eid, rid
+
+
+_ELEGIDOS: set[str] = set()
 
 
 def esperar(cond, timeout: float, paso: float = 0.5):
