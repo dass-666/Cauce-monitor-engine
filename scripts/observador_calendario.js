@@ -45,6 +45,10 @@ const guardar = (buf, pref) => {
 };
 
 let browser, ctx, page, aux, salir = false, abriendo = false;
+// Candado de página: una captura en curso y una navegación (reabrir) no deben solaparse; en CI se vio
+// el navegador sin responder a una reapertura que coincidió con una captura (v2.1, corrida 43544642083).
+let cola = Promise.resolve();
+const conPagina = (fn) => { const r = cola.then(fn, fn); cola = r.catch(() => {}); return r; };
 const estadoVista = { dom: null, visual: null };
 const ultimoTs = { dom: { v: null, t: Date.now() }, visual: { v: null, t: Date.now() } };
 const visual = { boxes: null, tabla: null, refs: null, previo: null, actBox: null, celdas: {} };
@@ -57,6 +61,10 @@ function vista(estr, estado, detalle) {
 }
 
 async function abrir() {
+  return conPagina(abrirSinCandado);
+}
+
+async function abrirSinCandado() {
   abriendo = true;
   try {
     await page.goto(cfg.url, { waitUntil: "load", timeout: 15000 });
@@ -182,7 +190,8 @@ async function cicloVisual() {
   while (!salir) {
     const t0 = Date.now();
     try {
-      if (!abriendo && visual.tabla && !page.isClosed()) {
+      if (!abriendo && visual.tabla && !page.isClosed()) await conPagina(async () => {
+        if (abriendo) return;
         const buf = await capturaTabla();
         const h = sha(buf);
         const ts = Date.now();
@@ -208,7 +217,7 @@ async function cicloVisual() {
           if (a !== ultimoTs.visual.v) { ultimoTs.visual = { v: a, t: Date.now() }; if (estadoVista.visual === "CONGELADO") vista("visual", "ACTIVA", "la página volvió a actualizarse"); }
           else if (Date.now() - ultimoTs.visual.t > congeladoMs && estadoVista.visual === "ACTIVA") vista("visual", "CONGELADO", `sin cambios en el sello de actualización en ${congeladoMs} ms`);
         }
-      }
+      });
     } catch (e) {
       if (!salir) emit({ tipo: "ERROR", estrategia: "visual", mensaje: String(e.message || e).slice(0, 200), ts_ms: Date.now() });
     }
