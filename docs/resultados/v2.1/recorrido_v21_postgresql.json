@@ -1,9 +1,9 @@
 {
   "version": "2.1.0-dev",
-  "momento": "2026-11-13 23:59:07",
-  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "momento": "2026-11-14 04:29:36",
+  "plataforma": "Linux-6.18.44-fc-v470-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "duracion_s": 30.0,
+  "duracion_s": 46.9,
   "base_de_datos": "postgresql",
   "parametros": {
     "refresco_pagina_ms": 500,
@@ -13,24 +13,24 @@
   "latencias": {
     "deteccion_dom": {
       "n": 5,
-      "mediana_ms": 216,
-      "p95_ms": 274,
-      "max_ms": 274,
-      "min_ms": 211
+      "mediana_ms": 230,
+      "p95_ms": 279,
+      "max_ms": 279,
+      "min_ms": 210
     },
     "deteccion_visual": {
       "n": 5,
-      "mediana_ms": 413,
-      "p95_ms": 465,
-      "max_ms": 465,
-      "min_ms": 404
+      "mediana_ms": 447,
+      "p95_ms": 471,
+      "max_ms": 471,
+      "min_ms": 414
     },
     "hasta_asignacion": {
       "n": 5,
-      "mediana_ms": 224,
-      "p95_ms": 280,
-      "max_ms": 280,
-      "min_ms": 221
+      "mediana_ms": 238,
+      "p95_ms": 285,
+      "max_ms": 285,
+      "min_ms": 218
     },
     "nota": "MEDIDO desde que el laboratorio habilita el día (antes de la llamada de control) hasta el instante de detección en la página y hasta que el motor asigna. Incluye el refresco propio de la página (refresco_pagina_ms): con un portal real ese intervalo lo decide el portal."
   },
@@ -43,11 +43,11 @@
         "elemento": 1,
         "esperado": 1,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 1, alta n.º 1 en el plan; 7 compatible(s) más quedan en espera",
-        "control_ms": 4.5,
-        "deteccion_dom_ms": 211.4,
-        "deteccion_visual_ms": 413.4,
-        "asignacion_ms": 220.8,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000002 (prioridad 1, alta n.º 1); 7 compatible(s) más quedan en espera",
+        "control_ms": 4.7,
+        "deteccion_dom_ms": 228.4,
+        "deteccion_visual_ms": 453.4,
+        "asignacion_ms": 238.0,
         "evidencia_dom": true,
         "evidencia": [
           "html",
@@ -61,11 +61,11 @@
         "elemento": 2,
         "esperado": 2,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 1, alta n.º 2 en el plan; 6 compatible(s) más quedan en espera",
-        "control_ms": 4.6,
-        "deteccion_dom_ms": 216.1,
-        "deteccion_visual_ms": 412.1,
-        "asignacion_ms": 222.3,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000005 (prioridad 1, alta n.º 2); 6 compatible(s) más quedan en espera",
+        "control_ms": 6.8,
+        "deteccion_dom_ms": 209.8,
+        "deteccion_visual_ms": 413.8,
+        "asignacion_ms": 217.7,
         "evidencia_dom": true,
         "evidencia": [
           "html",
@@ -79,11 +79,11 @@
         "elemento": 3,
         "esperado": 3,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 2, alta n.º 3 en el plan; 5 compatible(s) más quedan en espera",
-        "control_ms": 4.8,
-        "deteccion_dom_ms": 272.2,
-        "deteccion_visual_ms": 465.2,
-        "asignacion_ms": 278.8,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000003 (prioridad 2, alta n.º 3); 5 compatible(s) más quedan en espera",
+        "control_ms": 4.6,
+        "deteccion_dom_ms": 230.3,
+        "deteccion_visual_ms": 429.3,
+        "asignacion_ms": 237.3,
         "evidencia_dom": true,
         "evidencia": [
           "html",
@@ -97,11 +97,11 @@
         "elemento": 4,
         "esperado": 4,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 2, alta n.º 4 en el plan; 4 compatible(s) más quedan en espera",
-        "control_ms": 5.6,
-        "deteccion_dom_ms": 216.0,
-        "deteccion_visual_ms": 404.0,
-        "asignacion_ms": 223.9,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000007 (prioridad 2, alta n.º 4); 4 compatible(s) más quedan en espera",
+        "control_ms": 4.3,
+        "deteccion_dom_ms": 250.6,
+        "deteccion_visual_ms": 446.6,
+        "asignacion_ms": 255.8,
         "evidencia_dom": true,
         "evidencia": [
           "html",
@@ -115,11 +115,11 @@
         "elemento": 5,
         "esperado": 5,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 3, alta n.º 5 en el plan; 3 compatible(s) más quedan en espera",
-        "control_ms": 5.4,
-        "deteccion_dom_ms": 274.0,
-        "deteccion_visual_ms": 456.0,
-        "asignacion_ms": 280.4,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000001 (prioridad 3, alta n.º 5); 3 compatible(s) más quedan en espera",
+        "control_ms": 4.2,
+        "deteccion_dom_ms": 279.3,
+        "deteccion_visual_ms": 471.3,
+        "asignacion_ms": 285.2,
         "evidencia_dom": true,
         "evidencia": [
           "html",
@@ -144,10 +144,11 @@
         "consumo": "ASIGNADO"
       }
     ],
-    "seleccion_ms": 72.3,
-    "operacion_hasta_folio_ms": 167.1,
+    "seleccion_ms": 84.9,
+    "operacion_hasta_folio_ms": 169.4,
     "parpadeos_nota": "Un cambio más corto que el refresco de la propia página no llega al DOM: ninguna estrategia puede verlo (MEDIDO con 150 ms y refresco de 500 ms).",
-    "reinicio_motor_s": 1.08,
+    "reinicio_motor_s": 1.1,
+    "observador_restaurado_s": 16.8,
     "ronda_tras_reinicio": {
       "fecha": "2027-01-17",
       "ok": true,
@@ -155,11 +156,11 @@
       "elemento": 2,
       "esperado": 2,
       "consumo": "ASIGNADO",
-      "por_que": "prioridad 1, alta n.º 2 en el plan; 3 compatible(s) más quedan en espera",
-      "control_ms": 5.3,
-      "deteccion_dom_ms": 161.0,
-      "deteccion_visual_ms": 407.0,
-      "asignacion_ms": 172.6,
+      "por_que": "1 de 1 unidad(es) con cupo: EXP-000005 (prioridad 1, alta n.º 2); 3 compatible(s) más quedan en espera",
+      "control_ms": 4.4,
+      "deteccion_dom_ms": 294.0,
+      "deteccion_visual_ms": 531.0,
+      "asignacion_ms": 300.6,
       "evidencia_dom": true,
       "evidencia": [
         "html",
@@ -168,7 +169,7 @@
     },
     "pg_caido": {
       "salud_durante": 503,
-      "registrado_s_desde_habilitar": 5.2
+      "registrado_s_desde_habilitar": 4.8
     }
   },
   "ok": true,
@@ -251,19 +252,64 @@
     {
       "comprobacion": "observador (Chromium) lanzado por el motor",
       "ok": true,
-      "detalle": "{\"nombre\":\"obs-NOR-1-alta\",\"url\":\"http://127.0.0.1:57093/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01\",\"estrategia\":\"ambas\",\"vivo\":false,\"pendientes\":0,\"lineas\":0,\"eventos\":0,\"reinicios"
+      "detalle": "{\"nombre\":\"obs-NOR-1-alta\",\"url\":\"http://127.0.0.1:34457/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01\",\"estrategia\":\"ambas\",\"vivo\":true,\"pendientes\":0,\"fallo\":null,\"lineas\":0,\"eventos\":"
     },
     {
       "comprobacion": "calendario abierto y ACTIVO",
       "ok": true,
       "detalle": {
+        "configurados": [
+          {
+            "clave": "NOR-1|alta",
+            "sucursal": "NOR-1",
+            "tramite": "alta",
+            "mes": "2027-01",
+            "estrategia": "ambas",
+            "intervalo_visual_ms": 250,
+            "activo": true,
+            "estado": "ACTIVO",
+            "motivo": "",
+            "titular": "vm:12952:048259",
+            "reinicios": 0,
+            "creado_por": "admin",
+            "actualizado": "2026-11-14T04:28:52.799603Z"
+          }
+        ],
+        "proceso": {
+          "proceso": "vm:12952:048259",
+          "ultimo_error": null,
+          "observadores": [
+            {
+              "nombre": "obs-NOR-1-alta",
+              "url": "http://127.0.0.1:34457/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01",
+              "estrategia": "ambas",
+              "vivo": true,
+              "pendientes": 0,
+              "fallo": null,
+              "lineas": 5,
+              "eventos": 2,
+              "reinicios_navegador": 0,
+              "reaperturas_sesion": 0,
+              "errores_bd": 0,
+              "ultimo_latido": null,
+              "vista": {
+                "dom": "ACTIVA",
+                "visual": "ACTIVA"
+              },
+              "coincidencias": 0,
+              "arranques": 1,
+              "reinicios_por_vigilancia": 0
+            }
+          ]
+        },
         "observadores": [
           {
             "nombre": "obs-NOR-1-alta",
-            "url": "http://127.0.0.1:57093/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01",
+            "url": "http://127.0.0.1:34457/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2027-01",
             "estrategia": "ambas",
             "vivo": true,
             "pendientes": 0,
+            "fallo": null,
             "lineas": 5,
             "eventos": 2,
             "reinicios_navegador": 0,
@@ -275,7 +321,8 @@
               "visual": "ACTIVA"
             },
             "coincidencias": 0,
-            "arranques": 1
+            "arranques": 1,
+            "reinicios_por_vigilancia": 0
           }
         ]
       }
@@ -342,7 +389,7 @@
     {
       "comprobacion": "cada asignación trae su explicación",
       "ok": true,
-      "detalle": "prioridad 1, alta n.º 1 en el plan; 7 compatible(s) más quedan en espera"
+      "detalle": "1 de 1 unidad(es) con cupo: EXP-000002 (prioridad 1, alta n.º 1); 7 compatible(s) más quedan en espera"
     },
     {
       "comprobacion": "el operador ve las coincidencias asignadas",
@@ -421,6 +468,11 @@
       "detalle": ""
     },
     {
+      "comprobacion": "el observador se restaura solo tras el reinicio",
+      "ok": true,
+      "detalle": 16.8
+    },
+    {
       "comprobacion": "al reabrir el calendario no se duplican los eventos ya vistos",
       "ok": true,
       "detalle": []
@@ -435,11 +487,11 @@
         "elemento": 2,
         "esperado": 2,
         "consumo": "ASIGNADO",
-        "por_que": "prioridad 1, alta n.º 2 en el plan; 3 compatible(s) más quedan en espera",
-        "control_ms": 5.3,
-        "deteccion_dom_ms": 161.0,
-        "deteccion_visual_ms": 407.0,
-        "asignacion_ms": 172.6,
+        "por_que": "1 de 1 unidad(es) con cupo: EXP-000005 (prioridad 1, alta n.º 2); 3 compatible(s) más quedan en espera",
+        "control_ms": 4.4,
+        "deteccion_dom_ms": 294.0,
+        "deteccion_visual_ms": 531.0,
+        "asignacion_ms": 300.6,
         "evidencia_dom": true,
         "evidencia": [
           "html",
