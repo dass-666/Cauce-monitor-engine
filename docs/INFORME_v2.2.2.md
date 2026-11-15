@@ -15,7 +15,7 @@ razonada a partir de las mediciones · **[PENDIENTE]** sin comprobar.
 | 3 | Observador intermitente (Windows 3.11) | **Causa reproducida, sin corregir** | Defecto real del `Supervisor`, prueba xfail estricta; 4 de 8 fallos en Windows 3.13 |
 | 4 | Rama de integración y commit fijado en `jarvis/project.yaml` | **Corregido** [HECHO] | bloque `integracion` + comparación con HEAD en el informe; 6 estados probados |
 | 5 | Contratos intactos + regresiones | **Cumplido** [HECHO] | campo nuevo opcional; los informes v2.2.1 siguen validando (prueba) |
-| 6 | CI completo | **Verde** con las salvedades de la sección 6 | ejecución 43671435061: 29/29 trabajos |
+| 6 | CI completo | **Verde** con las salvedades de la sección 6 | ejecuciones 43671435061 y 43674353506: 29/29 cada una |
 
 Las tareas 2 y 3 **no se corrigieron** a propósito: la corrección toca lógica del planificador o modifica
 una prueba existente, y eso queda fuera de lo autorizado. Ver la sección 8.
@@ -128,6 +128,8 @@ Es una condición de tiempo, de ahí la intermitencia.
 |---|---|---|---|
 | CI histórico, ejecución 43599314834 | 1 | 1 (Windows 3.11) | igual |
 | CI 43671435061, Windows 3.11 | 8 | 0 | — |
+| CI 43674353506, Windows 3.11 | 8 | 0 | — |
+| CI 43674353506, Windows 3.13 | 8 | **4** | igual |
 | CI 43671435061, Windows 3.13 | 8 | **4** | `{'arrancados': [], 'detenidos': ['NOR-1\|alta'], 'fallidos': [], ...}` |
 | Linux | toda la suite | 0 observados | — |
 
@@ -177,9 +179,16 @@ releer la configuración. Son unas 3 líneas, pero tocan el planificador.
 **Salvedad 2.** Los trabajos de investigación no bloquean el CI, para no ocultar ni forzar resultados.
 Que estén en verde no significa que las pruebas investigadas sean estables.
 
-### 6.3 CI tras este informe
+### 6.3 GitHub Actions, ejecución 43674353506 sobre 1b1644a (código idéntico a 51bbd3b)
 
-**[PENDIENTE]** al escribir este documento. El resultado se comunica en el mensaje de entrega.
+- **29 de 29 trabajos en verde** (24 habituales + 5 de investigación).
+- `investigar-despertar` · 3.13, paso "en contexto" ya con psycopg: **0 fallos de 3** (174 aprobadas,
+  4 omitidas por ejecución). La salvedad 1 queda resuelta.
+- `investigar-observador`: Windows 3.11 **0 de 8**; Windows 3.13 **4 de 8**, con el mismo mensaje
+  (`'detenidos': ['NOR-1|alta']`).
+- Acumulado de las dos ejecuciones: Windows 3.11 0 de 16, Windows 3.13 **8 de 16**. Confirma un defecto
+  real dependiente del tiempo, y no algo propio de 3.11.
+- Recordatorio: `investigar-*` usa `continue-on-error`, así que su verde no implica estabilidad.
 
 ## 7. Guía breve para Jarvis E9.1.2
 
