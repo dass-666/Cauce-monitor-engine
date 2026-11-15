@@ -8,15 +8,29 @@ proyecto:
   id: cauce-monitor-engine
   nombre: Cauce Monitor Engine
   descripcion: "Motor interno de expedientes, planificador, Ventanilla y laboratorio con datos ficticios."
-  version: 2.2.1-dev
+  version: 2.2.2-dev
   lenguaje: python
   python_minimo: "3.11"
   python_maximo_probado: "3.13"
   sistemas:
     - windows
     - linux
+  # rama_principal se conserva por compatibilidad: es la rama por omisión de GitHub, HISTÓRICA (v1.0).
+  # Jarvis NO debe supervisar esa rama: debe usar `integracion` (abajo).
   rama_principal: master
-  nota_ramas: "master sigue en la v1.0; la entrega vigente está en las ramas fase-* (ver docs/ESTADO_CONSOLIDADO_PARA_JARVIS.md)."
+  rama_principal_es_historica: true
+  nota_ramas: "master sigue en la v1.0. La rama que Jarvis supervisa es integracion.rama, fijada en integracion.commit_fijado."
+integracion:
+  # Rama y commit que Jarvis debe reconocer. Cambiarlos es una decisión humana (editar este archivo en
+  # una revisión); Cauce no los cambia solo y no toca la rama por omisión de GitHub.
+  rama: claude/estabilizacion-v2.2.2
+  commit_fijado: 4fa04f1e47096f7bdb35fd871b6851e6dc3bc310
+  fijado_en: "2026-11-15"
+  # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
+  rutas_solo_documentacion:
+    - docs/
+    - jarvis/
+    - README.md
 contratos:
   manifiesto_pruebas: jarvis/test-manifest.json
   esquema_informe: jarvis/report.schema.json

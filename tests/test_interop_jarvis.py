@@ -147,7 +147,7 @@ def test_version_unica_en_api_y_exportador():
     from monitoreo.app import VERSION as v_app
     from monitoreo.version import VERSION
     assert v_app == VERSION == comun.version_proyecto()
-    assert VERSION.startswith("2.2.1")
+    assert VERSION.startswith("2.2.")  # v2.2.2: estabilización
 
 
 def test_contratos_sin_secretos_ni_rutas_privadas():

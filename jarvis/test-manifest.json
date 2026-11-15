@@ -51,7 +51,7 @@
       "salida_bytes": 10000000,
       "postgres": "opcional",
       "etiquetas": ["lenta", "regresion", "escribe-data"],
-      "notas": "tests/test_restart.py arranca el servidor con cwd en el proyecto y escribe data/feeds y data/notificaciones.log (medido en v2.2.1). El ejecutor la rechaza si data/ tiene una base de datos o .env define MONITOREO_DB_URL."
+      "notas": "v2.2.1 midió que tests/test_restart.py escribía data/feeds y data/notificaciones.log en la carpeta del proyecto; v2.2.2 lo corrige con MONITOREO_DATA_DIR. Se conserva escribe-data por prudencia: el ejecutor no la lanza donde data/ tiene una base o .env define MONITOREO_DB_URL."
     }
   ]
 }

@@ -29,6 +29,7 @@ sys.path.insert(0, str(RAIZ))
 from monitoreo.interop import esquema  # noqa: E402
 from monitoreo.interop.comun import escribir_json, estado_git  # noqa: E402
 from monitoreo.interop.saneado import sanear  # noqa: E402
+from monitoreo.version import VERSION  # noqa: E402
 
 
 def cli(*args: str, timeout: int = 3600) -> tuple[int, dict, float]:
@@ -117,7 +118,7 @@ def main() -> int:
         comprobaciones["postgres_usado"] = all("postgresql" in r["ejecutar"]["bases_de_datos"] for r in rondas)
 
     ok = sum(1 for v in comprobaciones.values() if v)
-    res = {"version": "2.2.1-dev", "demostracion": "jarvis-v2.2.1", "suite": a.suite,
+    res = {"version": VERSION, "demostracion": "jarvis-v2.2.1", "suite": a.suite,
            "plataforma": platform.system(), "python": platform.python_version(),
            "commit": g["commit"], "arbol_limpio": g["limpio"], "pasos": pasos, "rondas": rondas,
            "comprobaciones": comprobaciones, "resultado": f"{ok}/{len(comprobaciones)}",

@@ -33,6 +33,21 @@
         }
       }
     },
+    "integracion": {
+      "description": "v2.2.2 (opcional para informes anteriores): relación de HEAD con integracion.rama y integracion.commit_fijado de jarvis/project.yaml.",
+      "type": "object", "additionalProperties": false,
+      "required": ["rama_declarada", "commit_fijado", "rama_actual_coincide", "relacion", "commits_desde_fijado",
+                   "archivos_de_codigo_cambiados"],
+      "properties": {
+        "rama_declarada": {"type": ["string", "null"]},
+        "commit_fijado": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "rama_actual_coincide": {"type": ["boolean", "null"]},
+        "relacion": {"enum": ["FIJADO", "POSTERIOR_SOLO_DOCUMENTOS", "POSTERIOR_CON_CODIGO", "DISTINTO", "SIN_DECLARAR",
+                              "DESCONOCIDO"]},
+        "commits_desde_fijado": {"type": ["integer", "null"], "minimum": 0},
+        "archivos_de_codigo_cambiados": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
     "entorno": {
       "type": "object", "additionalProperties": false,
       "required": ["sistema", "version_sistema", "arquitectura", "python", "implementacion", "bases_de_datos", "ci",

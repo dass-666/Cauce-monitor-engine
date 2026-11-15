@@ -28,7 +28,7 @@ from pathlib import Path
 
 from . import esquema
 from .comun import (DIR_JARVIS, ESTADOS, PROYECTO_ID, RAIZ, escribir_json, estado_git, git, json_canonico,
-                    sha256_archivo, version_proyecto)
+                    relacion_con_fijado, sha256_archivo, version_proyecto)
 from .saneado import buscar_sensibles, sanear
 
 FORMATO = "cauce.jarvis.report/1"
@@ -220,6 +220,7 @@ def construir(raiz: Path = RAIZ, ejecuciones: list[Path] | None = None, anexos: 
         "generado_en": ahora.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "generado_por": "python -m monitoreo.interop informe",
         "git": g,
+        "integracion": relacion_con_fijado(raiz, g),
         "entorno": _entorno(bases),
         "pruebas": pruebas,
         "resultados_historicos": historicos,

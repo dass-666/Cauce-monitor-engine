@@ -55,6 +55,15 @@ def _navegadores_de_la_instalacion() -> None:
 _navegadores_de_la_instalacion()
 
 
+def _data_dir_por_omision() -> Path:
+    """v2.2.2: MONITOREO_DATA_DIR (opcional) cambia la carpeta de datos del proceso: base SQLite por
+    omisión, logs, feeds, notificaciones.log, respaldos. Sin la variable es <instalación>/data, como
+    siempre. Pensada para pruebas y desarrollo: instalar.ps1, actualizar.ps1 y scripts/preparar.py
+    siguen trabajando con <instalación>/data y la ignoran."""
+    valor = (os.environ.get("MONITOREO_DATA_DIR") or "").strip()
+    return Path(valor).expanduser().resolve() if valor else BASE_DIR / "data"
+
+
 def _bool(name: str, default: bool) -> bool:
     return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "si", "sí", "yes"}
 
@@ -62,7 +71,7 @@ def _bool(name: str, default: bool) -> bool:
 @dataclass
 class Settings:
     db_url: str = field(default_factory=lambda: os.environ.get(
-        "MONITOREO_DB_URL", f"sqlite:///{(BASE_DIR / 'data' / 'monitoreo.db').as_posix()}"))
+        "MONITOREO_DB_URL", f"sqlite:///{(_data_dir_por_omision() / 'monitoreo.db').as_posix()}"))
     # Clave para firmar webhooks. Si no se define se genera una por proceso
     # (válida para desarrollo; en producción debe fijarse en .env).
     secret_key: str = field(default_factory=lambda: os.environ.get("MONITOREO_SECRET_KEY") or secrets.token_urlsafe(32))
@@ -74,7 +83,7 @@ class Settings:
     # Lista de hosts permitidos para webhooks (mitiga SSRF). Vacío = solo localhost.
     webhook_allowed_hosts: list[str] = field(default_factory=lambda: [
         h.strip() for h in os.environ.get("MONITOREO_WEBHOOK_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()])
-    data_dir: Path = BASE_DIR / "data"
+    data_dir: Path = field(default_factory=lambda: _data_dir_por_omision())
 
 
 settings = Settings()

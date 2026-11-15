@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import json
 import os
 import subprocess
@@ -95,3 +96,57 @@ def huella_directorio(d: Path) -> str:
 def version_proyecto() -> str:
     from ..version import VERSION
     return VERSION
+
+
+def leer_proyecto(raiz: Path) -> dict:
+    from . import yaml_simple
+    return yaml_simple.cargar((raiz / DIR_JARVIS / "project.yaml").read_text(encoding="utf-8")) or {}
+
+
+def relacion_con_fijado(raiz: Path, g: dict | None = None) -> dict:
+    """v2.2.2: compara HEAD con la rama y el commit fijados en jarvis/project.yaml (`integracion`).
+
+    relacion:
+      FIJADO                    HEAD es el commit fijado
+      POSTERIOR_SOLO_DOCUMENTOS HEAD desciende del fijado y solo cambian rutas de documentación
+      POSTERIOR_CON_CODIGO      HEAD desciende del fijado y cambia código: hay que volver a fijar
+      DISTINTO                  HEAD no desciende del fijado (otra rama u otra historia)
+      SIN_DECLARAR              project.yaml no declara rama o commit
+      DESCONOCIDO               sin git o el commit fijado no está en este clon
+    """
+    g = g or estado_git(raiz)
+    try:
+        integ = (leer_proyecto(raiz).get("integracion") or {})
+    except (OSError, ValueError):
+        integ = {}
+    rama, fijado = integ.get("rama"), integ.get("commit_fijado")
+    rutas = [str(x) for x in integ.get("rutas_solo_documentacion") or []]
+    out = {"rama_declarada": rama if isinstance(rama, str) else None,
+           "commit_fijado": fijado if isinstance(fijado, str) and re.fullmatch(r"[0-9a-f]{40}", fijado) else None,
+           "rama_actual_coincide": None, "relacion": "SIN_DECLARAR", "commits_desde_fijado": None,
+           "archivos_de_codigo_cambiados": None}
+    if not out["rama_declarada"] or not out["commit_fijado"]:
+        return out
+    out["rama_actual_coincide"] = g.get("rama") == out["rama_declarada"] if g.get("rama") else None
+    head = g.get("commit")
+    if not head:
+        out["relacion"] = "DESCONOCIDO"
+        return out
+    if head == fijado:
+        out.update(relacion="FIJADO", commits_desde_fijado=0, archivos_de_codigo_cambiados=0)
+        return out
+    c, _ = git(raiz, "cat-file", "-e", f"{fijado}^{{commit}}")
+    if c != 0:
+        out["relacion"] = "DESCONOCIDO"
+        return out
+    c, _ = git(raiz, "merge-base", "--is-ancestor", fijado, head)
+    if c != 0:
+        out["relacion"] = "DISTINTO"
+        return out
+    _, n = git(raiz, "rev-list", "--count", f"{fijado}..{head}")
+    _, archivos = git(raiz, "diff", "--name-only", fijado, head)
+    codigo = [a for a in archivos.splitlines() if a.strip() and not any(
+        a == r or (r.endswith("/") and a.startswith(r)) for r in rutas)]
+    out.update(relacion="POSTERIOR_CON_CODIGO" if codigo else "POSTERIOR_SOLO_DOCUMENTOS",
+               commits_desde_fijado=int(n) if n.isdigit() else None, archivos_de_codigo_cambiados=len(codigo))
+    return out

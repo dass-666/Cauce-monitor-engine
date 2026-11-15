@@ -19,7 +19,10 @@ def _port():
 
 
 def _start(db, port, **extra):
+    # v2.2.2: MONITOREO_DATA_DIR en la carpeta temporal. Antes el servidor escribía data/feeds y
+    # data/notificaciones.log en la carpeta del proyecto (o de la instalación donde se corrieran las pruebas).
     env = {**os.environ, **extra, "MONITOREO_DB_URL": f"sqlite:///{db.as_posix()}", "MONITOREO_ADMIN_PASSWORD": PWD,
+           "MONITOREO_DATA_DIR": str(db.parent / "datos"),
            "MONITOREO_PUERTO": str(port), "MONITOREO_INICIAR_MOTOR": "1", "MONITOREO_LOG": "warning"}
     p = subprocess.Popen([sys.executable, "-m", "monitoreo"], cwd=ROOT, env=env,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
