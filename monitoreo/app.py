@@ -17,10 +17,10 @@ from .db import Database
 from .engine.scheduler import Scheduler
 from .models import User
 from .security import hash_password
+from .version import VERSION  # v2.2.1: una sola fuente de la versión (antes "2.0.0-dev" fijo aquí)
 
 log = logging.getLogger("monitoreo")
 WEB_DIR = Path(__file__).parent / "web"
-VERSION = "2.0.0-dev"
 
 
 BOOTSTRAP_LOCK_ID = 727275  # candado consultivo de PostgreSQL para la siembra inicial

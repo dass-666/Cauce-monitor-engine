@@ -1,0 +1,56 @@
+{
+  "formato": "cauce.jarvis.test-manifest/1",
+  "proyecto": "cauce-monitor-engine",
+  "descripcion": "Lista blanca de suites que Jarvis o Autonomous Worker pueden pedir. Se pide el id; el comando sale de aquí. Ejecutor: python -m monitoreo.interop ejecutar --suite <id>.",
+  "interprete": "{python}",
+  "limites_por_defecto": {"tiempo_s": 900, "salida_bytes": 2000000},
+  "entorno_fijo": {
+    "MONITOREO_INICIAR_MOTOR": "0",
+    "MONITOREO_CAPTURA_SOLO_SINTETICOS": "1"
+  },
+  "suites": [
+    {
+      "id": "interop",
+      "descripcion": "Contratos de Jarvis: manifiesto, ejecutor, exportador, esquema, saneado y compatibilidad (v2.2.1).",
+      "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests/test_interop_jarvis.py"],
+      "tiempo_s": 600,
+      "postgres": "no",
+      "etiquetas": ["rapida", "interoperabilidad"]
+    },
+    {
+      "id": "humo",
+      "descripcion": "Suite pequeña de regresión: migraciones, detector de cambios y consentimiento por expediente.",
+      "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests/test_migrations.py", "tests/test_detector.py",
+               "tests/test_consentimiento_v22.py"],
+      "tiempo_s": 900,
+      "postgres": "opcional",
+      "etiquetas": ["rapida", "regresion"]
+    },
+    {
+      "id": "consentimiento",
+      "descripcion": "Consentimiento, puertas, revocación por etapas, duplicados y trazabilidad (v2.2).",
+      "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests/test_consentimiento_v22.py"],
+      "tiempo_s": 900,
+      "postgres": "opcional",
+      "etiquetas": ["regresion", "consentimiento"]
+    },
+    {
+      "id": "planificador",
+      "descripcion": "Planificador diario, unidades por fecha, propiedad única y observador persistente (v2.1).",
+      "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests/test_planificador.py",
+               "tests/test_plan_unidades_propiedad.py", "tests/test_observador_persistente.py"],
+      "tiempo_s": 1200,
+      "postgres": "opcional",
+      "etiquetas": ["regresion", "planificador"]
+    },
+    {
+      "id": "completa",
+      "descripcion": "Suite completa del motor (la misma que ejecuta CI). Puede tardar más de 15 minutos con PostgreSQL.",
+      "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests"],
+      "tiempo_s": 5400,
+      "salida_bytes": 10000000,
+      "postgres": "opcional",
+      "etiquetas": ["lenta", "regresion"]
+    }
+  ]
+}

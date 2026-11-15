@@ -1,0 +1,44 @@
+{
+  "formato": "cauce.jarvis.declarations/1",
+  "nombre": "Cauce Monitor Engine",
+  "nota": "Lo que el exportador no puede medir por sí mismo. Nada de aquí puede ser VERIFICADO: los históricos salen como REPORTADO (o SIMULADO si son de laboratorio) y lo demás como PENDIENTE.",
+  "historicos": [
+    {"id": "v2.2-suite-completa", "naturaleza": "pruebas_automatizadas", "extraer": "ultima_linea_pytest",
+     "descripcion": "Suite completa de la v2.2 en SQLite y PostgreSQL 16 (contenedor Linux), registrada al cerrar la v2.2.",
+     "fuente": "docs/resultados/v2.2/pytest_sqlite_y_postgresql.txt"},
+    {"id": "v2.2-demo-sqlite", "naturaleza": "laboratorio",
+     "descripcion": "Demostración de consentimiento y revocación contra el portal de laboratorio propio, SQLite.",
+     "fuente": "docs/resultados/v2.2/demo_v22_sqlite.json", "resumen": "36/36 comprobaciones según INFORME_v2.2.md"},
+    {"id": "v2.2-demo-postgresql", "naturaleza": "laboratorio",
+     "descripcion": "La misma demostración con PostgreSQL 16.",
+     "fuente": "docs/resultados/v2.2/demo_v22_postgresql.json", "resumen": "38/38 comprobaciones según INFORME_v2.2.md"},
+    {"id": "v2.2-ci", "naturaleza": "ci",
+     "descripcion": "GitHub Actions de la rama fase-2.2 (Linux, Windows Server, PowerShell 5.1 y 7, instalación).",
+     "fuente": "docs/INFORME_v2.2.md", "resumen": "22/22 trabajos correctos según el informe v2.2"}
+  ],
+  "simulaciones": [],
+  "pendientes": [
+    {"id": "windows-fisico", "descripcion": "Nada se ha probado en el equipo Windows físico de la oficina; Windows solo está validado en GitHub Actions (Windows Server).",
+     "como_verificar": "Seguir docs/JARVIS_REGISTRO.md sección 5 en el equipo y adjuntar el informe JSON generado allí."},
+    {"id": "jarvis-real", "descripcion": "Ningún Jarvis real ha consumido estos contratos; la consulta de Jarvis solo está simulada.",
+     "como_verificar": "Registrar el proyecto en Jarvis E9.1.2 y comprobar que lee project.yaml, ejecuta la suite humo y valida el informe."},
+    {"id": "autonomous-worker", "descripcion": "Autonomous Worker no está integrado; el ejecutor está listo para que lo llame, sin probarlo con él.",
+     "como_verificar": "Desde Autonomous Worker, llamar solo a `ejecutar --suite <id>` y comprobar códigos de salida y cancelación."},
+    {"id": "telegram-real", "descripcion": "Telegram real nunca probado (solo el emulador local).",
+     "como_verificar": "docs/TELEGRAM.md"},
+    {"id": "red-aislada", "descripcion": "El ejecutor no aísla la red a nivel del sistema operativo; las pruebas solo usan 127.0.0.1, pero no se impide por diseño.",
+     "como_verificar": "Ejecutar en Windows con el firewall bloqueando salidas de python.exe y comprobar que la suite pasa."}
+  ],
+  "bloqueos": [
+    {"id": "autorizacion-proveedor", "descripcion": "Operar con el portal externo requiere autorización expresa del proveedor. Fuera de alcance: no hay ni habrá integración desde estos contratos.",
+     "fuente": "docs/ALCANCE_Y_AUTORIZACIONES_v2.2.md"},
+    {"id": "fusion-pendiente", "descripcion": "Las ramas fase-1.1 a fase-2.2 y esta no están fusionadas en master; master sigue en la v1.0. Fusionar requiere la decisión de Diego.",
+     "como_verificar": "git log origin/master -1"}
+  ],
+  "proximos_pasos": [
+    {"id": "validar-msi", "prioridad": "alta", "descripcion": "Ejecutar `python -m monitoreo.interop ciclo --suite humo` en el equipo Windows físico."},
+    {"id": "registrar-en-jarvis", "prioridad": "alta", "descripcion": "Registrar el proyecto en Jarvis E9.1.2 con jarvis/project.yaml (guía en docs/JARVIS_REGISTRO.md)."},
+    {"id": "decidir-fusion", "prioridad": "media", "descripcion": "Decidir si fase-2.2 (o esta rama) pasa a ser la rama principal, para que Jarvis no supervise master v1.0."},
+    {"id": "worker-solo-ejecutor", "prioridad": "media", "descripcion": "Integrar Autonomous Worker usando únicamente el ejecutor y el exportador; nunca pytest ni git directamente."}
+  ]
+}

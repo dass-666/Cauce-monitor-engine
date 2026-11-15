@@ -725,3 +725,55 @@ jobs:
           path: resultados/
           if-no-files-found: ignore
           retention-days: 14
+
+  # v2.2.1: contratos de interoperabilidad con Jarvis (lado Cauce). Ejecuta las pruebas de los
+  # contratos y la demostración completa (inventario, manifiesto, suite pequeña, informe, validación,
+  # consulta SIMULADA de Jarvis, repetición e idempotencia). Windows aquí es Windows Server de
+  # GitHub Actions, NO el equipo físico de la oficina.
+  jarvis-interop:
+    name: Jarvis v2.2.1 · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Iniciar PostgreSQL 16 (solo Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=postgres-ci -e POSTGRES_DB=monitoreo_test -p 5432:5432 postgres:16
+          for i in $(seq 1 30); do docker exec pg pg_isready -U postgres && break; sleep 2; done
+          echo "MONITOREO_TEST_PG=postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test" >> "$GITHUB_ENV"
+          echo "DEMO_PG=--con-postgres" >> "$GITHUB_ENV"
+      - name: Instalar dependencias (+ jsonschema y PyYAML solo para comparar validadores)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt jsonschema pyyaml
+      - name: Pruebas de los contratos
+        run: |
+          mkdir -p resultados
+          python -m pytest -q -rs tests/test_interop_jarvis.py --junitxml=resultados/junit_interop.xml
+      - name: Demostración (dos rondas, idempotencia, comando no permitido)
+        run: |
+          python scripts/demo_jarvis_v221.py --suite humo $DEMO_PG --salida resultados/jarvis/demo_jarvis_v221.json
+      - name: El repositorio quedó intacto
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+      - name: Adjuntar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-interop-${{ matrix.os }}
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14

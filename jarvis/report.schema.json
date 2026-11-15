@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cauce.jarvis.report/1",
+  "title": "Informe técnico verificable de Cauce Monitor Engine para Jarvis",
+  "description": "Producido por `python -m monitoreo.interop informe`. VERIFICADO solo puede venir de una ejecución del ejecutor sobre el commit actual con evidencia íntegra; lo histórico es REPORTADO o SIMULADO; lo no comprobado es PENDIENTE.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formato", "proyecto", "version", "generado_en", "generado_por", "git", "entorno", "pruebas",
+               "resultados_historicos", "simulaciones", "pendientes", "bloqueos", "proximos_pasos", "evidencia",
+               "resumen", "huella_excluye", "huella_contenido"],
+  "properties": {
+    "formato": {"const": "cauce.jarvis.report/1"},
+    "proyecto": {
+      "type": "object", "additionalProperties": false, "required": ["id", "nombre"],
+      "properties": {"id": {"const": "cauce-monitor-engine"}, "nombre": {"type": "string", "minLength": 1}}
+    },
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9.]+)?$"},
+    "generado_en": {"$ref": "#/$defs/fecha"},
+    "generado_por": {"type": "string"},
+    "git": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rama", "commit", "commit_corto", "estado", "limpio", "cambios"],
+      "properties": {
+        "rama": {"type": ["string", "null"]},
+        "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "commit_corto": {"type": ["string", "null"]},
+        "estado": {"enum": ["LIMPIO", "CON_CAMBIOS", "DESCONOCIDO"]},
+        "limpio": {"type": ["boolean", "null"]},
+        "cambios": {
+          "type": "object", "additionalProperties": false, "required": ["modificados", "sin_seguimiento"],
+          "properties": {"modificados": {"type": "integer", "minimum": 0},
+                         "sin_seguimiento": {"type": "integer", "minimum": 0}}
+        }
+      }
+    },
+    "entorno": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sistema", "version_sistema", "arquitectura", "python", "implementacion", "bases_de_datos", "ci",
+                   "nombre_ci"],
+      "properties": {
+        "sistema": {"type": "string"}, "version_sistema": {"type": "string"}, "arquitectura": {"type": "string"},
+        "python": {"type": "string"}, "implementacion": {"type": "string"},
+        "bases_de_datos": {"type": "array", "minItems": 1, "items": {"enum": ["sqlite", "postgresql"]}},
+        "ci": {"type": "boolean"}, "nombre_ci": {"type": ["string", "null"]}
+      }
+    },
+    "pruebas": {"type": "array", "items": {"$ref": "#/$defs/ejecucion"}},
+    "resultados_historicos": {"type": "array", "items": {"$ref": "#/$defs/historico"}},
+    "simulaciones": {"type": "array", "items": {"$ref": "#/$defs/declaracion"}},
+    "pendientes": {"type": "array", "items": {"$ref": "#/$defs/declaracion"}},
+    "bloqueos": {"type": "array", "items": {"$ref": "#/$defs/declaracion"}},
+    "proximos_pasos": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "descripcion", "prioridad"],
+        "properties": {"id": {"$ref": "#/$defs/id"}, "descripcion": {"type": "string"},
+                       "prioridad": {"enum": ["alta", "media", "baja"]}}
+      }
+    },
+    "evidencia": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["tipo", "ruta", "sha256", "estado"],
+        "properties": {
+          "tipo": {"enum": ["resultado_ejecucion", "salida_pruebas", "junit", "historico"]},
+          "ruta": {"type": "string", "pattern": "^(<resultados>/)?[A-Za-z0-9_.][A-Za-z0-9_./-]*$"},
+          "sha256": {"$ref": "#/$defs/sha256"},
+          "estado": {"$ref": "#/$defs/estado"}
+        }
+      }
+    },
+    "resumen": {
+      "type": "object", "additionalProperties": false,
+      "required": ["estado_global", "suites_verificadas", "suites_aprobadas", "conteo_estados", "alcance"],
+      "properties": {
+        "estado_global": {"enum": ["APROBADO", "APROBADO_CON_CAMBIOS_LOCALES", "FALLIDO", "SIN_VERIFICACION_RECIENTE"]},
+        "suites_verificadas": {"type": "integer", "minimum": 0},
+        "suites_aprobadas": {"type": "integer", "minimum": 0},
+        "conteo_estados": {
+          "type": "object", "additionalProperties": false,
+          "required": ["VERIFICADO", "REPORTADO", "SIMULADO", "PENDIENTE"],
+          "properties": {"VERIFICADO": {"type": "integer", "minimum": 0}, "REPORTADO": {"type": "integer", "minimum": 0},
+                         "SIMULADO": {"type": "integer", "minimum": 0}, "PENDIENTE": {"type": "integer", "minimum": 0}}
+        },
+        "alcance": {"type": "string"}
+      }
+    },
+    "huella_excluye": {"type": "array", "items": {"type": "string"}},
+    "huella_contenido": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,80}$"},
+    "estado": {"enum": ["VERIFICADO", "REPORTADO", "SIMULADO", "PENDIENTE"]},
+    "fecha": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ejecucion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["suite", "estado", "motivos_no_verificado", "ejecucion_id", "resultado", "codigo_salida", "inicio",
+                   "fin", "duracion_s", "antiguedad_h", "commit", "comando", "limites", "conteo", "bases_de_datos",
+                   "salida_truncada", "resumen_final", "avisos"],
+      "properties": {
+        "suite": {"$ref": "#/$defs/id"},
+        "estado": {"enum": ["VERIFICADO", "REPORTADO"]},
+        "motivos_no_verificado": {"type": "array", "items": {"type": "string"}},
+        "ejecucion_id": {"type": "string"},
+        "resultado": {"enum": ["APROBADA", "FALLIDA", "TIEMPO_AGOTADO", "CANCELADA", "ERROR"]},
+        "codigo_salida": {"type": "integer", "minimum": 0, "maximum": 6},
+        "inicio": {"$ref": "#/$defs/fecha"},
+        "fin": {"$ref": "#/$defs/fecha"},
+        "duracion_s": {"type": "number", "minimum": 0},
+        "antiguedad_h": {"type": ["number", "null"]},
+        "commit": {"type": ["string", "null"]},
+        "comando": {"type": "array", "minItems": 3, "items": {"type": "string"}},
+        "limites": {
+          "type": "object", "additionalProperties": false, "required": ["tiempo_s", "salida_bytes"],
+          "properties": {"tiempo_s": {"type": "integer", "minimum": 1}, "salida_bytes": {"type": "integer", "minimum": 1}}
+        },
+        "conteo": {
+          "type": ["object", "null"], "additionalProperties": false,
+          "required": ["total", "aprobadas", "fallidas", "errores", "omitidas"],
+          "properties": {"total": {"type": "integer", "minimum": 0}, "aprobadas": {"type": "integer", "minimum": 0},
+                         "fallidas": {"type": "integer", "minimum": 0}, "errores": {"type": "integer", "minimum": 0},
+                         "omitidas": {"type": "integer", "minimum": 0}}
+        },
+        "bases_de_datos": {"type": "array", "items": {"enum": ["sqlite", "postgresql"]}},
+        "salida_truncada": {"type": "boolean"},
+        "resumen_final": {"type": "string", "maxLength": 300},
+        "avisos": {"type": "array", "items": {"type": "string"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"estado": {"const": "VERIFICADO"}}},
+         "then": {"properties": {"motivos_no_verificado": {"type": "array", "maxItems": 0},
+                                 "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}}}},
+        {"if": {"properties": {"resultado": {"const": "APROBADA"}}},
+         "then": {"properties": {"codigo_salida": {"const": 0}, "conteo": {"type": "object"}}}}
+      ]
+    },
+    "historico": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "estado", "naturaleza", "descripcion", "fuente", "fuente_existe", "commit_fuente", "resumen",
+                   "ejecutado_por_este_informe"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "estado": {"enum": ["REPORTADO", "SIMULADO"]},
+        "naturaleza": {"enum": ["pruebas_automatizadas", "ci", "laboratorio", "medicion"]},
+        "descripcion": {"type": "string"},
+        "fuente": {"type": "string", "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_./-]*$"},
+        "fuente_existe": {"type": "boolean"},
+        "commit_fuente": {"type": ["string", "null"]},
+        "resumen": {"type": "string"},
+        "ejecutado_por_este_informe": {"const": false}
+      }
+    },
+    "declaracion": {
+      "type": "object", "additionalProperties": false, "required": ["id", "estado", "descripcion"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "estado": {"enum": ["REPORTADO", "SIMULADO", "PENDIENTE"]},
+        "descripcion": {"type": "string"},
+        "como_verificar": {"type": "string"},
+        "fuente": {"type": "string"}
+      }
+    }
+  }
+}

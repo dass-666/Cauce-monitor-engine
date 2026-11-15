@@ -31,7 +31,11 @@ def _load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-_load_dotenv(BASE_DIR / ".env")
+# v2.2.1: el ejecutor de suites para Jarvis (monitoreo/interop) define MONITOREO_IGNORAR_DOTENV=1
+# para que las pruebas nunca hereden la configuración real de una instalación (BD, tokens, portal).
+# Sin esa variable el comportamiento es el de siempre.
+if os.environ.get("MONITOREO_IGNORAR_DOTENV") != "1":
+    _load_dotenv(BASE_DIR / ".env")
 
 
 def _navegadores_de_la_instalacion() -> None:
