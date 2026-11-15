@@ -1,0 +1,60 @@
+{
+  "formato": "cauce.jarvis.run-result/1",
+  "id": "20261115T020458646159Z-completa",
+  "proyecto": "cauce-monitor-engine",
+  "version": "2.2.1-dev",
+  "suite": "completa",
+  "descripcion": "Suite completa del motor (la misma que ejecuta CI). Puede tardar más de 15 minutos con PostgreSQL.",
+  "comando": [
+    "{python}",
+    "-m",
+    "pytest",
+    "-q",
+    "-rs",
+    "tests"
+  ],
+  "limites": {
+    "tiempo_s": 5400,
+    "salida_bytes": 10000000
+  },
+  "git": {
+    "rama": "claude/project-thread-twugkn",
+    "commit": "59770a9cbabb56c2e75ea8f27d91f8da4bb051ae",
+    "limpio": true
+  },
+  "inicio": "2026-11-15T02:04:58Z",
+  "fin": "2026-11-15T02:16:27Z",
+  "duracion_s": 688.931,
+  "codigo_salida": 0,
+  "codigo_pytest": 0,
+  "resultado": "APROBADA",
+  "conteo": {
+    "total": 791,
+    "aprobadas": 787,
+    "fallidas": 0,
+    "errores": 0,
+    "omitidas": 4
+  },
+  "bases_de_datos": [
+    "sqlite",
+    "postgresql"
+  ],
+  "salida": {
+    "archivo": "salida.txt",
+    "bytes": 1968,
+    "truncada": false,
+    "sha256": "debba1d371da95b9ef49981239346ad8df6cbcc904cc13adf6fbf7eaa8fbe0e2",
+    "resumen_final": "787 passed, 4 skipped, 1 warning in 682.73s (0:11:22)"
+  },
+  "junit": {
+    "archivo": "junit.xml",
+    "sha256": "ba15986c3ff67ba11319f8e1fd0726a7969745f6b0b9bc544a18f1362431e71c"
+  },
+  "integridad": {
+    "git_sin_cambios": true,
+    "data_sin_cambios": false
+  },
+  "avisos": [
+    "la ejecución cambió el repositorio o data/: revisar antes de confiar en ella"
+  ]
+}

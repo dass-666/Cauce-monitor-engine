@@ -69,7 +69,7 @@ INFERENCIA por lectura.
 | Consentimiento y revocación (v2.2) | `captura/consentimiento.py`, `captura/trazabilidad.py` | consentimiento_v22 (22) |
 | Retención | `engine/` | retencion (3), retention (6), restaurar (4) |
 | Migraciones | `migrations/` | migrations (7) |
-| **Interoperabilidad Jarvis (v2.2.1)** | `interop/` | interop_jarvis (43 funciones, 84 casos) |
+| **Interoperabilidad Jarvis (v2.2.1)** | `interop/` | interop_jarvis (45 funciones, 86 casos) |
 
 ## 4. Migraciones
 
@@ -121,6 +121,7 @@ Ninguna prueba existente se eliminó ni se modificó. Cambios en código existen
 | R5 | El aislamiento de red no lo impone el sistema operativo | Media | Firewall de Windows para la copia de desarrollo | Comprobación W-10 de `JARVIS_REGISTRO.md` |
 | R6 | Un `resultado.json` se puede fabricar con acceso a la carpeta (no hay firma) | Baja en un solo equipo | Si Jarvis corre en otro equipo, añadir firma HMAC más adelante | — |
 | R7 | Con el entorno aislado, algunas pruebas del observador se **omiten** si Node/Playwright solo está accesible por variables que no pasan (lo vi en este contenedor con `NODE_PATH`; ya se pasa) | Media: menos cobertura sin fallo visible | El informe muestra `omitidas`; Jarvis debe vigilar ese número | Comparar `omitidas` entre ejecuciones |
+| R8 | `tests/test_restart.py` escribe en el `data/` de la carpeta del proyecto (medido: `data/feeds/*` y `data/notificaciones.log`) | Media-alta en una instalación real | El ejecutor rechaza la suite `completa` donde `data/` tiene una base; corregir la prueba en otra ronda (ver INFORME_v2.2.1, D2) | borrar `data/`, ejecutar esa prueba y mirar `data/` |
 | B1 | Operar con el portal externo requiere autorización del proveedor | Bloqueo | Fuera de alcance | `ALCANCE_Y_AUTORIZACIONES_v2.2.md` |
 | B2 | Equipo Windows físico sin validar | Bloqueo para declarar Windows listo | `JARVIS_REGISTRO.md`, sección 5 | Informe JSON generado en el equipo |
 | B3 | Jarvis real no ha consumido los contratos | Bloqueo para declarar la integración | Registrar y probar desde Jarvis E9.1.2 | `ciclo --suite humo` lanzado por Jarvis |

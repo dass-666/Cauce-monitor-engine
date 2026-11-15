@@ -1,0 +1,51 @@
+{
+  "formato": "cauce.jarvis.run-result/1",
+  "id": "20261115T022155439480Z-completa",
+  "proyecto": "cauce-monitor-engine",
+  "version": "2.2.1-dev",
+  "suite": "completa",
+  "descripcion": "Suite completa del motor (la misma que ejecuta CI). Puede tardar más de 15 minutos con PostgreSQL.",
+  "comando": [
+    "{python}",
+    "-m",
+    "pytest",
+    "-q",
+    "-rs",
+    "tests"
+  ],
+  "limites": {
+    "tiempo_s": 20,
+    "salida_bytes": 10000000
+  },
+  "git": {
+    "rama": "claude/project-thread-twugkn",
+    "commit": "69f3743511da3f918dc86668241af4a8dc9d34de",
+    "limpio": true
+  },
+  "inicio": "2026-11-15T02:21:55Z",
+  "fin": "2026-11-15T02:22:15Z",
+  "duracion_s": 20.071,
+  "codigo_salida": 3,
+  "codigo_pytest": 0,
+  "resultado": "TIEMPO_AGOTADO",
+  "conteo": null,
+  "bases_de_datos": [
+    "sqlite"
+  ],
+  "salida": {
+    "archivo": "salida.txt",
+    "bytes": 33,
+    "truncada": false,
+    "sha256": "4f653a0e984483819dba67aef5fb2c0453694565f100d3fb21d55c7f5e856718",
+    "resumen_final": ""
+  },
+  "junit": {
+    "archivo": "junit.xml",
+    "sha256": null
+  },
+  "integridad": {
+    "git_sin_cambios": true,
+    "data_sin_cambios": true
+  },
+  "avisos": []
+}

@@ -1,0 +1,3 @@
+SKIPPED [1] tests/test_carreras_postgres.py:110: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+SKIPPED [1] tests/test_carreras_postgres.py:122: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+787 passed, 4 skipped, 1 warning in 682.73s (0:11:22)
