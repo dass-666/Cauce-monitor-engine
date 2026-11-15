@@ -24,7 +24,7 @@ integracion:
   # Rama y commit que Jarvis debe reconocer. Cambiarlos es una decisión humana (editar este archivo en
   # una revisión); Cauce no los cambia solo y no toca la rama por omisión de GitHub.
   rama: claude/estabilizacion-v2.2.2
-  commit_fijado: 4fa04f1e47096f7bdb35fd871b6851e6dc3bc310
+  commit_fijado: b516869861fc96581345c749f3145b79eb989c10
   fijado_en: "2026-11-15"
   # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
   rutas_solo_documentacion:
