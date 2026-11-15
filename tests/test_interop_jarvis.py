@@ -598,3 +598,24 @@ def test_control_positivo_del_manifiesto(proyecto):
                                                           "tests/test_ok.py::test_uno"], "postgres": "opcional"}]),
                                proyecto)
     assert m.suite("xx").argv[-1] == "tests/test_ok.py::test_uno"
+
+
+def test_suite_que_escribe_data_se_niega_en_una_instalacion_real(proyecto):
+    m = _manifiesto_tmp()
+    m["suites"].append({"id": "sucia", "argv": ["{python}", "-m", "pytest", "-q", "tests/test_ok.py"],
+                        "etiquetas": ["escribe-data"]})
+    (proyecto / "jarvis" / "test-manifest.json").write_text(json.dumps(m), encoding="utf-8")
+    codigo, _ = correr(proyecto, "sucia")  # sin base en data/: se permite
+    assert codigo == 0
+    (proyecto / "data").mkdir()
+    (proyecto / "data" / "monitoreo.db").write_bytes(b"")
+    with pytest.raises(ErrorSolicitud):
+        correr(proyecto, "sucia")
+    (proyecto / "data" / "monitoreo.db").unlink()
+    (proyecto / ".env").write_text("MONITOREO_DB_URL=postgresql://real\n", encoding="utf-8")
+    with pytest.raises(ErrorSolicitud):
+        correr(proyecto, "sucia")
+
+
+def test_completa_marcada_como_escribe_data():
+    assert "escribe-data" in manifiesto.cargar(RAIZ).suite("completa").etiquetas

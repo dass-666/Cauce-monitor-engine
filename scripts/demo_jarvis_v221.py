@@ -125,7 +125,7 @@ def main() -> int:
                     "ejecuciones salen como REPORTADO y la consulta como NO_APTO: es lo esperado.")}
     escribir_json(Path(a.salida), sanear(res, RAIZ))
     print(json.dumps({"resultado": res["resultado"], "fallidas": [k for k, v in comprobaciones.items() if not v],
-                      "salida": a.salida}, ensure_ascii=False))
+                      "salida": sanear(a.salida, RAIZ)}, ensure_ascii=False))
     return 0 if ok == len(comprobaciones) else 1
 
 

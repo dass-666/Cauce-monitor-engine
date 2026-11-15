@@ -213,9 +213,25 @@ def ejecutar(suite_id: str, *, raiz: Path | None = None, salida: Path | None = N
     limite_t = min(suite.tiempo_s, tiempo_s) if tiempo_s else suite.tiempo_s
     salida = Path(salida).resolve() if salida else raiz / "resultados" / "jarvis"
     _comprobar_salida(salida, raiz)
+    if "escribe-data" in suite.etiquetas and _parece_instalacion_real(raiz):
+        raise ErrorSolicitud(f"la suite {suite.id} escribe en data/ (tests/test_restart.py arranca el servidor real "
+                             "en la carpeta del proyecto) y aquí data/ tiene una base de datos: ejecútala en una "
+                             "copia de desarrollo")
     cancelar = cancelar or threading.Event()
     with _Candado(salida / ".ejecutor.lock"):
         return _ejecutar(m, suite, raiz, salida, con_postgres, cancelar, limite_t)
+
+
+def _parece_instalacion_real(raiz: Path) -> bool:
+    """data/ con una base SQLite o un .env que define MONITOREO_DB_URL: probablemente atiende personas."""
+    d = raiz / "data"
+    if d.is_dir() and any(d.glob("*.db")):
+        return True
+    env = raiz / ".env"
+    try:
+        return env.is_file() and "MONITOREO_DB_URL" in env.read_text(encoding="utf-8-sig", errors="replace")
+    except OSError:
+        return True
 
 
 def _comprobar_salida(salida: Path, raiz: Path) -> None:

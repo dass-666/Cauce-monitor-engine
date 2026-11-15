@@ -50,7 +50,8 @@
       "tiempo_s": 5400,
       "salida_bytes": 10000000,
       "postgres": "opcional",
-      "etiquetas": ["lenta", "regresion"]
+      "etiquetas": ["lenta", "regresion", "escribe-data"],
+      "notas": "tests/test_restart.py arranca el servidor con cwd en el proyecto y escribe data/feeds y data/notificaciones.log (medido en v2.2.1). El ejecutor la rechaza si data/ tiene una base de datos o .env define MONITOREO_DB_URL."
     }
   ]
 }
