@@ -1,0 +1,1576 @@
+{
+  "python": "3.13.18",
+  "plataforma": "Linux-6.18.44-fc-v470-x86_64-with-glibc2.39",
+  "cpus": 4,
+  "limite_s": 0.4,
+  "escenarios": {
+    "normal": {
+      "resumen": {
+        "repeticiones": 40,
+        "fallos": 0,
+        "latencia_s": {
+          "min": 0.0823,
+          "mediana": 0.0829,
+          "p95": 0.155,
+          "max": 0.1992
+        },
+        "espera_hasta_salir_s": {
+          "min": 0.0303,
+          "mediana": 0.0303,
+          "p95": 0.0721,
+          "max": 0.0832
+        },
+        "arrendamiento_s": {
+          "min": 0.0011,
+          "mediana": 0.0014,
+          "p95": 0.002,
+          "max": 0.0046
+        },
+        "consulta_s": {
+          "min": 0.0501,
+          "mediana": 0.0501,
+          "p95": 0.0805,
+          "max": 0.1139
+        }
+      },
+      "rondas": [
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08264664499984065,
+          "consulta_s": 0.05010912899979303,
+          "espera_hasta_salir_s": 0.03031736000048113,
+          "arrendamiento_s": 0.0014182610002535512,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08312625400049001,
+          "consulta_s": 0.05012170500049251,
+          "espera_hasta_salir_s": 0.030421554999520595,
+          "arrendamiento_s": 0.001587566000125662,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08248992399967392,
+          "consulta_s": 0.050098469999284134,
+          "espera_hasta_salir_s": 0.03034435500012478,
+          "arrendamiento_s": 0.0011622479996731272,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08269207200009987,
+          "consulta_s": 0.050100167999517,
+          "espera_hasta_salir_s": 0.030406044000301335,
+          "arrendamiento_s": 0.0014340199995785952,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08256916799928149,
+          "consulta_s": 0.05009444000006624,
+          "espera_hasta_salir_s": 0.03034873499927926,
+          "arrendamiento_s": 0.0013045249997958308,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08614841400049045,
+          "consulta_s": 0.05009493900070083,
+          "espera_hasta_salir_s": 0.030466297999737435,
+          "arrendamiento_s": 0.004551844999696186,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08277981700030068,
+          "consulta_s": 0.05011271800049144,
+          "espera_hasta_salir_s": 0.030337627999870165,
+          "arrendamiento_s": 0.0014699670000482001,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0834188090002499,
+          "consulta_s": 0.05010729400055425,
+          "espera_hasta_salir_s": 0.0305034799994246,
+          "arrendamiento_s": 0.0013820109998050611,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08287856699917029,
+          "consulta_s": 0.05014036299962754,
+          "espera_hasta_salir_s": 0.03045804999965185,
+          "arrendamiento_s": 0.001409976000104507,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0826656750004986,
+          "consulta_s": 0.050099238000257174,
+          "espera_hasta_salir_s": 0.030291156999737723,
+          "arrendamiento_s": 0.0012927679999847896,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.1549599859999944,
+          "consulta_s": 0.08047387999977218,
+          "espera_hasta_salir_s": 0.07209528600014892,
+          "arrendamiento_s": 0.0012995300003240118,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08264360100019985,
+          "consulta_s": 0.050095466999664495,
+          "espera_hasta_salir_s": 0.030350533000273572,
+          "arrendamiento_s": 0.0013110520003465354,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08301260300049762,
+          "consulta_s": 0.05009235499983333,
+          "espera_hasta_salir_s": 0.03037605400004395,
+          "arrendamiento_s": 0.001662650000071153,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08329862400023558,
+          "consulta_s": 0.05011089099934907,
+          "espera_hasta_salir_s": 0.030309586000839772,
+          "arrendamiento_s": 0.0020095630006835563,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08320592000018223,
+          "consulta_s": 0.05010918599964498,
+          "espera_hasta_salir_s": 0.030322165000143286,
+          "arrendamiento_s": 0.0017639930001678295,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08287301400014258,
+          "consulta_s": 0.050103448999834654,
+          "espera_hasta_salir_s": 0.030293759000414866,
+          "arrendamiento_s": 0.0015253190003932104,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08350877000066248,
+          "consulta_s": 0.050128665000556794,
+          "espera_hasta_salir_s": 0.03030761399986659,
+          "arrendamiento_s": 0.0020079269997950178,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08322235400009959,
+          "consulta_s": 0.050100376999580476,
+          "espera_hasta_salir_s": 0.03044925999984116,
+          "arrendamiento_s": 0.0016064210003605695,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08310163099940837,
+          "consulta_s": 0.05013885999960621,
+          "espera_hasta_salir_s": 0.030412944000090647,
+          "arrendamiento_s": 0.001558631000079913,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08346751899989613,
+          "consulta_s": 0.05009530499955872,
+          "espera_hasta_salir_s": 0.030389366000235896,
+          "arrendamiento_s": 0.0017482140001447988,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08272038599989173,
+          "consulta_s": 0.050102641000194126,
+          "espera_hasta_salir_s": 0.030348498999956064,
+          "arrendamiento_s": 0.001360449999992852,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08299510899996676,
+          "consulta_s": 0.050155005999840796,
+          "espera_hasta_salir_s": 0.030394366000109585,
+          "arrendamiento_s": 0.0014904560002833023,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0832414759997846,
+          "consulta_s": 0.05017449399929319,
+          "espera_hasta_salir_s": 0.030404340000131924,
+          "arrendamiento_s": 0.001747597999383288,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08332498100025987,
+          "consulta_s": 0.050135178999880736,
+          "espera_hasta_salir_s": 0.030335135999848717,
+          "arrendamiento_s": 0.0020084349998796824,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0827008879996356,
+          "consulta_s": 0.05009198199968523,
+          "espera_hasta_salir_s": 0.030292699000710854,
+          "arrendamiento_s": 0.001456235999285127,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08234691399957228,
+          "consulta_s": 0.05009158400025626,
+          "espera_hasta_salir_s": 0.030318485999487166,
+          "arrendamiento_s": 0.0011495070002638386,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08263641099983943,
+          "consulta_s": 0.050091334999706305,
+          "espera_hasta_salir_s": 0.030341850000695558,
+          "arrendamiento_s": 0.0012455040005079354,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08252748500035523,
+          "consulta_s": 0.05009557199991832,
+          "espera_hasta_salir_s": 0.0302995270003521,
+          "arrendamiento_s": 0.0010641949993441813,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08309624699995766,
+          "consulta_s": 0.05009668200000306,
+          "espera_hasta_salir_s": 0.030280351999863342,
+          "arrendamiento_s": 0.0014499519993478316,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08227616299973306,
+          "consulta_s": 0.0500920419999602,
+          "espera_hasta_salir_s": 0.030355182999301178,
+          "arrendamiento_s": 0.0011918789996343548,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08345997200012789,
+          "consulta_s": 0.05009580899968569,
+          "espera_hasta_salir_s": 0.030514969999785535,
+          "arrendamiento_s": 0.0015781440006321645,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08271197900012339,
+          "consulta_s": 0.050094057000023895,
+          "espera_hasta_salir_s": 0.030318461000206298,
+          "arrendamiento_s": 0.001247408000381256,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08302123199973721,
+          "consulta_s": 0.05010157699962292,
+          "espera_hasta_salir_s": 0.03037328800019168,
+          "arrendamiento_s": 0.0012828019998778473,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08292400400023325,
+          "consulta_s": 0.050142037000114215,
+          "espera_hasta_salir_s": 0.030341910000061034,
+          "arrendamiento_s": 0.0014592790003007394,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08264023399988218,
+          "consulta_s": 0.050100643999940075,
+          "espera_hasta_salir_s": 0.03027288100020087,
+          "arrendamiento_s": 0.0013156699997125543,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.19916076500066993,
+          "consulta_s": 0.11388943300062238,
+          "espera_hasta_salir_s": 0.08321516599971801,
+          "arrendamiento_s": 0.001196772999719542,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08265791400026501,
+          "consulta_s": 0.05009757300013007,
+          "espera_hasta_salir_s": 0.030290347000118345,
+          "arrendamiento_s": 0.0014061210004001623,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08296757800053456,
+          "consulta_s": 0.050101161999918986,
+          "espera_hasta_salir_s": 0.030379978999917512,
+          "arrendamiento_s": 0.0014261139995142003,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08267472799980169,
+          "consulta_s": 0.05009235899979103,
+          "espera_hasta_salir_s": 0.030291729000055057,
+          "arrendamiento_s": 0.0014926639996701851,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08242333899943333,
+          "consulta_s": 0.050108880999687244,
+          "espera_hasta_salir_s": 0.03027134600051795,
+          "arrendamiento_s": 0.0013067970003248774,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        }
+      ]
+    },
+    "carga": {
+      "resumen": {
+        "repeticiones": 40,
+        "fallos": 0,
+        "latencia_s": {
+          "min": 0.0824,
+          "mediana": 0.0882,
+          "p95": 0.0977,
+          "max": 0.2663
+        },
+        "espera_hasta_salir_s": {
+          "min": 0.0302,
+          "mediana": 0.0303,
+          "p95": 0.0365,
+          "max": 0.0561
+        },
+        "arrendamiento_s": {
+          "min": 0.0011,
+          "mediana": 0.0014,
+          "p95": 0.0018,
+          "max": 0.006
+        },
+        "consulta_s": {
+          "min": 0.0501,
+          "mediana": 0.0502,
+          "p95": 0.0583,
+          "max": 0.1995
+        }
+      },
+      "rondas": [
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08300469599998905,
+          "consulta_s": 0.05006875700019009,
+          "espera_hasta_salir_s": 0.030833648000225367,
+          "arrendamiento_s": 0.0012392130001899204,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08860864300004323,
+          "consulta_s": 0.05256581300000107,
+          "espera_hasta_salir_s": 0.03035046299919486,
+          "arrendamiento_s": 0.001548356000057538,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08868073299981916,
+          "consulta_s": 0.052659789999779605,
+          "espera_hasta_salir_s": 0.030304834000162373,
+          "arrendamiento_s": 0.001536546999886923,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08842984999955661,
+          "consulta_s": 0.05242117400030111,
+          "espera_hasta_salir_s": 0.030284937999567774,
+          "arrendamiento_s": 0.0016176879998965887,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0913914399998248,
+          "consulta_s": 0.054413060000115365,
+          "espera_hasta_salir_s": 0.030457160999503685,
+          "arrendamiento_s": 0.001069296000423492,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09081193600013648,
+          "consulta_s": 0.05007122000006348,
+          "espera_hasta_salir_s": 0.032786650999696576,
+          "arrendamiento_s": 0.00118149199988693,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08244862999981706,
+          "consulta_s": 0.0500707910005076,
+          "espera_hasta_salir_s": 0.030232314999921073,
+          "arrendamiento_s": 0.0013906479998695431,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09150990299986006,
+          "consulta_s": 0.05483615299999656,
+          "espera_hasta_salir_s": 0.03146456499962369,
+          "arrendamiento_s": 0.0011801460004789988,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09367869600009726,
+          "consulta_s": 0.05366845000025933,
+          "espera_hasta_salir_s": 0.03026304600007279,
+          "arrendamiento_s": 0.0011642509998637252,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08495277499969234,
+          "consulta_s": 0.05278870499932964,
+          "espera_hasta_salir_s": 0.030222869000681385,
+          "arrendamiento_s": 0.0012530099993455224,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08617202400000679,
+          "consulta_s": 0.050072435999936715,
+          "espera_hasta_salir_s": 0.03031357200052298,
+          "arrendamiento_s": 0.001285456999539747,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08406238799943822,
+          "consulta_s": 0.050070435999259644,
+          "espera_hasta_salir_s": 0.03025990800051659,
+          "arrendamiento_s": 0.0014796599998589954,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0976822220000031,
+          "consulta_s": 0.05833780899956764,
+          "espera_hasta_salir_s": 0.030321545000333572,
+          "arrendamiento_s": 0.001382825000291632,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09006135100025858,
+          "consulta_s": 0.05007833700074116,
+          "espera_hasta_salir_s": 0.03028800499942008,
+          "arrendamiento_s": 0.0013310310005181236,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09409117499944841,
+          "consulta_s": 0.05404717300007178,
+          "espera_hasta_salir_s": 0.03426158000002033,
+          "arrendamiento_s": 0.0013899639998271596,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0940560609997192,
+          "consulta_s": 0.05405665099988255,
+          "espera_hasta_salir_s": 0.030268323000200326,
+          "arrendamiento_s": 0.005985179999697721,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08301544899950386,
+          "consulta_s": 0.05007106099947123,
+          "espera_hasta_salir_s": 0.03026055800000904,
+          "arrendamiento_s": 0.0017609820006327936,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08262778999960574,
+          "consulta_s": 0.050070550999407715,
+          "espera_hasta_salir_s": 0.03037785700053064,
+          "arrendamiento_s": 0.0013908270002502832,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09085307500026829,
+          "consulta_s": 0.05484340600014548,
+          "espera_hasta_salir_s": 0.030221971000173653,
+          "arrendamiento_s": 0.001367656999718747,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08243228300034389,
+          "consulta_s": 0.0500717570002962,
+          "espera_hasta_salir_s": 0.030233114999646205,
+          "arrendamiento_s": 0.0013043770004514954,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.2662761279998449,
+          "consulta_s": 0.19951174499965418,
+          "espera_hasta_salir_s": 0.056085516000166535,
+          "arrendamiento_s": 0.0012293629997657263,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09040385800017248,
+          "consulta_s": 0.050072258999534824,
+          "espera_hasta_salir_s": 0.030595207000260416,
+          "arrendamiento_s": 0.0014004449994899915,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08776666399990063,
+          "consulta_s": 0.05007063299945003,
+          "espera_hasta_salir_s": 0.030298958000457787,
+          "arrendamiento_s": 0.0012821069994970458,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08783617699918977,
+          "consulta_s": 0.050069860999428784,
+          "espera_hasta_salir_s": 0.030270340000242868,
+          "arrendamiento_s": 0.0011881990003530518,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08999881599993387,
+          "consulta_s": 0.050073016000169446,
+          "espera_hasta_salir_s": 0.031410893000611395,
+          "arrendamiento_s": 0.0015801259996806039,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.086252240000249,
+          "consulta_s": 0.05302744700020412,
+          "espera_hasta_salir_s": 0.030358326999703422,
+          "arrendamiento_s": 0.001723370000036084,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08629361200019048,
+          "consulta_s": 0.05215956600022764,
+          "espera_hasta_salir_s": 0.03203619800024171,
+          "arrendamiento_s": 0.0013267809999888414,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08779752800001006,
+          "consulta_s": 0.050074131999281235,
+          "espera_hasta_salir_s": 0.030248117000155617,
+          "arrendamiento_s": 0.0016233790001933812,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08502752500044153,
+          "consulta_s": 0.05007045900038065,
+          "espera_hasta_salir_s": 0.030272811000031652,
+          "arrendamiento_s": 0.0017859740000858437,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0836424379995151,
+          "consulta_s": 0.05007523800031777,
+          "espera_hasta_salir_s": 0.03127512399987609,
+          "arrendamiento_s": 0.0013781870002276264,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08957878499950311,
+          "consulta_s": 0.05030986600013421,
+          "espera_hasta_salir_s": 0.03654401799940388,
+          "arrendamiento_s": 0.0017856720005511306,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08805195500008267,
+          "consulta_s": 0.05459341999994649,
+          "espera_hasta_salir_s": 0.031194084000162547,
+          "arrendamiento_s": 0.0013539680003304966,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0906729220005218,
+          "consulta_s": 0.05008233199987444,
+          "espera_hasta_salir_s": 0.03038131700031954,
+          "arrendamiento_s": 0.0014716999994561775,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08639289499933511,
+          "consulta_s": 0.050073997999788844,
+          "espera_hasta_salir_s": 0.03023813399977371,
+          "arrendamiento_s": 0.0013940789995103842,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09002071899976727,
+          "consulta_s": 0.05401323899968702,
+          "espera_hasta_salir_s": 0.030259215000114636,
+          "arrendamiento_s": 0.001256274000297708,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08488634700006514,
+          "consulta_s": 0.05188656000063929,
+          "espera_hasta_salir_s": 0.030886650999491394,
+          "arrendamiento_s": 0.0013552999998864834,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0915802210001857,
+          "consulta_s": 0.05404460099998687,
+          "espera_hasta_salir_s": 0.03522082700055762,
+          "arrendamiento_s": 0.0012265889999980573,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08927271500033385,
+          "consulta_s": 0.0532680980004443,
+          "espera_hasta_salir_s": 0.030307786999401287,
+          "arrendamiento_s": 0.0013276879999466473,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08292485900074098,
+          "consulta_s": 0.050072265999915544,
+          "espera_hasta_salir_s": 0.03032590800012258,
+          "arrendamiento_s": 0.0015245369995682267,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08301700100037124,
+          "consulta_s": 0.05007053499957692,
+          "espera_hasta_salir_s": 0.030300139000246418,
+          "arrendamiento_s": 0.0015703559993198724,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        }
+      ]
+    },
+    "aislado": {
+      "resumen": {
+        "repeticiones": 40,
+        "fallos": 0,
+        "latencia_s": {
+          "min": 0.0828,
+          "mediana": 0.0836,
+          "p95": 0.0848,
+          "max": 0.085
+        },
+        "espera_hasta_salir_s": {
+          "min": 0.0303,
+          "mediana": 0.0305,
+          "p95": 0.0308,
+          "max": 0.0309
+        },
+        "arrendamiento_s": {
+          "min": 0.0014,
+          "mediana": 0.0018,
+          "p95": 0.0026,
+          "max": 0.0029
+        },
+        "consulta_s": {
+          "min": 0.0501,
+          "mediana": 0.0501,
+          "p95": 0.0502,
+          "max": 0.0502
+        }
+      },
+      "rondas": [
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08282854099979886,
+          "consulta_s": 0.05009709499972814,
+          "espera_hasta_salir_s": 0.030337611000504694,
+          "arrendamiento_s": 0.0013777049998680013,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08353274100045383,
+          "consulta_s": 0.05011007100074494,
+          "espera_hasta_salir_s": 0.030468921999272425,
+          "arrendamiento_s": 0.0019157850001647603,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08422079199954169,
+          "consulta_s": 0.05015748599998915,
+          "espera_hasta_salir_s": 0.030833666999569687,
+          "arrendamiento_s": 0.0018356880000283127,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08417940800063661,
+          "consulta_s": 0.05011855500015372,
+          "espera_hasta_salir_s": 0.030475321000267286,
+          "arrendamiento_s": 0.0022489240000140853,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08382600299955811,
+          "consulta_s": 0.05016972100020212,
+          "espera_hasta_salir_s": 0.030622397999650275,
+          "arrendamiento_s": 0.0016007490003175917,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08357293700009905,
+          "consulta_s": 0.050095298000087496,
+          "espera_hasta_salir_s": 0.03039468599945394,
+          "arrendamiento_s": 0.0020248740001989063,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0836924369996268,
+          "consulta_s": 0.05010608199972921,
+          "espera_hasta_salir_s": 0.030434195000452746,
+          "arrendamiento_s": 0.0016519739992872928,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08300129900089814,
+          "consulta_s": 0.05011656400074571,
+          "espera_hasta_salir_s": 0.030356605999259045,
+          "arrendamiento_s": 0.0014561039997715852,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08356177400037268,
+          "consulta_s": 0.050109431999771914,
+          "espera_hasta_salir_s": 0.03060867300064274,
+          "arrendamiento_s": 0.001653028999498929,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0839202250008384,
+          "consulta_s": 0.050109098000575614,
+          "espera_hasta_salir_s": 0.030606514000282914,
+          "arrendamiento_s": 0.0016696120001142845,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08385958900089463,
+          "consulta_s": 0.05012147300021752,
+          "espera_hasta_salir_s": 0.030531752000570123,
+          "arrendamiento_s": 0.001902042999972764,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08499540000048,
+          "consulta_s": 0.05014612800005125,
+          "espera_hasta_salir_s": 0.030616425000516756,
+          "arrendamiento_s": 0.002915510000093491,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08342131300014444,
+          "consulta_s": 0.050112033000004885,
+          "espera_hasta_salir_s": 0.03041532899987942,
+          "arrendamiento_s": 0.001711960000648105,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08400864900067972,
+          "consulta_s": 0.050115267999899515,
+          "espera_hasta_salir_s": 0.03057779200025834,
+          "arrendamiento_s": 0.0019301800002722302,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08339871099997254,
+          "consulta_s": 0.050142701000368106,
+          "espera_hasta_salir_s": 0.030447447999904398,
+          "arrendamiento_s": 0.0016813120000733761,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08479802900001232,
+          "consulta_s": 0.050133344000641955,
+          "espera_hasta_salir_s": 0.03062195199981943,
+          "arrendamiento_s": 0.0025795219999054098,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08367975400051364,
+          "consulta_s": 0.050130748000810854,
+          "espera_hasta_salir_s": 0.030490514999655716,
+          "arrendamiento_s": 0.0017373089995089686,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08387909600060084,
+          "consulta_s": 0.05012800399981643,
+          "espera_hasta_salir_s": 0.03069443799995497,
+          "arrendamiento_s": 0.0018005570000241278,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08423135300017748,
+          "consulta_s": 0.0501332559997536,
+          "espera_hasta_salir_s": 0.030489187000057427,
+          "arrendamiento_s": 0.002261188000375114,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08381612900029722,
+          "consulta_s": 0.05013322800004971,
+          "espera_hasta_salir_s": 0.030567028000405116,
+          "arrendamiento_s": 0.001879647999885492,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08334881399969163,
+          "consulta_s": 0.05011314900002617,
+          "espera_hasta_salir_s": 0.030490316999930656,
+          "arrendamiento_s": 0.0015802070001882385,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08348837900030048,
+          "consulta_s": 0.0501189640008306,
+          "espera_hasta_salir_s": 0.03046946599988587,
+          "arrendamiento_s": 0.001827181000408018,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08354799500011723,
+          "consulta_s": 0.05010376799964433,
+          "espera_hasta_salir_s": 0.030341020000378194,
+          "arrendamiento_s": 0.001936259000103746,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0833049499997287,
+          "consulta_s": 0.050095547999262635,
+          "espera_hasta_salir_s": 0.030454108999947493,
+          "arrendamiento_s": 0.0016399360001742025,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08348899800057552,
+          "consulta_s": 0.05014734500036866,
+          "espera_hasta_salir_s": 0.03046261399958894,
+          "arrendamiento_s": 0.0016516120003871038,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08353293699929054,
+          "consulta_s": 0.050141075999817986,
+          "espera_hasta_salir_s": 0.030531590999999025,
+          "arrendamiento_s": 0.0015780210005686968,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08337616500011791,
+          "consulta_s": 0.05015122100030567,
+          "espera_hasta_salir_s": 0.030350690999512153,
+          "arrendamiento_s": 0.0017540609997013235,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08430884800054628,
+          "consulta_s": 0.050140808000833204,
+          "espera_hasta_salir_s": 0.030781194999690342,
+          "arrendamiento_s": 0.0022029049996490357,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08330688099977124,
+          "consulta_s": 0.05010789800053317,
+          "espera_hasta_salir_s": 0.03029859199978091,
+          "arrendamiento_s": 0.0015247339997586096,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08342443899982754,
+          "consulta_s": 0.05009248799979105,
+          "espera_hasta_salir_s": 0.03038376699987566,
+          "arrendamiento_s": 0.001920619999509654,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08309055600057036,
+          "consulta_s": 0.05011960200044996,
+          "espera_hasta_salir_s": 0.030374629000107234,
+          "arrendamiento_s": 0.0015320129996325704,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08380147500065505,
+          "consulta_s": 0.05017193300045619,
+          "espera_hasta_salir_s": 0.03057675400032167,
+          "arrendamiento_s": 0.0017725560001053964,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08334814099998766,
+          "consulta_s": 0.05010768800002552,
+          "espera_hasta_salir_s": 0.030469958999674418,
+          "arrendamiento_s": 0.0016904829999475623,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08418745499966462,
+          "consulta_s": 0.05010260099970765,
+          "espera_hasta_salir_s": 0.03052877299978718,
+          "arrendamiento_s": 0.0023323770001297817,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0834716829995159,
+          "consulta_s": 0.05011878799996339,
+          "espera_hasta_salir_s": 0.030511000999467797,
+          "arrendamiento_s": 0.001772412999343942,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08351929899981769,
+          "consulta_s": 0.05012708400045085,
+          "espera_hasta_salir_s": 0.030632426000011037,
+          "arrendamiento_s": 0.0016587929994784645,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08404453000002832,
+          "consulta_s": 0.050100885000574635,
+          "espera_hasta_salir_s": 0.030884193999554554,
+          "arrendamiento_s": 0.0018507769991629175,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08409555700018245,
+          "consulta_s": 0.05012824900040869,
+          "espera_hasta_salir_s": 0.03049497999927553,
+          "arrendamiento_s": 0.002256607000163058,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08399289400040288,
+          "consulta_s": 0.0501183240003229,
+          "espera_hasta_salir_s": 0.030547113000466197,
+          "arrendamiento_s": 0.0018668209995666984,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08341447400016477,
+          "consulta_s": 0.05011866699987877,
+          "espera_hasta_salir_s": 0.030454051000560867,
+          "arrendamiento_s": 0.0016884480000953772,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        }
+      ]
+    },
+    "carga_aislado": {
+      "resumen": {
+        "repeticiones": 40,
+        "fallos": 0,
+        "latencia_s": {
+          "min": 0.0824,
+          "mediana": 0.0833,
+          "p95": 0.091,
+          "max": 0.0997
+        },
+        "espera_hasta_salir_s": {
+          "min": 0.0302,
+          "mediana": 0.0303,
+          "p95": 0.035,
+          "max": 0.0361
+        },
+        "arrendamiento_s": {
+          "min": 0.0011,
+          "mediana": 0.0016,
+          "p95": 0.0067,
+          "max": 0.0075
+        },
+        "consulta_s": {
+          "min": 0.0501,
+          "mediana": 0.0501,
+          "p95": 0.0538,
+          "max": 0.0553
+        }
+      },
+      "rondas": [
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09969775600075081,
+          "consulta_s": 0.055285301000367326,
+          "espera_hasta_salir_s": 0.03085930199995346,
+          "arrendamiento_s": 0.007538074999501987,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08778347799943731,
+          "consulta_s": 0.0500759790002121,
+          "espera_hasta_salir_s": 0.03496272999927896,
+          "arrendamiento_s": 0.0016508910002812627,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08878114199978882,
+          "consulta_s": 0.052617536000070686,
+          "espera_hasta_salir_s": 0.030221278999306378,
+          "arrendamiento_s": 0.0015903250005067093,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0875668790004056,
+          "consulta_s": 0.050096753000616445,
+          "espera_hasta_salir_s": 0.030335876000208373,
+          "arrendamiento_s": 0.0012898470004074625,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0833045850004055,
+          "consulta_s": 0.05007332600052905,
+          "espera_hasta_salir_s": 0.030361873999936506,
+          "arrendamiento_s": 0.00168291699992551,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08307011899978534,
+          "consulta_s": 0.050088334000065515,
+          "espera_hasta_salir_s": 0.030354923000231793,
+          "arrendamiento_s": 0.0015798429994902108,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08277313500002492,
+          "consulta_s": 0.05007059399940772,
+          "espera_hasta_salir_s": 0.03019432900055108,
+          "arrendamiento_s": 0.001159057000222674,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09082657500039204,
+          "consulta_s": 0.05007795600067766,
+          "espera_hasta_salir_s": 0.030284475999906135,
+          "arrendamiento_s": 0.0019945220001318376,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08561283699964406,
+          "consulta_s": 0.05007947299964144,
+          "espera_hasta_salir_s": 0.030368913000529574,
+          "arrendamiento_s": 0.0016550070004086592,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08834846800073137,
+          "consulta_s": 0.050078885999937484,
+          "espera_hasta_salir_s": 0.03614462800032925,
+          "arrendamiento_s": 0.0011923330002900911,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08239874199989572,
+          "consulta_s": 0.0500755470002332,
+          "espera_hasta_salir_s": 0.03026347899958637,
+          "arrendamiento_s": 0.0012177200005680788,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.09098469800028397,
+          "consulta_s": 0.05007834400021238,
+          "espera_hasta_salir_s": 0.0302609289992688,
+          "arrendamiento_s": 0.0013085079999655136,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08317987699956575,
+          "consulta_s": 0.050086067999473016,
+          "espera_hasta_salir_s": 0.030403904000195325,
+          "arrendamiento_s": 0.0015486109996345476,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08306529600031354,
+          "consulta_s": 0.05008031400029722,
+          "espera_hasta_salir_s": 0.03039515999989817,
+          "arrendamiento_s": 0.0014779189996261266,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08672253399981855,
+          "consulta_s": 0.05007715800002188,
+          "espera_hasta_salir_s": 0.033973820000028354,
+          "arrendamiento_s": 0.0014872020001348574,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08259189399996103,
+          "consulta_s": 0.05010035899977083,
+          "espera_hasta_salir_s": 0.030277543999545742,
+          "arrendamiento_s": 0.00126687200008746,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08245782199992391,
+          "consulta_s": 0.05007162700076151,
+          "espera_hasta_salir_s": 0.030252451999331242,
+          "arrendamiento_s": 0.0012288429998079664,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08320277700022416,
+          "consulta_s": 0.050079930000720196,
+          "espera_hasta_salir_s": 0.03039497499958088,
+          "arrendamiento_s": 0.0016001579997464432,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08604619100060518,
+          "consulta_s": 0.05007109100006346,
+          "espera_hasta_salir_s": 0.03365131100053986,
+          "arrendamiento_s": 0.0012226299995745649,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08638548799990531,
+          "consulta_s": 0.05384352500004752,
+          "espera_hasta_salir_s": 0.030267205000200192,
+          "arrendamiento_s": 0.0012960529993506498,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08306588399955217,
+          "consulta_s": 0.0500760969998737,
+          "espera_hasta_salir_s": 0.030283086999588704,
+          "arrendamiento_s": 0.0015953520005496102,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08817620399986481,
+          "consulta_s": 0.05007735499930277,
+          "espera_hasta_salir_s": 0.030263416000707366,
+          "arrendamiento_s": 0.00668548399971769,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08294535200002429,
+          "consulta_s": 0.050070934999894234,
+          "espera_hasta_salir_s": 0.030284385999948427,
+          "arrendamiento_s": 0.0014824870004304103,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.0840857839993987,
+          "consulta_s": 0.050073678999979165,
+          "espera_hasta_salir_s": 0.030349718999787,
+          "arrendamiento_s": 0.0016028950003601494,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08308144900001935,
+          "consulta_s": 0.05008349199943041,
+          "espera_hasta_salir_s": 0.03033101000073657,
+          "arrendamiento_s": 0.0016047419994720258,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08308417800071766,
+          "consulta_s": 0.050078909000149,
+          "espera_hasta_salir_s": 0.03040432099987811,
+          "arrendamiento_s": 0.0015181429998847307,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08311108499947295,
+          "consulta_s": 0.050074358999154356,
+          "espera_hasta_salir_s": 0.030276638000032108,
+          "arrendamiento_s": 0.0016660160008541425,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08362477300033788,
+          "consulta_s": 0.05007248800029629,
+          "espera_hasta_salir_s": 0.030303622000246833,
+          "arrendamiento_s": 0.002180876999773318,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08360237900069478,
+          "consulta_s": 0.05007320599997911,
+          "espera_hasta_salir_s": 0.030310950000057346,
+          "arrendamiento_s": 0.0011013109997293213,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08326432899957581,
+          "consulta_s": 0.05007953199947224,
+          "espera_hasta_salir_s": 0.03042080800059921,
+          "arrendamiento_s": 0.0015848240000195801,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08685845899981359,
+          "consulta_s": 0.05347531500046898,
+          "espera_hasta_salir_s": 0.030349852999279392,
+          "arrendamiento_s": 0.0018399600003249361,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08300290599981963,
+          "consulta_s": 0.0500710699998308,
+          "espera_hasta_salir_s": 0.030294035999759217,
+          "arrendamiento_s": 0.0016059420004239655,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08265779900011694,
+          "consulta_s": 0.050078874999599066,
+          "espera_hasta_salir_s": 0.03033070099991164,
+          "arrendamiento_s": 0.0013061039999229251,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08302066500073124,
+          "consulta_s": 0.05007583400038129,
+          "espera_hasta_salir_s": 0.030300270000225282,
+          "arrendamiento_s": 0.0015582169999106554,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08328773599987471,
+          "consulta_s": 0.05008317200008605,
+          "espera_hasta_salir_s": 0.030440687000009348,
+          "arrendamiento_s": 0.001565755000228819,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08333457600019756,
+          "consulta_s": 0.050074660000063886,
+          "espera_hasta_salir_s": 0.030293496000012965,
+          "arrendamiento_s": 0.0020598719993358827,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08341588100029185,
+          "consulta_s": 0.05007307200048672,
+          "espera_hasta_salir_s": 0.030355545000020356,
+          "arrendamiento_s": 0.001425456000106351,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08310924899979,
+          "consulta_s": 0.05008626199924038,
+          "espera_hasta_salir_s": 0.03034930100056954,
+          "arrendamiento_s": 0.001565608999953838,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08346663799966336,
+          "consulta_s": 0.0500893990001714,
+          "espera_hasta_salir_s": 0.03042020799966849,
+          "arrendamiento_s": 0.0017235740006071865,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        },
+        {
+          "wakeups": 1,
+          "latencia_s": 0.08333340100034548,
+          "consulta_s": 0.05010039500029961,
+          "espera_hasta_salir_s": 0.03040311099994142,
+          "arrendamiento_s": 0.0015683329993407824,
+          "ciclos_antes_de_procesar": 1,
+          "falla": false
+        }
+      ]
+    }
+  }
+}

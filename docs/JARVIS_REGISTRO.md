@@ -1,4 +1,4 @@
-# Registro de Cauce Monitor Engine en Jarvis (v2.2.1)
+# Registro de Cauce Monitor Engine en Jarvis (v2.2.1, actualizado en v2.2.2)
 
 Esta guía explica cómo registrar el proyecto en Jarvis Personal E9.1.2 y qué puede hacer Jarvis con él.
 Lo que Cauce expone es **solo lectura o ejecución de pruebas aisladas**. No hay comandos para
@@ -8,6 +8,22 @@ fusionar, desplegar, editar código, tocar la base de datos real ni hablar con p
 > en GitHub bajo esta cuenta). Los pasos de Jarvis de la sección 3 son **INFERENCIA**: describen lo
 > que Jarvis necesita leer, no los menús reales de E9.1.2. El lado de Cauce (secciones 2, 4 y 5) sí
 > está probado en Linux y en Windows Server de GitHub Actions, **no** en el equipo Windows físico.
+
+## 0. Guía breve (v2.2.2)
+
+1. Copia de desarrollo de Cauce (no la carpeta de la ventanilla), con su `.venv`.
+2. En Jarvis E9.1.2, registrar el proyecto con `jarvis/project.yaml`.
+3. **Rama y commit:** Jarvis debe leer `integracion.rama` y `integracion.commit_fijado`, no
+   `proyecto.rama_principal` (`master` es la rama histórica v1.0, se conserva por compatibilidad).
+   Hacer `git checkout <integracion.rama>` en la copia.
+4. Primera llamada: `{python} -m monitoreo.interop ciclo --suite humo`.
+5. En `resultados/jarvis/informe.json` comprobar:
+   - `resumen.estado_global == "APROBADO"`;
+   - `integracion.relacion` es `FIJADO` o `POSTERIOR_SOLO_DOCUMENTOS` (si es `POSTERIOR_CON_CODIGO` o
+     `DISTINTO`, el código no es el fijado: avisar a una persona, no seguir);
+   - `integracion.rama_actual_coincide == true`.
+6. Cambiar la rama o el commit fijados es una decisión humana: se edita `jarvis/project.yaml` en una
+   revisión. Ni Cauce ni Jarvis deben cambiarlo solos, ni tocar la rama por omisión de GitHub.
 
 ## 1. Qué archivos tiene que conocer Jarvis
 

@@ -1,0 +1,176 @@
+{
+  "version": "2.2.2-dev",
+  "demostracion": "jarvis-v2.2.1",
+  "suite": "humo",
+  "plataforma": "Linux",
+  "python": "3.13.18",
+  "commit": "7bef85000d0aa07a3222f6f2dafd4bf33b11c6a2",
+  "arbol_limpio": true,
+  "pasos": [
+    {
+      "paso": "1-inventario",
+      "codigo": 0,
+      "duracion_s": 0.28,
+      "commit": "7bef85000d0aa07a3222f6f2dafd4bf33b11c6a2",
+      "ramas": 15,
+      "migraciones": [
+        "0015_v2_2"
+      ],
+      "archivos_de_prueba": 51
+    },
+    {
+      "paso": "2-manifiesto",
+      "codigo": 0,
+      "duracion_s": 0.07,
+      "suites": [
+        "interop",
+        "humo",
+        "consentimiento",
+        "planificador",
+        "completa"
+      ]
+    }
+  ],
+  "rondas": [
+    {
+      "ronda": 1,
+      "ejecutar": {
+        "codigo": 0,
+        "resultado": "APROBADA",
+        "conteo": {
+          "total": 63,
+          "aprobadas": 63,
+          "fallidas": 0,
+          "errores": 0,
+          "omitidas": 0
+        },
+        "duracion_s": 51.084,
+        "bases_de_datos": [
+          "sqlite",
+          "postgresql"
+        ],
+        "integridad": {
+          "git_sin_cambios": true,
+          "data_sin_cambios": true
+        }
+      },
+      "informe": {
+        "codigo": 0,
+        "estado_global": "APROBADO",
+        "conteo_estados": {
+          "VERIFICADO": 1,
+          "REPORTADO": 2,
+          "SIMULADO": 2,
+          "PENDIENTE": 7
+        },
+        "duracion_s": 0.08
+      },
+      "validar": {
+        "codigo": 0,
+        "valido": true,
+        "duracion_s": 0.07
+      },
+      "consulta_jarvis": {
+        "estado": "SIMULADO",
+        "comprobaciones": {
+          "esquema_valido": true,
+          "proyecto_correcto": true,
+          "commit_es_el_actual": true,
+          "hay_pruebas_verificadas": true,
+          "historicos_no_son_verificados": true,
+          "verificadas_con_evidencia": true
+        },
+        "decision_simulada": "APTO_PARA_REVISION_HUMANA",
+        "nota": "Aun siendo apto, Jarvis no fusiona ni despliega: solo informa a una persona.",
+        "pendientes_que_jarvis_mostraria": [
+          "windows-fisico",
+          "jarvis-real",
+          "autonomous-worker",
+          "telegram-real",
+          "red-aislada"
+        ],
+        "estado_global": "APROBADO",
+        "huella_contenido": "90fb78eeac92bf57d4d1aa696404b5f554126a12539c2bd55c9ded2707b93db6"
+      }
+    },
+    {
+      "ronda": 2,
+      "ejecutar": {
+        "codigo": 0,
+        "resultado": "APROBADA",
+        "conteo": {
+          "total": 63,
+          "aprobadas": 63,
+          "fallidas": 0,
+          "errores": 0,
+          "omitidas": 0
+        },
+        "duracion_s": 51.484,
+        "bases_de_datos": [
+          "sqlite",
+          "postgresql"
+        ],
+        "integridad": {
+          "git_sin_cambios": true,
+          "data_sin_cambios": true
+        }
+      },
+      "informe": {
+        "codigo": 0,
+        "estado_global": "APROBADO",
+        "conteo_estados": {
+          "VERIFICADO": 1,
+          "REPORTADO": 2,
+          "SIMULADO": 2,
+          "PENDIENTE": 7
+        },
+        "duracion_s": 0.1
+      },
+      "validar": {
+        "codigo": 0,
+        "valido": true,
+        "duracion_s": 0.07
+      },
+      "consulta_jarvis": {
+        "estado": "SIMULADO",
+        "comprobaciones": {
+          "esquema_valido": true,
+          "proyecto_correcto": true,
+          "commit_es_el_actual": true,
+          "hay_pruebas_verificadas": true,
+          "historicos_no_son_verificados": true,
+          "verificadas_con_evidencia": true
+        },
+        "decision_simulada": "APTO_PARA_REVISION_HUMANA",
+        "nota": "Aun siendo apto, Jarvis no fusiona ni despliega: solo informa a una persona.",
+        "pendientes_que_jarvis_mostraria": [
+          "windows-fisico",
+          "jarvis-real",
+          "autonomous-worker",
+          "telegram-real",
+          "red-aislada"
+        ],
+        "estado_global": "APROBADO",
+        "huella_contenido": "90fb78eeac92bf57d4d1aa696404b5f554126a12539c2bd55c9ded2707b93db6"
+      }
+    }
+  ],
+  "comprobaciones": {
+    "comando_no_permitido_rechazado": true,
+    "inventario_ok": true,
+    "manifiesto_ok": true,
+    "ronda1_suite_aprobada": true,
+    "ronda1_sin_cambios_en_repo_ni_data": true,
+    "ronda1_informe_valido": true,
+    "ronda1_consulta_apta": true,
+    "ronda2_suite_aprobada": true,
+    "ronda2_sin_cambios_en_repo_ni_data": true,
+    "ronda2_informe_valido": true,
+    "ronda2_consulta_apta": true,
+    "idempotente_misma_huella": true,
+    "idempotente_mismo_conteo": true,
+    "postgres_usado": true
+  },
+  "resultado": "14/14",
+  "nota": "La consulta de Jarvis es SIMULADA por este script. Si el árbol tenía cambios locales, las ejecuciones salen como REPORTADO y la consulta como NO_APTO: es lo esperado."
+}
