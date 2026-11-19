@@ -36,9 +36,10 @@
     },
     {
       "id": "planificador",
-      "descripcion": "Planificador diario, unidades por fecha, propiedad única y observador persistente (v2.1).",
+      "descripcion": "Planificador diario, unidades por fecha, propiedad única, observador persistente (v2.1) y Supervisor de observadores (v2.2.2).",
       "argv": ["{python}", "-m", "pytest", "-q", "-rs", "tests/test_planificador.py",
-               "tests/test_plan_unidades_propiedad.py", "tests/test_observador_persistente.py"],
+               "tests/test_plan_unidades_propiedad.py", "tests/test_observador_persistente.py",
+               "tests/test_supervisor_v222.py"],
       "tiempo_s": 1200,
       "postgres": "opcional",
       "etiquetas": ["regresion", "planificador"]

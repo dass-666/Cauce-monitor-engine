@@ -27,9 +27,11 @@ integracion:
   commit_fijado: 51bbd3b4e3c82a59b4cb5e106701433487fc903a
   fijado_en: "2026-11-15"
   # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
+  # v2.2.2 (integración): ya no se declara `jarvis/` entero. El manifiesto y el esquema siempre cuentan
+  # como código, y de este archivo solo el bloque `integracion` puede cambiar sin volver a fijar
+  # (monitoreo/interop/comun.py, archivos_de_codigo). Valen las rutas del commit FIJADO.
   rutas_solo_documentacion:
     - docs/
-    - jarvis/
     - README.md
 contratos:
   manifiesto_pruebas: jarvis/test-manifest.json
