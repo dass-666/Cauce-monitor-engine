@@ -20,8 +20,10 @@ Commits de esta fase:
 
 1. `7dc2f84`: el fijado de Jarvis no puede ocultar cambios del contrato; la suite `planificador` incluye el Supervisor.
 2. `0993a47`: los recorridos no escriben en el `data/` del proyecto; diagnóstico de cambios no detectados.
-3. `a57b7b0`: CI con la suite `planificador` por el ejecutor e investigación HTTP en Windows. **Último commit de código, el fijado.**
-4. Commit de documentación: fija rama y commit en `jarvis/project.yaml`, este informe y sus evidencias.
+3. `a57b7b0`: CI con la suite `planificador` por el ejecutor e investigación HTTP en Windows.
+4. `1640dad` (solo documentación): fijaba `a57b7b0`, más este informe y sus evidencias.
+5. `9f79a3c`: la guarda del fijado funciona en CI (ver 2.4). **Último commit de código; es el fijado vigente.**
+6. `57bac72` y siguientes (solo documentación): vuelven a fijar en `9f79a3c` y actualizan este informe.
 
 Desde `6d724e7` (la v2.2.2), en `monitoreo/captura`, `monitoreo/api` y `monitoreo/planificador` solo
 cambió `monitoreo/planificador/observador.py` (+12 −1, la corrección del Supervisor). Expedientes,
@@ -64,6 +66,25 @@ consentimiento, revocaciones, Ventanilla y planificación siguen intactos. HECHO
   La prueba de regresión exige los cuatro archivos y el orden exacto de las suites.
 - CI ejecuta `python -m monitoreo.interop ejecutar --suite planificador` en el trabajo `regresion-v222`
   (Linux y Windows, Python 3.11 y 3.13), por el mismo ejecutor que usa Jarvis.
+
+### 2.4 Mi guarda del fijado fallaba en CI (gravedad: baja, defecto de la prueba)
+
+- **HECHO.** En la CI de `1640dad`, las 5 suites principales (Linux 3.11 y 3.13, Windows 3.11, 3.12 y
+  3.13) fallaron en una sola prueba: `test_el_repositorio_real_esta_fijado_cuando_se_esta_en_la_rama_declarada`.
+  Daba `relacion: DESCONOCIDO` porque `actions/checkout` clona con profundidad 1 y el commit fijado no
+  estaba en el clon. En `a57b7b0` no había fallado porque aún estaba declarada la rama anterior y la
+  prueba se omitía. En local pasaba porque el clon es completo.
+- **Corrección (`9f79a3c`).**
+  - Las tres suites principales clonan la historia completa (`fetch-depth: 0`), así que la guarda se
+    ejecuta de verdad.
+  - En un clon superficial la prueba se omite y dice por qué. En un clon completo, `DESCONOCIDO` sigue
+    siendo un fallo.
+- **Cómo se comprobó.**
+  - En un clon completo: 9/9 aprobadas.
+  - En un clon superficial local (`git clone --depth 1`): la prueba se omite con el motivo «clon
+    superficial».
+- Para Jarvis: en una copia superficial el informe también diría `DESCONOCIDO`. La guía ya indica
+  avisar a una persona en ese caso. La copia de desarrollo debe ser un clon completo.
 
 ## 3. Investigación: «Integración HTTP · Windows», caso OES-035 versión 92
 
