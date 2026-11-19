@@ -868,6 +868,9 @@ jobs:
           done
           echo "OBSERVADOR: $fallos fallos de 8"
           test $fallos -eq 0
+      - name: "Suite planificador por el ejecutor de Jarvis (incluye test_supervisor_v222.py)"
+        run: |
+          python -m monitoreo.interop ejecutar --suite planificador | tail -1
       - name: Adjuntar resultados
         if: always()
         uses: actions/upload-artifact@v4
@@ -876,3 +879,39 @@ jobs:
           path: resultados/
           if-no-files-found: ignore
           retention-days: 14
+
+  # v2.2.2 · INVESTIGACIÓN (no bloquea): la comprobación «cambios duraderos del proveedor no detectados
+  # FUERA de ventanas de fallo» falló 1 vez (14/15) en Integración HTTP · Windows (CI 44452147825,
+  # OES-035 versión 92). Repite el escenario corto 6 veces en Windows y escribe en el registro el
+  # diagnóstico de cada cambio no detectado (consultas alrededor, eventos del recurso, cambios vecinos).
+  # No sustituye al trabajo integracion-http-windows, que sigue bloqueando.
+  investigar-http-windows:
+    name: Investigación integración HTTP · Windows · repetición ${{ matrix.tanda }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        tanda: [1, 2]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: "Escenario corto 3 veces, con diagnóstico"
+        run: |
+          fallos=0
+          for i in 1 2 3; do
+            python scripts/integracion_http.py --rapido --salida resultados/http_$i > resultados_http_$i.txt 2>&1 || fallos=$((fallos+1))
+            grep -E "FALLO|resultado en" resultados_http_$i.txt
+          done
+          echo "HTTP WINDOWS - $fallos fallos de 3"
