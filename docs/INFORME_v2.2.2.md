@@ -3,6 +3,8 @@
 Fecha: 2026-11-15 · Rama: `claude/estabilizacion-v2.2.2` (parte de `claude/project-thread-twugkn`, 4fa04f1)
 Sin fusiones, sin despliegues, sin cambios en la rama por omisión de GitHub, sin datos reales ni portales.
 
+> **Actualización 2026-11-19:** las propuestas (a) y (b) de la sección 8 se aplicaron con autorización en la rama `claude/project-thread-6fxbwl`. Ver `docs/INFORME_v2.2.2_correccion.md`.
+
 Leyenda: **[HECHO]** comprobado con una prueba o una medición reproducible · **[INFERENCIA]** conclusión
 razonada a partir de las mediciones · **[PENDIENTE]** sin comprobar.
 
