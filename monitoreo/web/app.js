@@ -25,6 +25,9 @@ function h(tag, attrs, ...children) {
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => S.user && S.user.role === "admin";
 const labOn = () => !S.info || S.info.laboratorio;
+// Flujo administrativo (mesa de control, importar, expedientes, ventanilla, captura): siempre en laboratorio;
+// en producción solo si el servidor lo montó (MONITOREO_PRODUCCION_FLUJO_ADMIN=1, ver monitoreo/modulos.py).
+const flujoOn = () => !S.info || Boolean(S.info.flujo_admin ?? S.info.laboratorio);
 
 // v1.7: aviso visible cuando se pierde la conexión con el servidor (y cuando vuelve). Los datos que se
 // ven en pantalla se marcan como "sin actualizar" para que nadie decida con cifras viejas.
@@ -200,30 +203,33 @@ function logout(expired) {
 // ------------------------------------------------------------------ navegación
 const VIEWS = {
   // RC1: mesa de control del administrador (admin.js): flujo principal importar -> preparar -> planificar -> operar
-  panel: { t: "Mesa de control", f: () => viewPanel(), admin: true, lab: true },
-  importar: { t: "Importar", f: () => viewImportar(), admin: true, lab: true, noAuto: true },
-  expedientes: { t: "Expedientes", f: () => viewExpedientesAdmin(), admin: true, lab: true },
+  panel: { t: "Mesa de control", f: () => viewPanel(), admin: true, flujo: true },
+  importar: { t: "Importar", f: () => viewImportar(), admin: true, flujo: true, noAuto: true },
+  expedientes: { t: "Expedientes", f: () => viewExpedientesAdmin(), admin: true, flujo: true },
   inicio: { t: "Inicio", f: viewHome },
   monitor: { t: "Monitor", f: viewMonitor },
   salud: { t: "Salud", f: viewHealth },
   solicitudes: { t: "Solicitudes", f: viewRequests },
-  ventanilla: { t: "Ventanilla", f: () => viewVentanilla(), lab: true, noAuto: true },   // v2.0: atención presencial (ventanilla.js)
-  captura: { t: "Captura", f: () => viewCaptura(), lab: true },   // v1.5: laboratorio (captura.js); no existe en producción
+  ventanilla: { t: "Ventanilla", f: () => viewVentanilla(), flujo: true, noAuto: true },   // v2.0: atención presencial (ventanilla.js)
+  captura: { t: "Captura", f: () => viewCaptura(), flujo: true },   // v1.5: laboratorio (captura.js); no existe en producción
   alertas: { t: "Notificaciones", f: viewNotificaciones },
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
   tramites: { t: "Trámites a mano", f: () => viewTramitesManuales(), lab: true },   // v2.0 · P2: captura manual (ventanilla.js)
   conexiones: { t: "Conexiones", f: () => viewConexiones(), admin: true, lab: true },   // v2.0: gestor de conexiones (ventanilla.js)
   "laboratorio-calendario": { t: "Calendario lab", f: () => viewCalendarioLab(), admin: true, lab: true },   // v2.3 (ventanilla.js)
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
+  // v2.4: conciliación y desbloqueo tras restaurar (recuperacion.js). Existe también en producción.
+  recuperacion: { t: "Recuperación", f: () => viewRecuperacion(), admin: true, noAuto: true },
   config: { t: "Configuración", f: viewConfig, admin: true },
 };
+const vistaVisible = (v) => (!v.admin || isAdmin()) && (!v.lab || labOn()) && (!v.flujo || flujoOn());
 function renderNav() {
-  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => (!v.admin || isAdmin()) && (!v.lab || labOn())).map(([k, v]) =>
+  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => vistaVisible(v)).map(([k, v]) =>
     h("a", { href: "#" + k, class: S.view === k ? "active" : null }, v.t)));
 }
 window.addEventListener("hashchange", () => { go(location.hash.slice(1)); });
 function go(v) {
-  if (!VIEWS[v] || (VIEWS[v].admin && !isAdmin()) || (VIEWS[v].lab && !labOn())) v = "inicio";
+  if (!VIEWS[v] || !vistaVisible(VIEWS[v])) v = "inicio";
   S.view = v; S.dirty = false; S.flujoHook = null; renderNav(); refresh(true, true);
 }
 
@@ -264,7 +270,7 @@ async function start() {
   $("user-label").textContent = `${S.user.username} · ${S.user.role}` + (S.info.entorno === "desarrollo" ? "" : ` · ${S.info.entorno.toUpperCase()}`);
   $("login-view").classList.add("hidden"); $("app").classList.remove("hidden");
   // RC1: el administrador del laboratorio empieza en la mesa de control
-  go(location.hash.slice(1) || (isAdmin() && labOn() ? "panel" : "inicio"));
+  go(location.hash.slice(1) || (isAdmin() && flujoOn() ? "panel" : "inicio"));
   clearInterval(S.timer);
   S.timer = setInterval(() => { if (!document.hidden && $("drawer").classList.contains("hidden")) refresh(); }, 4000);
 }

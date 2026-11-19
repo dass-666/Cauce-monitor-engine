@@ -32,9 +32,19 @@ restaurada diga VIGENTE. Tampoco se puede registrar otro consentimiento encima h
 |---|---|---|
 | Diario | `data\diario\eventos-criticos.jsonl` | Una línea JSON por evento, firmada con HMAC-SHA256. No contiene nombres, teléfonos ni correos. Los códigos de expediente, los folios y las claves se guardan como seudónimos. |
 | Clave del diario | `data\claves\diario.clave` | En Windows va cifrada con DPAPI, ligada a la cuenta que ejecuta el motor. **No** va en la base ni en los respaldos. |
-| Copia externa (opcional) | Carpeta indicada en `MONITOREO_DIARIO_COPIA` | Está **desactivada** por omisión. |
+| Copia externa (opcional) | Carpeta indicada en `MONITOREO_DIARIO_COPIA` | Está **desactivada** por omisión. Cómo elegir el medio, revisarlo y activarlo: [RESPALDO_EXTERNO_DIARIO.md](RESPALDO_EXTERNO_DIARIO.md). |
 
 ## Cuando el motor arranca bloqueado
+
+**Desde la interfaz (recomendado).** Entra como administrador. La Mesa de control muestra la tarjeta
+«Recuperación segura: BLOQUEADA»; púlsala, o abre la sección **«Recuperación»** (existe también en
+producción). La pantalla muestra los motivos, el estado del diario y de su copia externa, cada discrepancia con
+el botón «Resolver» (acción, folio si hace falta, motivo obligatorio y una casilla de comprobación), el botón
+«Levantar el bloqueo» (activo solo con 0 pendientes) y el historial de auditoría de la conciliación. Usa las
+mismas rutas de la API que se describen abajo; el servidor sigue siendo quien decide. Recorrido
+automatizado: `recorrido_recuperacion_ui.bat`.
+
+**Por la API** (lo mismo, sin pantalla):
 
 1. Abre el autodiagnóstico, o consulta `GET /api/recuperacion` como administrador. Verás los motivos del
    bloqueo y cada discrepancia con sus acciones posibles.
@@ -76,6 +86,7 @@ Revisa a mano las revocaciones y las citas posteriores al último respaldo antes
 .venv\Scripts\python.exe -m monitoreo.recuperacion exportar-clave E:\resguardo\cauce-diario.clave.txt
 .venv\Scripts\python.exe -m monitoreo.recuperacion importar-clave E:\resguardo\cauce-diario.clave.txt
 .venv\Scripts\python.exe -m monitoreo.recuperacion marcar-restauracion "pg_restore 2026-11-20"
+.venv\Scripts\python.exe -m monitoreo.recuperacion revisar-copia E:\CauceDiario
 ```
 
 - **`marcar-restauracion`** es para PostgreSQL. `pg_restore` no pasa por `migrate restaurar`, así que esta
