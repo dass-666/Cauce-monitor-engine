@@ -3,9 +3,7 @@
 1. MONITOREO_DATA_DIR opcional (sin la variable, todo igual) y test_restart.py ya no escribe en el
    data/ del proyecto.
 2. jarvis/project.yaml declara la rama de integración y su commit fijado; el informe lo compara con HEAD.
-3. Defecto del Supervisor de observadores (causa del fallo intermitente en Windows 3.11), documentado
-   con una prueba xfail ESTRICTA: hoy reproduce el defecto; si alguien lo corrige, la prueba empezará
-   a "pasar" y pytest la marcará como XPASS (fallo) para que se quite el xfail a conciencia.
+3. Defecto del Supervisor de observadores: corregido; sus pruebas están en test_supervisor_v222.py.
 """
 from __future__ import annotations
 
@@ -16,7 +14,6 @@ import socket
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -197,46 +194,6 @@ def test_esquema_acepta_informes_anteriores_sin_integracion():
 
 
 # --------------------------------------------------------------------------- 3. Supervisor de observadores
-
-def _ahora():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECTO CONOCIDO v2.2.2 (sin corregir: requiere autorización por tocar el planificador). "
-    "Supervisor.ciclo lee la configuración una sola vez al principio; al detener un observador por fallos "
-    "la marca DETENIDO_POR_FALLOS, pero el segundo bucle usa la lectura vieja (ACTIVO) y lo vuelve a "
-    "arrancar en el mismo ciclo. Es la causa del fallo intermitente de "
-    "test_limite_de_reinicios_detiene_con_motivo (Windows 3.11): si el hilo del supervisor hace ese ciclo "
-    "antes que la prueba, la prueba ve 'detenidos' en lugar de 'fallidos'."))
-def test_supervisor_no_relanza_en_el_mismo_ciclo_un_observador_detenido_por_fallos(db):
-    from monitoreo.models import ObservadorConfig
-    from monitoreo.planificador import observador as ob
-
-    creados = []
-
-    class Falso:
-        def __init__(self, c):
-            self.fallo, self.stats = None, {}
-            creados.append(self)
-
-        def iniciar(self):
-            pass
-
-        def detener(self, *a, **k):
-            pass
-
-        def estado(self):
-            return {}
-
-    sup = ob.Supervisor(db, fabrica=Falso, holder="estabilizacion")
-    ob.configurar(db, "NOR-1", "alta", None, "dom", 250, "admin", _ahora())
-    assert sup.ciclo(_ahora())["arrancados"] == ["NOR-1|alta"]
-    creados[0].fallo = "el navegador se relanzó 3 veces en 10 min"
-    r = sup.ciclo(_ahora())
-    with db.session() as s:
-        c = s.get(ObservadorConfig, "NOR-1|alta")
-        assert c.estado == ob.DETENIDO_POR_FALLOS and not c.activo
-    assert r["fallidos"] == ["NOR-1|alta"]
-    # Lo esperado: no se arranca de nuevo ni queda nada activo. Hoy: arrancados == ['NOR-1|alta'] y 2 creados.
-    assert r["arrancados"] == [] and len(creados) == 1 and not sup.activos
+# El defecto quedó CORREGIDO en la v2.2.2 (autorizado por Diego). La prueba que aquí era xfail estricto
+# pasó a tests/test_supervisor_v222.py como prueba normal, junto con las de fallos consecutivos, límite de
+# reintentos, reinicios, concurrencia y persistencia.

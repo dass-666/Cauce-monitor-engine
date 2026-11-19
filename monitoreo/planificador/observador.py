@@ -445,6 +445,9 @@ class Supervisor:
                             c.reinicios = o.stats.get("reinicios_navegador", 0)
                     self._parar(clave, now, soltar=True)
                     out["fallidos"].append(clave)
+                    # v2.2.2: la lectura de arriba ya no vale para esta clave. Sin esto, el segundo bucle
+                    # la veía ACTIVA y relanzaba en el mismo ciclo el observador recién detenido.
+                    cfgs[clave] = (False, DETENIDO_POR_FALLOS)
                 elif not activo:
                     self._parar(clave, now, soltar=True)
                     out["detenidos"].append(clave)
@@ -462,7 +465,15 @@ class Supervisor:
                 if clave not in self.activos:
                     with self.db.session() as s:
                         c = s.get(ObservadorConfig, clave)
-                        s.expunge(c)
+                        if c is not None:
+                            s.expunge(c)
+                    # v2.2.2: se relee justo antes de arrancar. Entre la lectura del principio y este punto
+                    # otro proceso (u otra petición) pudo detenerla o marcarla DETENIDO_POR_FALLOS: un estado
+                    # terminal manda y no se arranca. Solo `configurar` la reactiva.
+                    if c is None or not c.activo or c.estado != ACTIVO:
+                        a.release(now)
+                        self.arriendos.pop(clave, None)
+                        continue
                     o = self.fabrica(c)
                     try:
                         o.iniciar()

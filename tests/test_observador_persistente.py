@@ -112,7 +112,21 @@ def test_limite_de_reinicios_detiene_con_motivo(entorno):
     lab, p, obs, tmp = entorno
     fecha = _fecha_libre(p, "NOR-1", "alta", desde=27)
     a = _sup_de_la_app(lab)
-    a.fabrica = _fabrica(lab, tmp, max_reinicios=2)
+    a.periodo_s = 0.05
+    creados = []
+    fabrica = _fabrica(lab, tmp, max_reinicios=2)
+    a.fabrica = lambda c: creados.append(fabrica(c)) or creados[-1]
+    # v2.2.2: el hilo del supervisor de la app también ejecuta `ciclo` (cada 3 s) y puede ser él quien
+    # registre el fallo antes que la prueba. Se registran los resultados de TODOS los ciclos (los del hilo
+    # y los de la prueba) para comprobar lo que importa sin depender de quién llegue primero: el fallo se
+    # registra una sola vez y el observador no se vuelve a arrancar.
+    resultados, ciclo_original = [], a.ciclo
+
+    def ciclo_registrado(now):
+        r = ciclo_original(now)
+        resultados.append(r)
+        return r
+    a.ciclo = ciclo_registrado
     ob.configurar(lab.db, "NOR-1", "alta", fecha[:7], "dom", 250, "admin", utcnow())
     a.ciclo(utcnow())
     o = a.activos["NOR-1|alta"]
@@ -123,12 +137,16 @@ def test_limite_de_reinicios_detiene_con_motivo(entorno):
         o.matar_navegador()
     assert _esperar(lambda: o.fallo, 40), o.estado()
     assert "se relanzó 3 veces" in o.fallo
-    r = a.ciclo(utcnow())
-    assert r["fallidos"] == ["NOR-1|alta"], r
+    a.ciclo(utcnow())
+    fallidos = [k for r in resultados for k in r["fallidos"]]
+    arrancados = [k for r in resultados for k in r["arrancados"]]
+    assert fallidos == ["NOR-1|alta"] and arrancados == ["NOR-1|alta"], resultados
+    assert len(creados) == 1 and "NOR-1|alta" not in a.activos
     with lab.db.session() as s:
         c = s.get(ObservadorConfig, "NOR-1|alta")
         assert c.estado == "DETENIDO_POR_FALLOS" and not c.activo and "relanzó" in c.motivo
     assert a.ciclo(utcnow())["arrancados"] == []                 # no insiste
+    assert len(creados) == 1
 
 
 def test_varias_unidades_vistas_por_dom(entorno):
