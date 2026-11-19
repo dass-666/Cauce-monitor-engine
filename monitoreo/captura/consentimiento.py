@@ -46,7 +46,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select, update
 
-from ..models import Atencion, Consentimiento, ConsentimientoEvento, Expediente, PlanElemento, Reservacion
+from ..models import Atencion, Consentimiento, ConsentimientoEvento, Expediente, PlanElemento, Request, Reservacion
 from ..security import audit
 
 log = logging.getLogger("monitoreo.consentimiento")
@@ -350,8 +350,32 @@ def revocar(db, consentimiento_id: int, d: dict, user, now: datetime, ip: str = 
         _retirar_del_plan(s, exp.id, actor, now)
         exp.ultimo_error = f"{MOTIVO_CIERRE}: no se permiten nuevas operaciones"
         vc = vista(c)
-    efectos = aplicar_revocacion(db, c.expediente_id, actor, now)
+    efectos = _efectos_finales(db, c.expediente_id, aplicar_revocacion(db, c.expediente_id, actor, now))
     return {"consentimiento": vc, "repetida": False, "efectos": efectos}
+
+
+def _efectos_finales(db, exp_id: int, out: dict) -> dict:
+    """v2.3.1: el mantenimiento del motor (otro hilo) aplica también las revocaciones con el expediente
+    activo y puede adelantarse a esta petición en cuanto se guarda el REVOCADO (lo demostró la CI de
+    Windows: él descartaba el intento y la respuesta decía `intento_descartado: None`). Lo que se informa
+    a quien revoca es el estado FINAL, haga cada paso quien lo haga."""
+    from ..engine import assignment as asg
+    from . import expedientes as ex
+    with db.session() as s:
+        exp = s.get(Expediente, exp_id)
+        if exp is None:
+            return out
+        if out["intento_descartado"] is None and s.scalar(select(Reservacion.id).where(
+                Reservacion.expediente_id == exp_id, Reservacion.estado == "CANCELADA",
+                Reservacion.error_codigo == MOTIVO_CIERRE)) is not None:
+            out["intento_descartado"] = True
+        if not out["solicitud_cancelada"] and exp.request_id:
+            out["solicitud_cancelada"] = s.scalar(select(Request.status).where(Request.id == exp.request_id)) == asg.CANCELADO
+        if not out["expediente_cerrado"]:
+            out["expediente_cerrado"] = exp.estado == ex.CERRADO and exp.motivo_cierre == MOTIVO_CIERRE
+        if out["expediente_cerrado"] and out["pendiente"]:
+            out["pendiente"] = None
+    return out
 
 
 def _retirar_del_plan(s, exp_id: int, actor: str, now: datetime) -> int:

@@ -2,7 +2,7 @@
   "version": "2.3",
   "plataforma": "Linux-6.18.44-fc-v653-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "inicio": "2026-11-19T07:17:29",
+  "inicio": "2026-11-19T12:30:29",
   "confirmacion_humana": "SIMULADA por el script",
   "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
   "navegador": {
@@ -245,7 +245,7 @@
     {
       "comprobacion": "portal · el folio existe y está CONFIRMADO",
       "ok": true,
-      "detalle": "{\"folio\":\"DIA-20270115-00001P\",\"estado\":\"CONFIRMADA\",\"clave\":\"515cb8cbb48d3d98601ed77a\",\"identificador\":\"REG000002\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Aur"
+      "detalle": "{\"folio\":\"DIA-20270115-00001P\",\"estado\":\"CONFIRMADA\",\"clave\":\"631460c3b7122c9408fcdbd8\",\"identificador\":\"REG000002\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Aur"
     },
     {
       "comprobacion": "portal · la cita es del día abierto por el administrador",
@@ -260,6 +260,15 @@
         "atenciones": [
           "EN_PLAN_DEL_DIA",
           "CITA_CONFIRMADA"
+        ]
+      }
+    },
+    {
+      "comprobacion": "plan · el elemento del plan pasa a CONFIRMADO tras el folio y el historial lo refleja",
+      "ok": true,
+      "detalle": {
+        "planes": [
+          "CONFIRMADO"
         ]
       }
     },
@@ -285,8 +294,8 @@
       "detalle": []
     }
   ],
-  "aprobadas": 20,
-  "total": 20,
+  "aprobadas": 21,
+  "total": 21,
   "capturas": [
     "01_operador_ventanilla_inicio.png",
     "02_admin_plan_del_dia_y_observador.png",

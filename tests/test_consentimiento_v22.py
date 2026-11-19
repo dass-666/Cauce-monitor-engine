@@ -205,6 +205,48 @@ def test_revocar_con_fecha_elegida_descarta_el_intento_y_no_confirma(lab):
         assert s.get(Reservacion, rid).folio is None
 
 
+def test_revocar_mientras_el_mantenimiento_aplica_la_misma_revocacion(lab, monkeypatch):
+    """v2.3.1 (fallo de la CI en Windows, demo_v22 paso 6): en cuanto se guarda el REVOCADO, el
+    mantenimiento del motor (otro hilo) puede descartar el intento ANTES que la petición. El estado
+    final era correcto, pero la respuesta decía `intento_descartado: None`. Se fuerza ese orden exacto."""
+    from monitoreo.captura import reservaciones as rs
+    eid, u, h = asignado(lab)
+    rid, _ = lab.hasta_fecha(eid, h)
+    real_ap, real_ci = cs.aplicar_revocacion, rs._cerrar_intento
+    descartado, fin_api, mant = threading.Event(), threading.Event(), {}
+
+    def cerrar_intento(*a, **kw):
+        v = real_ci(*a, **kw)
+        if threading.current_thread().name == "mantenimiento":
+            descartado.set()           # el mantenimiento ya descartó el intento ...
+            fin_api.wait(10)           # ... y se queda ahí hasta que la petición termina
+        return v
+
+    def aplicar(db, exp_id, actor, now, **kw):
+        if threading.current_thread().name == "mantenimiento":
+            return real_ap(db, exp_id, actor, now, **kw)
+        t = threading.Thread(target=lambda: mant.setdefault("r", cs.aplicar_revocaciones(db, utcnow())),
+                             name="mantenimiento")
+        t.start()
+        assert descartado.wait(10)
+        try:
+            return real_ap(db, exp_id, actor, now, **kw)
+        finally:
+            fin_api.set()
+            t.join(10)
+    monkeypatch.setattr(rs, "_cerrar_intento", cerrar_intento)
+    monkeypatch.setattr(cs, "aplicar_revocacion", aplicar)
+    out = revocar(lab, eid, h)
+    assert mant["r"][0]["intento_descartado"] is True          # lo descartó el mantenimiento
+    ef = out["efectos"]
+    assert ef["intento_descartado"] and ef["expediente_cerrado"] and ef["solicitud_cancelada"], ef
+    assert ef["pendiente"] is None, ef
+    assert res_estado(lab, rid) == "CANCELADA" and exp(lab, eid)["estado"] == "CERRADO"
+    r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
+    assert r.status_code == 409, r.text
+    assert verificar(lab)["ok"]
+
+
 def test_revocar_con_cita_confirmada_avisa_y_no_cancela_sola(lab):
     eid, u, h = asignado(lab)
     rid, _ = lab.hasta_fecha(eid, h)

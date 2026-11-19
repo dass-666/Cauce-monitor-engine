@@ -148,3 +148,52 @@ def test_bat_de_la_23_son_ascii_y_crlf():
         b.decode("ascii")
         assert b"\r\n" in b and b.count(b"\n") == b.count(b"\r\n"), nombre
     assert "MONITOREO_SIN_PAUSA" in (raiz / "recorrido_ventanilla.bat").read_text(encoding="ascii")
+
+
+# ---------------------------------------------------------------- v2.3.1 · permisos por API directa
+def test_permisos_por_api_directa_operador_y_administrador(lab, monkeypatch):
+    """Decisión de Diego (2026-11-19): el operador SOLO deja en el plan abierto de hoy el expediente de su
+    propia atención; crear, ampliar, llenar o retirar del plan, el observador, el calendario del laboratorio
+    y decidir duplicados son del administrador. Se comprueba llamando a la API directamente."""
+    op = lab.ops["op1"]
+    a = con_expediente(lab, op)
+    # 1. sin plan de hoy, ni con un plan de mañana: el operador no puede crear uno
+    _plan(lab, jornada=_hoy() + timedelta(days=1))
+    assert _al_plan(lab, op, a["id"]).json()["detail"]["codigo"] == "SIN_PLAN"
+    assert lab.c.post("/api/planes", headers=op, json={"fecha_jornada": _hoy().isoformat(), "capacidad": 3}).status_code == 403
+    pid = _plan(lab, capacidad=3)
+    eid = a["expediente"]["id"]
+    q = {"sucursal": "NOR-1", "tramite": "alta"}
+    prohibidas = [
+        ("POST", f"/api/planes/{pid}/ampliar", {"capacidad": 9}),
+        ("POST", f"/api/planes/{pid}/seleccionar", {"cuantos": 1}),
+        ("POST", f"/api/planes/{pid}/elementos", {"expediente_ids": [eid]}),
+        ("POST", "/api/observador", {**q, "mes": "2030-01"}),
+        ("DELETE", "/api/observador", None),
+        ("POST", "/api/planificador/sincronizar", None),
+        ("POST", f"/api/expedientes/{eid}/duplicados/descartar", {"otro": "EXP-000001", "motivo": "no es la misma"}),
+        ("GET", "/api/laboratorio/portal", None),
+        ("POST", "/api/laboratorio/portal/calendario/habilitar", {**q, "fecha": "2030-01-10"}),
+        ("GET", "/api/laboratorio/portal/registros", None),
+    ]
+    for metodo, ruta, body in prohibidas:
+        r = lab.c.request(metodo, ruta, headers=op, json=body)
+        assert r.status_code == 403, (metodo, ruta, r.status_code, r.text[:120])
+    # 2. el consentimiento se respeta en el servidor (no solo en la pantalla)
+    monkeypatch.setenv("MONITOREO_EXIGIR_CONSENTIMIENTO", "1")
+    r = _al_plan(lab, op, a["id"])
+    assert r.status_code == 409 and "consentimiento" in r.text, r.text
+    with lab.db.session() as s:
+        assert s.get(Atencion, a["id"]).cerrada_en is None
+    monkeypatch.setenv("MONITOREO_EXIGIR_CONSENTIMIENTO", "0")
+    # 3. la atención de OTRO operador no se puede mandar al plan, ni con su id adivinado
+    assert _al_plan(lab, lab.ops["op2"], a["id"]).status_code == 404
+    # 4. la suya sí, una sola vez; repetirla no duplica el elemento
+    assert _al_plan(lab, op, a["id"]).status_code == 200
+    assert _al_plan(lab, op, a["id"]).status_code == 409                       # la atención ya se cerró
+    with lab.db.session() as s:
+        n = len(list(s.scalars(select(PlanElemento).where(PlanElemento.plan_id == pid, PlanElemento.expediente_id == eid))))
+    assert n == 1
+    # 5. el administrador sí puede todo lo anterior (no son rutas rotas: el 403 es el permiso)
+    assert lab.c.post(f"/api/planes/{pid}/ampliar", headers=lab.h, json={"capacidad": 4}).status_code == 200
+    assert lab.c.post("/api/planificador/sincronizar", headers=lab.h).status_code == 200

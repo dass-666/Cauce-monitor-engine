@@ -41,7 +41,7 @@ donde quedó (las atenciones abiertas se **retoman**). Para empezar de cero: `--
 ## 3. Demostración automática
 
 `recorrido_ventanilla.bat` (o `python scripts/recorrido_ventanilla_v23.py`) hace el mismo recorrido con
-un navegador automatizado (unos 30 s) y deja `resultados\recorrido_v23\recorrido_v23.json` y 20 capturas.
+un navegador automatizado (unos 30 s) y deja `resultados\recorrido_v23\recorrido_v23.json` (21 comprobaciones) y 20 capturas.
 La «persona» que confirma la cita es el script: la evidencia lo dice (`confirmacion_humana: SIMULADA`).
 Necesita Node.js y el navegador (`python scripts\preparar_navegador.py`).
 

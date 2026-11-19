@@ -127,6 +127,22 @@ def main() -> int:
                   {"tipos_faltantes": sorted({"CONSENTIMIENTO_REGISTRADO", "PLAN_AGREGADO", "PLAN_COINCIDENCIA",
                                               "RESERVACION_CONFIRMADA"} - tipos),
                    "atenciones": [x["resultado"] for x in t.get("atenciones", [])]})
+            # --- v2.3.1: el plan se sincroniza solo (mantenimiento del planificador) y el historial lo refleja
+            def plan_confirmado():
+                tt = adm.get(f"/api/expedientes/{e['id']}/trazabilidad").json()
+                return tt if any(x["estado"] == "CONFIRMADO" for x in tt.get("planes", [])) else None
+            t_plan = None
+            if e:
+                limite = time.time() + 30
+                while t_plan is None and time.time() < limite:
+                    t_plan = plan_confirmado()
+                    if t_plan is None:
+                        time.sleep(0.5)
+            check("plan · el elemento del plan pasa a CONFIRMADO tras el folio y el historial lo refleja",
+                  bool(t_plan) and [x["estado"] for x in t_plan["planes"]] == ["CONFIRMADO"]
+                  and any(r.get("folio") == folio and r.get("estado") == "CONFIRMADA" for r in t_plan["reservaciones"])
+                  and t_plan["atenciones"][-1]["folio"] == folio,
+                  {"planes": [x["estado"] for x in (t_plan or t).get("planes", [])]})
             check("historial · cadena de sellos del consentimiento íntegra", t.get("verificacion_consentimientos", {}).get("ok"),
                   t.get("verificacion_consentimientos"))
             dup = [x for x in adm.get("/api/expedientes", params={"estado": "CERRADO"}).json()
