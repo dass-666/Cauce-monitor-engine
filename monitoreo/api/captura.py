@@ -61,6 +61,10 @@ class ExpedienteIn(BaseModel):
     modo: Literal["POR_DIA", "POR_HORARIO"] | None = None
     sucursales_alternativas: list[str] | None = Field(default=None, max_length=5)
     folio_anterior: str | None = Field(default=None, max_length=32)
+    # RC1: fecha que pidió la persona y rango que acepta (AAAA-MM-DD)
+    fecha_solicitada: str | None = Field(default=None, max_length=10)
+    fechas_desde: str | None = Field(default=None, max_length=10)
+    fechas_hasta: str | None = Field(default=None, max_length=10)
 
 
 class ExpedientePatch(ExpedienteIn):

@@ -637,6 +637,8 @@ jobs:
           python scripts/recorrido_ventanilla_v23.py --salida resultados/recorrido_v23
       - name: v2.3 · Recorrido integral (respaldo, restauración, continuidad, cierre y retención con fecha simulada)
         run: python scripts/recorrido_integral.py --salida resultados/recorrido_integral
+      - name: RC1 · Flujo administrativo con la interfaz (importar 6 ficticios, consentimiento, plan, coincidencia, folio, reimportar)
+        run: python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -730,6 +732,10 @@ jobs:
       - name: v2.3 · Recorrido integral (respaldo, restauración, continuidad, cierre y retención con fecha simulada)
         run: |
           python scripts/recorrido_integral.py --salida resultados/recorrido_integral
+          exit $LASTEXITCODE
+      - name: RC1 · Flujo administrativo con la interfaz
+        run: |
+          python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |

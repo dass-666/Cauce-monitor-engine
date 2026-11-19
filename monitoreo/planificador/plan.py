@@ -99,6 +99,17 @@ def _normalizar(exp: Expediente, d: dict, jornada: date) -> dict:
         raise ErrorPlan(422, "Sucursal incompatible con el expediente: " + ", ".join(ajenas)[:80],
                         {"permitidas": permitidas})
     fechas = d.get("fechas_aceptables")
+    if not fechas and (exp.fechas_desde or exp.fechas_hasta):
+        # RC1: el rango que ACEPTA la persona (registrado en su expediente) manda. Si el administrador
+        # indica además un intervalo para el lote, se usa la intersección; los días ya pasados no cuentan.
+        desde = max(exp.fechas_desde or jornada, jornada, _fecha(d["fechas_desde"]) if d.get("fechas_desde") else jornada)
+        tope = jornada + timedelta(days=HORIZONTE_DIAS)
+        hasta = min(exp.fechas_hasta or (desde + timedelta(days=30)), tope,
+                    _fecha(d["fechas_hasta"]) if d.get("fechas_hasta") else tope)
+        if hasta < desde:
+            raise ErrorPlan(422, "El rango aceptable del expediente no tiene días desde la jornada"
+                                 + (" dentro del intervalo indicado" if d.get("fechas_desde") or d.get("fechas_hasta") else ""))
+        fechas = [(desde + timedelta(days=i)).isoformat() for i in range((hasta - desde).days + 1)]
     if not fechas:
         desde = _fecha(d.get("fechas_desde") or jornada)
         hasta = _fecha(d.get("fechas_hasta") or (desde + timedelta(days=30)))

@@ -504,6 +504,11 @@ def crear_app(archivo: Path, token: str, token_control: str, semilla: int = 5, d
             raise HTTPException(422, "total entre 1 y 20000")
         return {"registros": portal.ampliar_registros(total)}
 
+    @app.post("/control/registros/demo-rc1")
+    def ctl_registros_demo(x_control_token: str | None = Header(None)):
+        control(x_control_token)
+        return {"registros_demo": portal.agregar_registros_demo()}
+
     @app.get("/control/historial")
     def ctl_historial(desde: int = 0, x_control_token: str | None = Header(None)):
         control(x_control_token)

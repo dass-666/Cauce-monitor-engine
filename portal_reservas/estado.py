@@ -28,6 +28,10 @@ REGIONES = {"norte": "Norte", "sur": "Sur", "este": "Este", "oeste": "Oeste", "c
 TRAMITES = {"alta": "Alta de registro (ficticio)", "renovacion": "Renovación (ficticia)",
             "constancia": "Constancia (ficticia)"}
 OPERACIONES = {"nueva": "Nueva cita", "reprogramar": "Reprogramar"}
+# RC1: registros previos ficticios de la lista de demostración (identificador -> (nacimiento, trámite))
+REGISTROS_DEMO_RC1 = {"00450001": ("1985-03-15", "alta"), "00450002": ("1990-07-02", "alta"),
+                      "00450003": ("1978-11-23", "renovacion"), "00450004": ("1992-01-30", "alta"),
+                      "00450005": ("1983-06-09", "alta"), "00450006": ("1975-09-12", "constancia")}
 NOMBRES_SUC = ["Plaza Aurora", "Centro Brisa", "Módulo Atlas", "Oficina Prisma", "Módulo Ceiba"]
 HORAS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00"]
 
@@ -467,6 +471,15 @@ class Portal:
                     regs[ident] = {"fecha_nacimiento": nac.isoformat(), "tramite": rng.choice(sorted(TRAMITES))}
             self._guardar()
             return len(regs)
+
+    def agregar_registros_demo(self) -> int:
+        """RC1: registros previos FICTICIOS fijos (con ceros iniciales) que usa la lista de demostración
+        `docs/rc1/clientes_ficticios_rc1.*`. Solo los añade el laboratorio de la RC1 (no cambian los demás)."""
+        with self.lock:
+            for ident, (nac, tramite) in REGISTROS_DEMO_RC1.items():
+                self.d["registros"][ident] = {"fecha_nacimiento": nac, "tramite": tramite}
+            self._guardar()
+            return len(REGISTROS_DEMO_RC1)
 
     def registro_ejemplo(self, n: int = 0) -> tuple[str, dict]:
         k = sorted(self.d["registros"])[n % len(self.d["registros"])]

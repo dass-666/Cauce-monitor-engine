@@ -17,7 +17,7 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 TRAMITES = {"alta": "Alta de registro (ficticio)", "renovacion": "Renovación (ficticia)",
             "constancia": "Constancia (ficticia)"}
@@ -71,7 +71,8 @@ def correo_de_prueba(correo: str) -> bool:
     return dom in DOMINIOS_PRUEBA or dom.endswith(TLD_PRUEBA) or any(dom.endswith("." + d) for d in DOMINIOS_PRUEBA)
 
 
-MINIMOS = ("nombre", "region", "tipo_tramite")      # v1.6: lo mínimo para abrir un expediente
+MINIMOS = ("nombre", "region", "tipo_tramite")
+FECHAS_CITA = ("fecha_solicitada", "fechas_desde", "fechas_hasta")      # RC1      # v1.6: lo mínimo para abrir un expediente
 MODOS = ("POR_DIA", "POR_HORARIO")
 MAX_ALTERNATIVAS = 5
 
@@ -206,6 +207,23 @@ def validar(entrada: dict, regiones: set[str], parcial: bool = False, hoy: date 
             e["folio_anterior"] = "Folio no válido"
         else:
             r.datos["folio_anterior"] = v
+    # RC1: fecha que PIDIÓ la persona y rango que ACEPTA (separados de la fecha confirmada)
+    for campo in FECHAS_CITA:
+        if campo in presentes:
+            try:
+                v = entrada[campo]
+                v = v if isinstance(v, date) else date.fromisoformat(str(v).strip()[:10])
+                if v > hoy + timedelta(days=730):
+                    e[campo] = "Fecha demasiado lejana (más de dos años)"
+                else:
+                    r.datos[campo] = v
+            except ValueError:
+                e[campo] = "Fecha no válida (AAAA-MM-DD)"
+    d1, d2 = r.datos.get("fechas_desde"), r.datos.get("fechas_hasta")
+    if d1 and d2 and d2 < d1:
+        e["fechas_hasta"] = "El rango aceptable está invertido (hasta es anterior a desde)"
+    elif d2 and d2 < hoy and not parcial:
+        e["fechas_hasta"] = "El rango aceptable ya pasó"
     # Coherencia entre campos
     if (r.datos.get("operacion") == "reprogramar" and not incompleto
             and not (entrada.get("id_registro_previo") or parcial)):

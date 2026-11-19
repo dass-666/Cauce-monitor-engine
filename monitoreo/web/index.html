@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Centro de Operaciones · Monitoreo</title>
+  <title>Cauce · Mesa de control</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="icon" href="data:,">
 </head>
 <body>
   <div id="login-view" class="login hidden">
     <form id="login-form" class="login-card" autocomplete="on">
-      <div class="brand"><span class="dot"></span> Motor de Monitoreo</div>
-      <p class="muted">Centro de operaciones · datos ficticios</p>
+      <div class="brand"><span class="dot"></span> Cauce Monitor Engine</div>
+      <p class="muted">Administración de solicitudes de cita · laboratorio con datos ficticios</p>
       <label>Usuario <input name="username" autocomplete="username" required maxlength="64"></label>
       <label>Contraseña <input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
       <button type="submit" class="btn primary">Entrar</button>
@@ -21,7 +21,7 @@
 
   <div id="app" class="hidden">
     <header class="topbar">
-      <div class="brand"><span class="dot" id="engine-dot"></span> Monitoreo</div>
+      <div class="brand"><span class="dot" id="engine-dot"></span> Cauce</div>
       <nav id="nav" class="nav" aria-label="Secciones"></nav>
       <div class="user"><span id="user-label"></span> <button id="logout" class="btn ghost small">Salir</button></div>
     </header>
@@ -37,5 +37,6 @@
   <script src="/static/app.js"></script>
   <script src="/static/captura.js"></script>
   <script src="/static/ventanilla.js"></script>
+  <script src="/static/admin.js"></script>
 </body>
 </html>

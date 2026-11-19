@@ -195,6 +195,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         # v2.1: planificador diario, observador de calendario y coincidencias (laboratorio)
         from .api.planificador import router as planificador_router
         app.include_router(planificador_router)
+        # RC1: mesa de control del administrador (panel, importación por lotes, planificación por selección)
+        from .api.administracion import router as administracion_router
+        app.include_router(administracion_router)
         app.include_router(test_router)
         app.include_router(telegram_emulator)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

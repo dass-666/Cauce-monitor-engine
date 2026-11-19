@@ -199,6 +199,10 @@ function logout(expired) {
 
 // ------------------------------------------------------------------ navegación
 const VIEWS = {
+  // RC1: mesa de control del administrador (admin.js): flujo principal importar -> preparar -> planificar -> operar
+  panel: { t: "Mesa de control", f: () => viewPanel(), admin: true, lab: true },
+  importar: { t: "Importar", f: () => viewImportar(), admin: true, lab: true, noAuto: true },
+  expedientes: { t: "Expedientes", f: () => viewExpedientesAdmin(), admin: true, lab: true },
   inicio: { t: "Inicio", f: viewHome },
   monitor: { t: "Monitor", f: viewMonitor },
   salud: { t: "Salud", f: viewHealth },
@@ -259,7 +263,8 @@ async function start() {
   S.info = await api("/api/info");
   $("user-label").textContent = `${S.user.username} · ${S.user.role}` + (S.info.entorno === "desarrollo" ? "" : ` · ${S.info.entorno.toUpperCase()}`);
   $("login-view").classList.add("hidden"); $("app").classList.remove("hidden");
-  go(location.hash.slice(1) || "inicio");
+  // RC1: el administrador del laboratorio empieza en la mesa de control
+  go(location.hash.slice(1) || (isAdmin() && labOn() ? "panel" : "inicio"));
   clearInterval(S.timer);
   S.timer = setInterval(() => { if (!document.hidden && $("drawer").classList.contains("hidden")) refresh(); }, 4000);
 }

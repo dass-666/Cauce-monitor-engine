@@ -453,6 +453,10 @@ class Expediente(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     creado_por: Mapped[str] = mapped_column(String(64), default="")
     ultimo_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # RC1: lo que la persona PIDIÓ y el rango que ACEPTA (la fecha CONFIRMADA vive en la reservación)
+    fecha_solicitada: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fechas_desde: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fechas_hasta: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -821,3 +825,42 @@ class ConsentimientoEvento(Base):
     detalle: Mapped[dict] = mapped_column(JSON, default=dict)
     anterior: Mapped[str] = mapped_column(String(64))
     sello: Mapped[str] = mapped_column(String(64), unique=True)
+
+
+# ---------------------------------------------------------------- RC1 · importación administrativa
+class Importacion(Base):
+    """RC1 · Un lote: un archivo .csv/.xlsx cargado por un administrador. No se guarda el archivo:
+    solo su nombre, su huella SHA-256, la hoja y la asignación de columnas usadas."""
+    __tablename__ = "importaciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(32), unique=True)
+    archivo: Mapped[str] = mapped_column(String(128))
+    archivo_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    formato: Mapped[str] = mapped_column(String(8))
+    hoja: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mapeo: Mapped[dict] = mapped_column(JSON, default=dict)
+    formato_fecha: Mapped[str] = mapped_column(String(8), default="DMA")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    creadas: Mapped[int] = mapped_column(Integer, default=0)
+    existentes: Mapped[int] = mapped_column(Integer, default=0)
+    rechazadas: Mapped[int] = mapped_column(Integer, default=0)
+    avisos: Mapped[list] = mapped_column(JSON, default=list)
+    creado_por: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
+class ImportacionFila(Base):
+    """RC1 · Resultado de una fila del lote. Sin valores personales: número de fila, campos y mensajes.
+    `clave_creado` (UNIQUE) = clave de la persona en el archivo cuando la fila CREÓ un expediente: una
+    segunda carga (o dos a la vez) no puede crear otro."""
+    __tablename__ = "importacion_filas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    importacion_id: Mapped[int] = mapped_column(ForeignKey("importaciones.id"), index=True)
+    fila: Mapped[int] = mapped_column(Integer)
+    resultado: Mapped[str] = mapped_column(String(24), index=True)   # CREADO | YA_EXISTE | RECHAZADO | REPETIDA_EN_ARCHIVO
+    expediente_id: Mapped[int | None] = mapped_column(ForeignKey("expedientes.id"), nullable=True, index=True)
+    clave_fila: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    clave_creado: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    estado_expediente: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    errores: Mapped[dict] = mapped_column(JSON, default=dict)
+    faltan: Mapped[list] = mapped_column(JSON, default=list)

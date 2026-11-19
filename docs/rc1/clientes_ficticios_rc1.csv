@@ -1,0 +1,7 @@
+﻿Nombre completo,Fecha de nacimiento,Registro previo,Teléfono,Correo,Región,Sucursal,Trámite,Fecha solicitada,Acepta desde,Acepta hasta,Prioridad,Contraseña del portal,Consentimiento
+Ana Ficticia Uno,15/03/1985,00450001,5550100001,ana.uno@ejemplo.test,Norte,NOR-1,Alta,14/01/2027,01/01/2027,27/01/2027,1,no-usar-1234,Sí
+Bruno Ficticio Dos,02/07/1990,00450002,5550100002,bruno.dos@ejemplo.test,Norte,NOR-1,Alta,21/01/2027,19/01/2027,27/01/2027,2,,Sí
+Carmen Ficticia Tres,23/11/1978,00450003,5550100003,carmen.tres@ejemplo.test,Norte,NOR-2,Renovación,14/01/2027,01/01/2027,27/01/2027,3,,Sí
+Daniela Ficticia Cuatro,,00450004,5550100004,daniela.cuatro@ejemplo.test,Norte,NOR-1,Alta,14/01/2027,01/01/2027,27/01/2027,3,,
+Esteban Ficticio Cinco,09/06/1983,00450005,,,Norte,NOR-1,Alta,14/01/2027,01/01/2027,27/01/2027,3,,
+Fabiola Ficticia Seis,12/09/1975,00450006,5550100006,fabiola.seis@ejemplo.test,Norte,NOR-1,Constancia,14/01/2027,01/01/2027,27/01/2027,3,,Sí

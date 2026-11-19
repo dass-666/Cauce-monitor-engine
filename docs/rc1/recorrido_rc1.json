@@ -1,0 +1,460 @@
+{
+  "version": "RC1",
+  "plataforma": "Linux-6.18.44-fc-v653-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-19T14:43:12",
+  "confirmacion_humana": "SIMULADA por el script",
+  "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
+  "lista": {
+    "xlsx": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1/lista_demostracion/clientes_ficticios_rc1.xlsx",
+    "csv": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1/lista_demostracion/clientes_ficticios_rc1.csv",
+    "mes": "2027-01",
+    "dia": "2027-01-14",
+    "generado": "2026-11-19"
+  },
+  "navegador": {
+    "pasos": [
+      {
+        "paso": "1_abrir_cauce",
+        "ok": true,
+        "detalle": {
+          "inicio": "Mesa de control"
+        }
+      },
+      {
+        "paso": "2_importar_seis",
+        "ok": true,
+        "detalle": {
+          "lote": "LOT-000001",
+          "vista_previa_nuevos": "6",
+          "creadas": "6",
+          "hoja": "Clientes",
+          "contrasena_descartada": true,
+          "columna_consentimiento_ignorada": true
+        }
+      },
+      {
+        "paso": "3_clasificacion_y_faltantes",
+        "ok": true,
+        "detalle": {
+          "situaciones": [
+            "EXP-000001:SIN_CONSENTIMIENTO",
+            "EXP-000002:SIN_CONSENTIMIENTO",
+            "EXP-000003:SIN_CONSENTIMIENTO",
+            "EXP-000004:INCOMPLETO",
+            "EXP-000005:INCOMPLETO",
+            "EXP-000006:SIN_CONSENTIMIENTO"
+          ]
+        }
+      },
+      {
+        "paso": "4_incompletos_bloqueados",
+        "ok": true,
+        "detalle": {
+          "seleccionables_antes_de_consentimiento": 0
+        }
+      },
+      {
+        "paso": "5_revisar_los_que_pueden_entrar",
+        "ok": true,
+        "detalle": {
+          "listos": [
+            "EXP-000001",
+            "EXP-000002",
+            "EXP-000006"
+          ],
+          "siguen_bloqueados": [
+            "EXP-000003:SIN_CONSENTIMIENTO",
+            "EXP-000004:INCOMPLETO",
+            "EXP-000005:INCOMPLETO"
+          ]
+        }
+      },
+      {
+        "paso": "6_plan_solo_elegibles",
+        "ok": true,
+        "detalle": {
+          "en_plan": [
+            "EXP-000001",
+            "EXP-000002",
+            "EXP-000006"
+          ]
+        }
+      },
+      {
+        "paso": "7a_observador_activo",
+        "ok": true,
+        "detalle": {
+          "vista": "ACTIVA"
+        }
+      },
+      {
+        "paso": "7b_fecha_publicada",
+        "ok": true,
+        "detalle": {
+          "dia": "2027-01-14",
+          "sucursal": "NOR-1",
+          "tramite": "alta"
+        }
+      },
+      {
+        "paso": "8_coincidencia_detectada",
+        "ok": true,
+        "detalle": {
+          "expediente": "EXP-000001",
+          "coincidencias": 1,
+          "confirmadas": 0
+        }
+      },
+      {
+        "paso": "9_operacion_y_folio",
+        "ok": true,
+        "detalle": {
+          "folio": "DIA-20270114-00001T",
+          "confirmacion": "SIMULADA"
+        }
+      },
+      {
+        "paso": "10_historial_y_panel",
+        "ok": true,
+        "detalle": {
+          "folio_historial": "DIA-20270114-00001T",
+          "eventos": [
+            "ESTADO",
+            "RESERVACION_CONFIRMADA",
+            "RESERVACION_PENDIENTE",
+            "RECURSO_SELECCIONADO",
+            "DATOS_ENVIADOS",
+            "FORMULARIO_PREPARADO",
+            "ATENCION_INICIADA",
+            "SOLICITUD_EN_VENTANILLA",
+            "PLAN_OPERACION_PREPARADA",
+            "TOMADO_EN_VENTANILLA",
+            "PLAN_COINCIDENCIA",
+            "SOLICITUD_EN_PLAN",
+            "PLAN_AGREGADO",
+            "SOLICITUD_ELEGIBLE",
+            "CONSENTIMIENTO_OTORGADO",
+            "SOLICITUD_CREADA",
+            "CONSENTIMIENTO_REGISTRADO",
+            "IMPORTADO",
+            "CREADO"
+          ],
+          "en_panel": true
+        }
+      },
+      {
+        "paso": "11_reimportar_no_duplica",
+        "ok": true,
+        "detalle": {
+          "nuevos": "0",
+          "existen": "6",
+          "aviso": true,
+          "segundo_lote": {
+            "lote": "LOT-000002",
+            "creadas": "0",
+            "existentes": "6"
+          },
+          "expedientes_totales": 6
+        }
+      }
+    ],
+    "errores_js": [],
+    "http_errores": [],
+    "folio": "DIA-20270114-00001T",
+    "kpis_finales": {
+      "total": 6,
+      "incompletos": 2,
+      "sin_consentimiento": 1,
+      "en_plan": 2,
+      "coincidencias": 0,
+      "confirmadas": 1
+    }
+  },
+  "situacion_final": {
+    "EXP-000001": "CONFIRMADA",
+    "EXP-000002": "EN_PLAN",
+    "EXP-000003": "SIN_CONSENTIMIENTO",
+    "EXP-000004": "INCOMPLETO",
+    "EXP-000005": "INCOMPLETO",
+    "EXP-000006": "EN_PLAN"
+  },
+  "folio": "DIA-20270114-00001T",
+  "comprobaciones": [
+    {
+      "comprobacion": "interfaz · 1_abrir_cauce",
+      "ok": true,
+      "detalle": {
+        "inicio": "Mesa de control"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 2_importar_seis",
+      "ok": true,
+      "detalle": {
+        "lote": "LOT-000001",
+        "vista_previa_nuevos": "6",
+        "creadas": "6",
+        "hoja": "Clientes",
+        "contrasena_descartada": true,
+        "columna_consentimiento_ignorada": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · 3_clasificacion_y_faltantes",
+      "ok": true,
+      "detalle": {
+        "situaciones": [
+          "EXP-000001:SIN_CONSENTIMIENTO",
+          "EXP-000002:SIN_CONSENTIMIENTO",
+          "EXP-000003:SIN_CONSENTIMIENTO",
+          "EXP-000004:INCOMPLETO",
+          "EXP-000005:INCOMPLETO",
+          "EXP-000006:SIN_CONSENTIMIENTO"
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · 4_incompletos_bloqueados",
+      "ok": true,
+      "detalle": {
+        "seleccionables_antes_de_consentimiento": 0
+      }
+    },
+    {
+      "comprobacion": "interfaz · 5_revisar_los_que_pueden_entrar",
+      "ok": true,
+      "detalle": {
+        "listos": [
+          "EXP-000001",
+          "EXP-000002",
+          "EXP-000006"
+        ],
+        "siguen_bloqueados": [
+          "EXP-000003:SIN_CONSENTIMIENTO",
+          "EXP-000004:INCOMPLETO",
+          "EXP-000005:INCOMPLETO"
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · 6_plan_solo_elegibles",
+      "ok": true,
+      "detalle": {
+        "en_plan": [
+          "EXP-000001",
+          "EXP-000002",
+          "EXP-000006"
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · 7a_observador_activo",
+      "ok": true,
+      "detalle": {
+        "vista": "ACTIVA"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 7b_fecha_publicada",
+      "ok": true,
+      "detalle": {
+        "dia": "2027-01-14",
+        "sucursal": "NOR-1",
+        "tramite": "alta"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 8_coincidencia_detectada",
+      "ok": true,
+      "detalle": {
+        "expediente": "EXP-000001",
+        "coincidencias": 1,
+        "confirmadas": 0
+      }
+    },
+    {
+      "comprobacion": "interfaz · 9_operacion_y_folio",
+      "ok": true,
+      "detalle": {
+        "folio": "DIA-20270114-00001T",
+        "confirmacion": "SIMULADA"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 10_historial_y_panel",
+      "ok": true,
+      "detalle": {
+        "folio_historial": "DIA-20270114-00001T",
+        "eventos": [
+          "ESTADO",
+          "RESERVACION_CONFIRMADA",
+          "RESERVACION_PENDIENTE",
+          "RECURSO_SELECCIONADO",
+          "DATOS_ENVIADOS",
+          "FORMULARIO_PREPARADO",
+          "ATENCION_INICIADA",
+          "SOLICITUD_EN_VENTANILLA",
+          "PLAN_OPERACION_PREPARADA",
+          "TOMADO_EN_VENTANILLA",
+          "PLAN_COINCIDENCIA",
+          "SOLICITUD_EN_PLAN",
+          "PLAN_AGREGADO",
+          "SOLICITUD_ELEGIBLE",
+          "CONSENTIMIENTO_OTORGADO",
+          "SOLICITUD_CREADA",
+          "CONSENTIMIENTO_REGISTRADO",
+          "IMPORTADO",
+          "CREADO"
+        ],
+        "en_panel": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · 11_reimportar_no_duplica",
+      "ok": true,
+      "detalle": {
+        "nuevos": "0",
+        "existen": "6",
+        "aviso": true,
+        "segundo_lote": {
+          "lote": "LOT-000002",
+          "creadas": "0",
+          "existentes": "6"
+        },
+        "expedientes_totales": 6
+      }
+    },
+    {
+      "comprobacion": "interfaz · recorrido completo sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · sin errores de JavaScript",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · sin respuestas HTTP de error",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "portal · el folio existe y está CONFIRMADO",
+      "ok": true,
+      "detalle": "{\"folio\":\"DIA-20270114-00001T\",\"estado\":\"CONFIRMADA\",\"clave\":\"59854e231cd19bc7813974bb\",\"identificador\":\"00450001\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Auro"
+    },
+    {
+      "comprobacion": "portal · la cita es del día abierto en el calendario del laboratorio",
+      "ok": true,
+      "detalle": "2027-01-14"
+    },
+    {
+      "comprobacion": "base · exactamente 6 expedientes tras dos cargas del mismo archivo",
+      "ok": true,
+      "detalle": 6
+    },
+    {
+      "comprobacion": "base · la cita confirmada es solo la del expediente que coincidió",
+      "ok": true,
+      "detalle": {
+        "EXP-000001": "CONFIRMADA",
+        "EXP-000002": "EN_PLAN",
+        "EXP-000003": "SIN_CONSENTIMIENTO",
+        "EXP-000004": "INCOMPLETO",
+        "EXP-000005": "INCOMPLETO",
+        "EXP-000006": "EN_PLAN"
+      }
+    },
+    {
+      "comprobacion": "base · los bloqueados (sin consentimiento o incompletos) no están en el plan",
+      "ok": true,
+      "detalle": {
+        "EXP-000001": "CONFIRMADA",
+        "EXP-000002": "EN_PLAN",
+        "EXP-000003": "SIN_CONSENTIMIENTO",
+        "EXP-000004": "INCOMPLETO",
+        "EXP-000005": "INCOMPLETO",
+        "EXP-000006": "EN_PLAN"
+      }
+    },
+    {
+      "comprobacion": "base · los otros dos elegibles siguen en el plan esperando (sin cita)",
+      "ok": true,
+      "detalle": {
+        "EXP-000001": "CONFIRMADA",
+        "EXP-000002": "EN_PLAN",
+        "EXP-000003": "SIN_CONSENTIMIENTO",
+        "EXP-000004": "INCOMPLETO",
+        "EXP-000005": "INCOMPLETO",
+        "EXP-000006": "EN_PLAN"
+      }
+    },
+    {
+      "comprobacion": "lotes · dos cargas registradas: 6 nuevos y luego 0 nuevos / 6 ya existentes",
+      "ok": true,
+      "detalle": [
+        [
+          "LOT-000002",
+          0,
+          6
+        ],
+        [
+          "LOT-000001",
+          6,
+          0
+        ]
+      ]
+    },
+    {
+      "comprobacion": "historial · importación, consentimiento, plan y folio en una sola línea de tiempo",
+      "ok": true,
+      "detalle": {
+        "faltan": []
+      }
+    },
+    {
+      "comprobacion": "historial · cadena de sellos del consentimiento íntegra",
+      "ok": true,
+      "detalle": {
+        "ok": true,
+        "consentimientos": 1,
+        "problemas": []
+      }
+    },
+    {
+      "comprobacion": "registros del motor y del portal sin datos personales ni la contraseña del archivo",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "base de datos · la contraseña del archivo no se guardó en ninguna tabla",
+      "ok": true,
+      "detalle": null
+    }
+  ],
+  "aprobadas": 26,
+  "total": 26,
+  "capturas": [
+    "01_mesa_de_control_vacia.png",
+    "02_importar_vista_previa.png",
+    "03_importar_resultado_lote.png",
+    "04_expedientes_del_lote_clasificados.png",
+    "05_registrar_consentimiento_con_huella.png",
+    "06_expedientes_tras_consentimiento.png",
+    "07_seleccion_para_el_plan.png",
+    "08_plan_solo_elegibles.png",
+    "09_mesa_de_control_plan_y_observador.png",
+    "10_calendario_laboratorio_publica_fecha.png",
+    "11_coincidencia_detectada_no_es_cita.png",
+    "12_operacion_revision_de_datos.png",
+    "13_operacion_confirmacion_simulada.png",
+    "14_cita_confirmada_con_folio.png",
+    "15_historial_con_folio.png",
+    "16_mesa_de_control_cita_confirmada.png",
+    "17_reimportar_mismo_archivo_vista_previa.png",
+    "18_reimportar_mismo_archivo_resultado.png",
+    "19_mesa_de_control_final.png"
+  ]
+}

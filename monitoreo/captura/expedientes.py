@@ -19,6 +19,7 @@ Estados (v1.6) y transiciones permitidas (`TRANSICIONES`; cualquier otra se rech
 """
 from __future__ import annotations
 
+import contextvars
 import secrets
 from datetime import datetime
 
@@ -97,9 +98,16 @@ AVISOS_TIPO = {"CONFIRMACION_EN_VERIFICACION": ("CONFIRMACION_PENDIENTE",
                                                     "persona si se cancela")}
 
 
+# RC1: durante una importación masiva el aviso «le faltan datos» se da UNA vez por lote (resumen),
+# no una alerta por fila. Los demás avisos (revisión, confirmación...) no se tocan.
+SIN_AVISO_INCOMPLETO: contextvars.ContextVar[bool] = contextvars.ContextVar("sin_aviso_incompleto", default=False)
+
+
 def _aviso(s: Session, exp_id: int, tipo: str, now: datetime, assignment_id: int | None, detalle: dict) -> None:
     """Crea la alerta del evento. Solo lleva el CÓDIGO del expediente, la región y la sucursal: nunca
     nombre, teléfono, correo, fecha de nacimiento ni datos tecleados."""
+    if tipo == "ESTADO" and detalle.get("despues") == INCOMPLETO and SIN_AVISO_INCOMPLETO.get():
+        return
     if tipo == "ESTADO":
         cat = AVISOS_ESTADO.get(detalle.get("despues"))
     else:
@@ -507,7 +515,11 @@ def vista(s: Session, exp: Expediente, completa: bool = False) -> dict:
             "operator_id": exp.operator_id, "request_id": exp.request_id, "version": exp.version,
             "motivo_cierre": exp.motivo_cierre, "faltan": faltantes(exp) if exp.estado in PREPARACION else [],
             "creado": iso(exp.created_at), "actualizado": iso(exp.updated_at), "validado": iso(exp.validado_en),
-            "ultimo_error": exp.ultimo_error, "anonimizado": exp.anonimizado_en is not None}
+            "ultimo_error": exp.ultimo_error, "anonimizado": exp.anonimizado_en is not None,
+            # RC1: lo pedido y lo aceptable (la fecha confirmada está en la reservación)
+            "fecha_solicitada": exp.fecha_solicitada.isoformat() if exp.fecha_solicitada else None,
+            "fechas_desde": exp.fechas_desde.isoformat() if exp.fechas_desde else None,
+            "fechas_hasta": exp.fechas_hasta.isoformat() if exp.fechas_hasta else None}
     if exp.anonimizado_en is not None:
         base.update(nombre="(anonimizado)", fecha_nacimiento=None, telefono=None, correo=None,
                     id_registro_previo=None, id_externo=None, folio_anterior=None, datos_completos=False)

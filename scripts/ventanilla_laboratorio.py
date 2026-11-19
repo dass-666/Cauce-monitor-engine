@@ -42,7 +42,7 @@ OPERADOR = ("operador1", "Operador-Laboratorio-2026")
 
 
 class Laboratorio:
-    def __init__(self, carpeta: Path, nuevo: bool = False):
+    def __init__(self, carpeta: Path, nuevo: bool = False, rc1: bool = False):
         self.carpeta = Path(carpeta)
         if nuevo and self.carpeta.exists():
             shutil.rmtree(self.carpeta)
@@ -54,6 +54,7 @@ class Laboratorio:
             "token": secrets.token_urlsafe(16), "token_control": secrets.token_urlsafe(16),
             "secret": secrets.token_urlsafe(48)}
         cfg_path.write_text(json.dumps(self.cfg), "utf-8")
+        self.rc1 = rc1                  # RC1: el administrador también opera (y registros de la lista demo)
         self.portal: PortalProceso | None = None
         self.motor: Server | None = None
 
@@ -87,7 +88,29 @@ class Laboratorio:
                                          "regions": ["NORTE"], "sucursales": ["NOR-1", "NOR-2"],
                                          "operator_name": "Operador de laboratorio"}).raise_for_status()
         adm.close()
+        if self.rc1:
+            self.portal.ctl("POST", "/control/registros/demo-rc1")
+            self._admin_operador(env["MONITOREO_DB_URL"])
         return self.datos()
+
+    @staticmethod
+    def _admin_operador(url: str) -> None:
+        """RC1: una persona administrativa opera el sistema. Su usuario se vincula a un operador (todas las
+        regiones y sucursales) para poder preparar y confirmar la operación de una coincidencia con el mismo
+        flujo de Ventanilla. Solo en este laboratorio; no crea cuentas nuevas."""
+        from sqlalchemy import select
+
+        from monitoreo.db import Database
+        from monitoreo.models import Operator, Region, User
+        d = Database(url)
+        try:
+            with d.session() as s:
+                u = s.scalar(select(User).where(User.username == "admin"))
+                if u is not None and not s.scalar(select(Operator.id).where(Operator.user_id == u.id)):
+                    s.add(Operator(name="Administración (laboratorio)", user_id=u.id,
+                                   regions=list(s.scalars(select(Region.code))), sucursales=[], max_concurrent=10))
+        finally:
+            d.engine.dispose()
 
     def datos(self) -> dict:
         return {"motor": self.motor.base, "ventanilla": self.motor.base + "/#ventanilla",

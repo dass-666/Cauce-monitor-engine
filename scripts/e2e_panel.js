@@ -13,7 +13,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   const errors = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(base + "/");
+  await page.goto(base + "/#inicio");     // RC1: el admin del laboratorio entra por defecto a «Mesa de control»
   await page.fill("input[name=username]", user);
   await page.fill("input[name=password]", pass);
   await page.click("button[type=submit]");
@@ -174,7 +174,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const p2 = await phone.newPage();
   p2.on("pageerror", (e) => errors.push(e.message));
-  await p2.goto(base + "/");
+  await p2.goto(base + "/#inicio");
   await p2.fill("input[name=username]", user);
   await p2.fill("input[name=password]", pass);
   await p2.click("button[type=submit]");
