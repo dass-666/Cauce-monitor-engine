@@ -778,19 +778,23 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # v2.2.2: INVESTIGACIÓN (no bloquea). test_changes_wake_the_cycle falló dos veces seguidas en
-  # Linux · Python 3.13 (0,51 y 0,53 s contra 0,4 s) y no se reproduce en el contenedor de desarrollo.
-  # Este trabajo mide en los ejecutores de GitHub, por partes, dónde se va el tiempo, en tres versiones
-  # de Python, y repite la prueba real aislada y dentro de la parte de la suite que la precede.
-  investigar-despertar:
-    name: Investigación despertar del ciclo · Python ${{ matrix.python }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
+  # v2.2.2 · REGRESIÓN de los dos defectos corregidos (BLOQUEA: si falla una sola repetición, el trabajo
+  # falla). Sustituye a los trabajos de investigación investigar-despertar / investigar-observador, cuyos
+  # resultados están en docs/INFORME_v2.2.2.md. Linux y Windows · Python 3.11 y 3.13.
+  #   1. tests/test_supervisor_v222.py (sin navegador) 5 veces.
+  #   2. test_changes_wake_the_cycle 30 veces normal y 30 veces con la CPU saturada (2 procesos por
+  #      núcleo al 100 %), con el umbral original de 0,4 s; y 3 veces tras los archivos que la preceden.
+  #   3. Solo Windows: test_limite_de_reinicios_detiene_con_motivo con navegador real, 8 veces (la
+  #      prueba que fallaba 0-50 % en Windows).
+  regresion-v222:
+    name: Regresión v2.2.2 · ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
     defaults:
       run:
         shell: bash
@@ -804,77 +808,71 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --only-binary=:all: -r requirements-postgres.txt
-      - name: "Medición por partes (normal, CPU cargada, sin tareas de fondo)"
-        run: |
           mkdir -p resultados
-          python scripts/investigar_despertar.py --repeticiones 40 --salida resultados/investigar_despertar.json 2>/dev/null | grep -E '^(normal|carga|aislado|carga_aislado) '
-      - name: "La prueba real aislada: 30 veces"
+      - name: "Supervisor: tests/test_supervisor_v222.py, 5 veces"
+        run: |
+          fallos=0
+          for i in 1 2 3 4 5; do
+            python -m pytest -q tests/test_supervisor_v222.py > resultados/supervisor_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +|FAILED" resultados/supervisor_$i.txt | head -5; }
+            tail -1 resultados/supervisor_$i.txt
+          done
+          echo "SUPERVISOR: $fallos fallos de 5"
+          test $fallos -eq 0
+      - name: "Despertar: prueba real 30 veces (normal)"
         run: |
           fallos=0
           for i in $(seq 1 30); do
-            python -m pytest -q tests/test_ciclo_despertar.py -k test_changes_wake_the_cycle > resultados/rep_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +assert" resultados/rep_$i.txt | head -1; }
+            python -m pytest -q tests/test_ciclo_despertar.py > resultados/despertar_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/despertar_$i.txt | head -2; }
           done
-          echo "AISLADA: $fallos fallos de 30"
-      - name: "La prueba real tras los archivos que la preceden en la suite: 3 veces"
+          echo "DESPERTAR NORMAL: $fallos fallos de 30"
+          test $fallos -eq 0
+      - name: "Despertar: prueba real 30 veces con la CPU saturada"
+        run: |
+          n=$(python -c "import os; print(2 * (os.cpu_count() or 2))")
+          pids=""
+          for j in $(seq 1 $n); do python -c "while True: pass" & pids="$pids $!"; done
+          echo "procesos de carga: $n"
+          fallos=0
+          for i in $(seq 1 30); do
+            python -m pytest -q tests/test_ciclo_despertar.py > resultados/despertar_carga_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/despertar_carga_$i.txt | head -2; }
+          done
+          kill $pids 2>/dev/null || true
+          echo "DESPERTAR CON CARGA: $fallos fallos de 30"
+          test $fallos -eq 0
+      - name: "Despertar: tras los archivos que la preceden en la suite, 3 veces"
         run: |
           previos=$(ls tests/test_*.py | awk '$0 < "tests/test_ciclo_despertar.py"')
           fallos=0
           for i in 1 2 3; do
-            python -m pytest -q $previos tests/test_ciclo_despertar.py > resultados/suite_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +assert|failed|FAILED" resultados/suite_$i.txt | head -3; }
-            tail -1 resultados/suite_$i.txt
+            python -m pytest -q $previos tests/test_ciclo_despertar.py > resultados/contexto_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +|FAILED" resultados/contexto_$i.txt | head -3; }
+            tail -1 resultados/contexto_$i.txt
           done
           echo "EN CONTEXTO: $fallos fallos de 3"
-      - name: Adjuntar mediciones
+          test $fallos -eq 0
+      - name: "Medición por partes (informativa, no decide)"
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: investigar-despertar-py${{ matrix.python }}
-          path: resultados/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  # v2.2.2: INVESTIGACIÓN (no bloquea). Fallo intermitente de test_limite_de_reinicios_detiene_con_motivo
-  # en Windows · Python 3.11. Repite las pruebas del observador persistente con navegador real para
-  # registrar frecuencia; la causa ya está reproducida de forma determinista en
-  # tests/test_estabilizacion_v222.py (xfail estricto).
-  investigar-observador:
-    name: Investigación observador persistente · Windows · Python ${{ matrix.python }}
-    runs-on: windows-latest
-    timeout-minutes: 45
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.11", "3.13"]
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: requirements*.txt
-      - name: Instalar dependencias y navegador
         run: |
-          python -m pip install --only-binary=:all: -r requirements.txt
+          python scripts/investigar_despertar.py --repeticiones 40 --salida resultados/investigar_despertar.json 2>/dev/null | grep -E '^(normal|carga|aislado|carga_aislado) ' || true
+      - name: Navegador para el observador (solo Windows)
+        if: runner.os == 'Windows'
+        run: |
           npm install --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
           npx playwright install chromium
-      - name: "test_limite_de_reinicios_detiene_con_motivo: 8 veces"
+      - name: "Observador real: test_limite_de_reinicios_detiene_con_motivo, 8 veces (solo Windows)"
+        if: runner.os == 'Windows'
         run: |
-          mkdir -p resultados
           fallos=0
           for i in $(seq 1 8); do
-            python -m pytest -q tests/test_observador_persistente.py -k test_limite_de_reinicios > resultados/obs_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +AssertionError" resultados/obs_$i.txt | head -1; }
+            python -m pytest -q tests/test_observador_persistente.py -k test_limite_de_reinicios > resultados/obs_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/obs_$i.txt | head -2; }
             tail -1 resultados/obs_$i.txt
           done
           echo "OBSERVADOR: $fallos fallos de 8"
+          test $fallos -eq 0
       - name: Adjuntar resultados
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: investigar-observador-py${{ matrix.python }}
+          name: regresion-v222-${{ matrix.os }}-py${{ matrix.python }}
           path: resultados/
           if-no-files-found: ignore
           retention-days: 14
