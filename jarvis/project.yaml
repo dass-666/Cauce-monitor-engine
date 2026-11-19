@@ -26,7 +26,7 @@ integracion:
   # El commit fijado es el último commit de CÓDIGO; este bloque se escribe en un commit posterior solo
   # de documentación (un commit no puede contener su propio hash). Fijado por decisión humana, 2026-11-19.
   rama: claude/integracion-v2.2.2
-  commit_fijado: a57b7b04032f6c2d782ec0938735eb0200c1ad29
+  commit_fijado: 9f79a3cdc57a20619aba0a961e20e6d0a4901b47
   fijado_en: "2026-11-19"
   # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
   # v2.2.2 (integración): ya no se declara `jarvis/` entero. El manifiesto y el esquema siempre cuentan

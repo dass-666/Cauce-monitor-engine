@@ -16,7 +16,7 @@ fusionar, desplegar, editar código, tocar la base de datos real ni hablar con p
 3. **Rama y commit:** Jarvis debe leer `integracion.rama` y `integracion.commit_fijado`, no
    `proyecto.rama_principal` (`master` es la rama histórica v1.0, se conserva por compatibilidad).
    Hacer `git checkout <integracion.rama>` en la copia. Desde el 2026-11-19 están fijados
-   `claude/integracion-v2.2.2` y `a57b7b04032f6c2d782ec0938735eb0200c1ad29` (último commit de código).
+   `claude/integracion-v2.2.2` y `9f79a3cdc57a20619aba0a961e20e6d0a4901b47` (último commit de código).
    El fijado se escribe siempre en un commit posterior solo de documentación, porque un commit no
    puede contener su propio hash: lo normal es ver `POSTERIOR_SOLO_DOCUMENTOS`, no `FIJADO`.
    Cambiar después el manifiesto, el esquema o cualquier parte de `project.yaml` fuera del bloque
