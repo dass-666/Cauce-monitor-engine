@@ -12,7 +12,8 @@ Jarvis, sin conectar proveedores externos). Todo con datos **ficticios** y el po
 | `e63d5e6` | Integración: `claude/recorrido-integral-v2.3` (f23cb84) + fusión de `claude/project-thread-2wwz8e` (v2.3.1, 21d5a96). Sin conflictos. |
 | `a9f2938` | RC1: importador, mesa de control, expedientes, planificación por selección, lanzador, demostración, pruebas. |
 | `96bea73` | Restaura capturas de v2.0 que la regresión `demo_v20` sobrescribió (error mío al commitear). |
-| (siguiente) | Este informe con el resultado de la CI. |
+| `8e22e50` | Ruta absoluta en el recorrido (fallo de la CI 95) e informe. |
+| (último) | Resultado de la CI 96 (30/30) en este informe; solo documentación. |
 
 Ancestros comprobados con `git merge-base`: v2.3.1 desciende de integración v2.2.2 (2546ed1); el recorrido
 integral sale de 93328a3 (v2.3.1 sin sus dos últimos cambios, que eran solo documentación). Ninguna rama
@@ -122,7 +123,8 @@ laboratorio» (Linux y Windows 3.11/3.12/3.13), solo en el paso nuevo RC1: la CI
 relativa y el navegador corre desde `scripts/`, así que no encontraba el `.xlsx` (ENOENT). Error mío del script
 de demostración, no del producto; en local había usado una ruta absoluta. Corregido (ruta resuelta a absoluta) y
 reproducido en local con ruta relativa: 26/26. Las regresiones v2.3.1 (21/21) e integral (32/32) pasaron en esa
-misma corrida. Resultado de la corrida con la corrección: RESULTADO_CI2
+misma corrida. Corrida 96 con la corrección (commit 8e22e50): **30/30 trabajos pasan** en Linux (SQLite y PostgreSQL) y Windows
+(Python 3.11, 3.12 y 3.13), incluido el recorrido RC1 con la interfaz: https://github.com/dass-666/Cauce-monitor-engine/actions/runs/44555138969
 
 Ajustes a pruebas existentes (no son umbrales): `test_captura_datos` y `test_interop_jarvis` esperaban la
 migración 0015 como última; ahora es 0016. `scripts/e2e_panel.js` entra por `#inicio` porque el admin del
