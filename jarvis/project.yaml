@@ -23,9 +23,11 @@ proyecto:
 integracion:
   # Rama y commit que Jarvis debe reconocer. Cambiarlos es una decisión humana (editar este archivo en
   # una revisión); Cauce no los cambia solo y no toca la rama por omisión de GitHub.
-  rama: claude/estabilizacion-v2.2.2
-  commit_fijado: 51bbd3b4e3c82a59b4cb5e106701433487fc903a
-  fijado_en: "2026-11-15"
+  # El commit fijado es el último commit de CÓDIGO; este bloque se escribe en un commit posterior solo
+  # de documentación (un commit no puede contener su propio hash). Fijado por decisión humana, 2026-11-19.
+  rama: claude/integracion-v2.2.2
+  commit_fijado: a57b7b04032f6c2d782ec0938735eb0200c1ad29
+  fijado_en: "2026-11-19"
   # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
   # v2.2.2 (integración): ya no se declara `jarvis/` entero. El manifiesto y el esquema siempre cuentan
   # como código, y de este archivo solo el bloque `integracion` puede cambiar sin volver a fijar
