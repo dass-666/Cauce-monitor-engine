@@ -259,7 +259,8 @@ def validar_datos(d: dict, exp: Expediente, now: datetime) -> tuple[dict, dict]:
     out["evidencia_sha256"] = h
     ref = " ".join(str(d.get("evidencia_ref") or "").split())
     if not _REF.match(ref) or re.search(r"\d{8,}|@", ref):
-        e["evidencia_ref"] = "Referencia corta de dónde está el original, sin datos personales"
+        e["evidencia_ref"] = ("Referencia corta de dónde está el original, sin datos personales (solo letras, "
+                              "números, espacios y . / : # -; sin comas)")
     out["evidencia_ref"] = ref
     return out, e
 

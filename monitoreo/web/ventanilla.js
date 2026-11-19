@@ -81,10 +81,13 @@ async function viewVentanilla() {
     { t: "Duración", f: (a) => fmtDur(Math.round(a.duracion_s)) }], d.recientes, (a) => { S.ventanilla.aid = a.id; refresh(true, true); }));
   let plan = null;
   try { plan = await api("/api/planificador/jornada"); } catch (_) { plan = null; }   // fuera del laboratorio no existe
+  // v2.3: el administrador ve también el observador y los posibles duplicados por revisar
+  const [obs, dups] = isAdmin() ? await Promise.all([tarjetaObservador(), revisionDuplicados()]) : [null, null];
   return h("div", { id: "ventanilla" }, cabecera,
     h("div", { class: "section" }, h("button", { class: "btn primary big", id: "btn-nueva-atencion",
       onclick: () => iniciarAtencion() }, "Nueva atención")),
-    abiertas, plan ? h("div", { class: "section" }, planDelDia(plan, d.abiertas)) : null,
+    abiertas, dups ? h("div", { class: "section" }, dups) : null,
+    plan ? h("div", { class: "section" }, planDelDia(plan, d.abiertas)) : null, obs ? h("div", { class: "section" }, obs) : null,
     h("div", { class: "section" }, recientes));
 }
 
@@ -198,12 +201,21 @@ async function pantallaAtencion(aid) {
     pasosAtencion(a.siguiente.clave),
     h("p", { class: "siguiente-paso", id: "siguiente-paso", "data-siguiente": a.siguiente.clave }, "Siguiente: ", a.siguiente.texto),
     h("div", { class: "actions" }, h("button", { class: "btn small ghost", onclick: () => { S.ventanilla.aid = null; refresh(true, true); } },
-      "Volver a la lista (la atención queda abierta)")));
-  if (!a.abierta) return h("div", {}, cab, resultadoFinal(a));
-  if (!a.expediente) return h("div", {}, cab, h("div", { class: "grid cols-2 section" }, buscarPersona(a), registrarPersona(a)));
+      a.abierta ? "Volver a la lista (la atención queda abierta)" : "Volver a la lista")));
+  const hist = a.expediente ? await historialExpediente(a.expediente.id, !a.abierta) : null;   // v2.3
+  if (!a.abierta) return h("div", {}, cab, resultadoFinal(a), hist);
+  // v2.3: una atención abierta por error (o sin persona) también se puede cerrar desde aquí
+  if (!a.expediente) return h("div", {}, cab, h("div", { class: "grid cols-2 section" }, buscarPersona(a), registrarPersona(a)), cierre(a, false, null));
   // v2.2: sin consentimiento vigente no se prepara nada: primero se registra (la persona está presente)
-  if (a.siguiente.clave === "consentimiento") return h("div", {}, cab, tarjetaConsentimiento(a), cierre(a, false, null));
-  const e = await api(`/api/expedientes/${a.expediente.id}`);
+  if (a.siguiente.clave === "consentimiento") return h("div", {}, cab, tarjetaConsentimiento(a), cierre(a, false, null), hist);
+  // v2.3: un expediente en revisión (posible duplicado) o incompleto no queda asignado al operador, así que
+  // su ficha no se puede abrir; antes la pantalla volvía a la lista SIN decir nada. Ahora se explica qué pasa.
+  let e;
+  try { e = await api(`/api/expedientes/${a.expediente.id}`); }
+  catch (err) {
+    if (err.status !== 404) throw err;
+    return h("div", {}, cab, expedienteEnEspera(a), cierre(a, false, null), hist);
+  }
   const viva = (e.reservaciones || []).find((r) => ["PREPARADA", "DATOS_ENVIADOS", "RETENIDA", "FECHA_ELEGIDA",
     "CONFIRMANDO", "EN_VERIFICACION"].includes(r.estado));
   const conf = a.reservacion && a.reservacion.estado === "CONFIRMADA" ? a.reservacion : null;
@@ -214,7 +226,22 @@ async function pantallaAtencion(aid) {
     ? "preparar" : undefined);
   S.ventanilla.paso = null;
   await pintarFlujo(flujo, e, viva, conf, paso);
-  return h("div", {}, cab, barraConsentimiento(a), flujo, cierre(a, !!conf, viva));
+  // v2.3: sin operación con el portal todavía, la persona puede quedarse en el plan del día
+  const alPlan = !conf && (!viva || viva.estado === "PREPARADA") && ["preparar", "enviar"].includes(a.siguiente.clave)
+    && (!a.consentimiento || !a.consentimiento.exigido || a.consentimiento.vigente) ? tarjetaAlPlan(a) : null;
+  return h("div", {}, cab, barraConsentimiento(a), flujo, alPlan, cierre(a, !!conf, viva), hist);
+}
+
+function expedienteEnEspera(a) {
+  const x = a.expediente;
+  const revision = x.estado === "REQUIERE_REVISION";
+  return h("div", { class: "card section", id: "expediente-en-espera", "data-estado-expediente": x.estado },
+    h("h2", {}, revision ? "Posible duplicado: lo revisa un administrador" : `Expediente ${x.estado.replace(/_/g, " ").toLowerCase()}`),
+    revision ? h("p", {}, `El expediente ${x.codigo} se parece mucho a otro (nombre casi igual y la misma fecha de nacimiento). `,
+      "No entra a la cola ni al plan hasta que un administrador decida en su Ventanilla («Posibles duplicados por revisar») ",
+      "si es la misma persona o son personas distintas.") :
+      h("p", {}, x.faltan && x.faltan.length ? `Faltan datos: ${x.faltan.join(", ")}.` : "Todavía no está listo para operar."),
+    h("p", { class: "muted" }, "Puedes cerrar esta atención (abajo) y retomarla cuando se resuelva; la persona no pierde su lugar."));
 }
 
 // ---------------------------------------------------------------- v2.2 · consentimiento de la persona
@@ -254,7 +281,7 @@ function camposConsentimiento(requerido) {
       autocomplete: "off", required: requerido || null, pattern: "[A-Za-z0-9._\\-]{1,32}", id: "cons-aviso" })),
     field("Documento firmado (solo para calcular la huella)", archivo, "full"),
     field("Huella SHA-256 del documento", huella, "full"), h("div", { class: "full" }, nota),
-    field("Dónde está el original", h("input", { name: "cons_evidencia_ref", maxlength: 64, placeholder: "Carpeta 2026-11, hoja 14",
+    field("Dónde está el original", h("input", { name: "cons_evidencia_ref", maxlength: 64, placeholder: "Carpeta 2026-11 hoja 14",
       autocomplete: "off", id: "cons-ref" }), "full"),
   ];
 }
@@ -321,7 +348,9 @@ function resultadoFinal(a) {
     conCita ? h("p", {}, "Folio: ", h("b", { id: "folio-atencion", "data-folio": a.folio }, a.folio)) : null,
     !conCita && a.estado !== "PENDIENTE" && a.resultado === "CONSENTIMIENTO_REVOCADO" ? h("p", { id: "atencion-revocada" },
       "La persona retiró su consentimiento: su expediente se cerró y no habrá más operaciones con sus datos.") : null,
-    !conCita && a.estado !== "PENDIENTE" && a.resultado !== "CONSENTIMIENTO_REVOCADO" ? h("p", {}, `Resultado: ${AT_NOMBRE[a.estado]} (${(a.resultado || "").replace(/_/g, " ").toLowerCase()}). `,
+    a.resultado === "EN_PLAN_DEL_DIA" ? h("p", { id: "atencion-en-plan" }, "La persona quedó en el plan del día. Cuando el observador ",
+      "encuentre un día compatible aparecerá como «Coincidencia» en «Plan del día»: desde ahí se prepara la operación.") : null,
+    !conCita && a.estado !== "PENDIENTE" && !["CONSENTIMIENTO_REVOCADO", "EN_PLAN_DEL_DIA"].includes(a.resultado) ? h("p", {}, `Resultado: ${AT_NOMBRE[a.estado]} (${(a.resultado || "").replace(/_/g, " ").toLowerCase()}). `,
       "Si la persona sigue esperando una cita, el motor seguirá buscando por ella.") : null,
     a.estado === "PENDIENTE" ? h("p", {}, "El motor comprueba con el portal si la cita quedó registrada. No repitas la confirmación.") : null,
     h("p", { class: "muted" }, `Duración: ${fmtDur(Math.round(a.duracion_s))}`),
@@ -539,4 +568,216 @@ async function viewTramitesManuales() {
       } },
       { t: "", f: (c) => c.estado === "DECLARADA" ? h("button", { class: "btn", "data-reverificar": c.id, onclick: (ev) => { ev.stopPropagation(); reverificar(c); } }, "Verificar de nuevo") : null }],
       lista.capturas))));
+}
+
+// ================================================================ v2.3 · recorrido completo desde la interfaz
+// Huecos que antes obligaban a usar la API o un script (ver docs/INFORME_v2.3_ventanilla.md):
+//  1. dejar a la persona en el plan del día desde su atención;
+//  2. arrancar y detener el observador del calendario;
+//  3. abrir días en el calendario del laboratorio (portal propio);
+//  4. revisar posibles duplicados (administrador);
+//  5. ver el historial completo de un expediente.
+const RESULTADO_NOMBRE = { EN_PLAN_DEL_DIA: "quedó en el plan del día", CITA_CONFIRMADA: "cita confirmada",
+  SIN_DISPONIBILIDAD: "sin días disponibles", CANCELADA: "la persona se retiró", ERROR: "error" };
+const FUENTE_NOMBRE = { expediente: "Expediente", consentimiento: "Consentimiento", cola: "Cola del motor" };
+
+function tarjetaAlPlan(a) {
+  // Solo cuando la persona ya tiene expediente con consentimiento y todavía no hay operación con el portal.
+  const errs = h("div", { class: "error", role: "alert", id: "al-plan-error" });
+  const desde = h("input", { type: "date", id: "al-plan-desde" });
+  const hasta = h("input", { type: "date", id: "al-plan-hasta" });
+  const boton = h("button", { class: "btn", id: "btn-al-plan", onclick: async () => {
+    errs.textContent = ""; boton.disabled = true;
+    try {
+      const body = {};
+      if (desde.value) body.fechas_desde = desde.value;
+      if (hasta.value) body.fechas_hasta = hasta.value;
+      await api(`/api/ventanilla/atenciones/${a.id}/plan`, { method: "POST", body });
+      toast("La persona quedó en el plan del día", 4000);
+      refresh(true, true);
+    } catch (err) { errs.textContent = err.message; boton.disabled = false; }
+  } }, "Dejarla en el plan del día");
+  return h("details", { class: "card section", id: "tarjeta-al-plan" },
+    h("summary", {}, "¿Hoy no hay día que le sirva? Dejarla en el plan del día"),
+    h("p", { class: "muted" }, "La atención se cierra SIN cita y el expediente entra al plan de hoy. Cuando el observador ",
+      "vea un día compatible en el calendario, el plan se lo asigna y aparece como «Coincidencia» para preparar la operación. ",
+      "Si no indicas fechas, se aceptan los próximos 30 días."),
+    h("div", { class: "form" }, field("Fechas aceptables desde", desde), field("hasta", hasta), boton), errs);
+}
+
+async function historialExpediente(expId, abierto) {
+  // Trazabilidad completa (solo códigos, estados y fechas; nunca datos personales).
+  let t;
+  try { t = await api(`/api/expedientes/${expId}/trazabilidad`); }
+  catch (err) {
+    return h("div", { class: "card section muted", id: "historial-expediente", "data-disponible": "no" },
+      err.status === 404 ? "El historial de este expediente lo consulta un administrador (ya no está asignado a ti)." : err.message);
+  }
+  const r = t.expediente || {};
+  const v = t.verificacion_consentimientos || {};
+  const det = (x) => {
+    const d = x.detalle || {};
+    if (x.tipo === "ESTADO") return `${d.antes || "—"} → ${d.despues || "—"}`.replace(/_/g, " ");
+    const partes = Object.entries(d).filter(([k, val]) => val !== null && val !== "" && typeof val !== "object" && k !== "sello")
+      .map(([k, val]) => `${k}: ${val}`);
+    return partes.join(" · ").slice(0, 160);
+  };
+  return h("details", { class: "card section", id: "historial-expediente", "data-disponible": "si", open: abierto ? true : null },
+    h("summary", {}, `Historial completo del expediente ${r.codigo} (${t.linea_de_tiempo.length} eventos)`),
+    h("div", { class: "grid kpis" },
+      kpi("Estado", (r.estado || "").replace(/_/g, " "), r.motivo_cierre ? "cierre: " + r.motivo_cierre : "actual"),
+      kpi("Consentimiento", r.consentimiento_vigente || "ninguno vigente",
+        h("span", { id: "historial-cadena", "data-ok": v.ok ? "si" : "no" }, v.ok ? "cadena de sellos íntegra" : "⚠ cadena con problemas")),
+      kpi("Folio", h("span", { id: "historial-folio" }, (t.reservaciones.find((x) => x.estado === "CONFIRMADA") || {}).folio || "—"), "cita confirmada"),
+      kpi("Atenciones", num(t.atenciones.length), t.planes.length ? `en ${t.planes.length} plan(es) del día` : "sin plan del día")),
+    t.atenciones.length ? h("div", {}, h("h3", {}, "Atenciones en ventanilla"), table([
+      { t: "Atención", f: (x) => h("b", {}, x.codigo) }, { t: "Resultado", f: (x) => h("span", {}, badge(x.estado), " ",
+        RESULTADO_NOMBRE[x.resultado] || (x.resultado || "").replace(/_/g, " ").toLowerCase()) },
+      { t: "Folio", f: (x) => x.folio || "—" }, { t: "Operador", f: (x) => x.usuario },
+      { t: "Inicio", f: (x) => fmtTime(x.iniciada_en) }, { t: "Cierre", f: (x) => x.cerrada_en ? fmtTime(x.cerrada_en) : "abierta" }], t.atenciones)) : null,
+    t.planes.length ? h("div", {}, h("h3", {}, "Plan del día"), table([
+      { t: "Jornada", f: (x) => x.jornada }, { t: "Estado", f: (x) => planBadge(x.estado) }, { t: "Prioridad", num: true, f: (x) => x.prioridad },
+      { t: "Día asignado", f: (x) => x.fecha_asignada ? `${x.fecha_asignada} · ${x.sucursal_asignada}` : "—" }], t.planes)) : null,
+    t.reservaciones.length ? h("div", {}, h("h3", {}, "Operaciones con el portal de laboratorio"), table([
+      { t: "Estado", f: (x) => badge(x.estado) }, { t: "Día", f: (x) => x.fecha ? `${x.fecha} · ${x.sucursal || ""}` : "—" },
+      { t: "Folio", f: (x) => x.folio ? h("b", {}, x.folio) : "—" }, { t: "Confirmó", f: (x) => x.confirmada_por || "—" },
+      { t: "Error", f: (x) => x.error_codigo || "—" }], t.reservaciones)) : null,
+    h("h3", {}, "Línea de tiempo"),
+    h("ul", { class: "timeline", id: "historial-linea" }, t.linea_de_tiempo.slice().reverse().map((x) => h("li", { "data-tipo": x.tipo },
+      h("b", {}, (x.tipo || "").replace(/_/g, " ")), h("span", { class: "muted" }, ` · ${FUENTE_NOMBRE[x.fuente] || x.fuente} · ${fmtTime(x.ts)} · ${x.actor || ""}`),
+      det(x) ? h("div", { class: "muted" }, det(x)) : null))));
+}
+
+// ---------------------------------------------------------------- posibles duplicados (administrador)
+async function revisionDuplicados() {
+  let lista;
+  try { lista = await api("/api/expedientes?estado=REQUIERE_REVISION&limit=20"); } catch (_) { return null; }
+  if (!lista.length) return null;
+  const items = await Promise.all(lista.map(async (e) => {
+    let p = [];
+    try { p = (await api(`/api/expedientes/${e.id}/posibles-duplicados`)).posibles || []; } catch (_) { p = []; }
+    return { e, p };
+  }));
+  return card("Posibles duplicados por revisar", h("div", { id: "revision-duplicados" },
+    h("p", { class: "muted" }, "Estos expedientes se parecen a otro (nombre muy parecido y misma fecha de nacimiento). ",
+      "No entran a la cola ni al plan hasta que decidas. Si es la misma persona, cancela el nuevo y atiende el anterior."),
+    items.map(({ e, p }) => {
+      const errs = h("div", { class: "error", role: "alert" });
+      const motivo = h("input", { maxlength: 120, placeholder: "Por qué son personas distintas (sin datos personales)", autocomplete: "off",
+        class: "motivo-descartar" });
+      return h("div", { class: "trabajo-item vt", "data-revision": e.codigo },
+        h("div", {}, h("b", {}, e.codigo), " ", badge(e.estado), ` · ${e.nombre || ""} · ${TRAMITES[e.tipo_tramite] || e.tipo_tramite}`,
+          h("div", { class: "muted" }, "Se parece a: ", p.length ? p.map((x) => `${x.codigo || x.otro || "?"}${x.estado ? " (" + x.estado.replace(/_/g, " ") + ")" : ""}`).join(", ") : "—")),
+        h("div", { class: "actions" }, motivo, p.map((x) => h("button", { class: "btn", "data-descartar": x.codigo || x.otro, onclick: async () => {
+          errs.textContent = "";
+          try {
+            const r = await api(`/api/expedientes/${e.id}/duplicados/descartar`, { method: "POST", body: { otro: x.codigo || x.otro, motivo: motivo.value } });
+            toast(`${r.expediente}: ${r.estado.replace(/_/g, " ")}`, 4000); refresh(true);
+          } catch (err) { errs.textContent = err.message; }
+        } }, `Son personas distintas de ${x.codigo || x.otro}`)),
+          h("button", { class: "btn danger", onclick: async () => {
+            await act(() => api(`/api/expedientes/${e.id}/cancelar`, { method: "POST" }), "Expediente nuevo cancelado (era la misma persona)"); refresh(true);
+          } }, "Es la misma persona: cancelar este")), errs);
+    })));
+}
+
+// ---------------------------------------------------------------- observador del calendario (administrador)
+async function tarjetaObservador() {
+  let d;
+  try { d = await api("/api/observador"); } catch (_) { return null; }
+  const errs = h("div", { class: "error", role: "alert", id: "observador-error" });
+  const hoy = new Date();
+  const mesSig = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+  const mesVal = `${mesSig.getFullYear()}-${String(mesSig.getMonth() + 1).padStart(2, "0")}`;
+  const suc = h("input", { id: "obs-sucursal", value: "NOR-1", maxlength: 32, class: "small" });
+  const tram = h("select", { id: "obs-tramite" }, Object.entries(TRAMITES).map(([k, v]) => h("option", { value: k }, v)));
+  const mes = h("input", { type: "month", id: "obs-mes", value: mesVal });
+  const activos = (d.configurados || []).filter((c) => c.activo);
+  const vivo = (c) => (d.observadores || []).find((o) => o.nombre && o.nombre.includes(c.sucursal)) || null;
+  const estadoTexto = (c) => {
+    const o = (d.observadores || [])[0];
+    const vista = o && o.vista ? Object.values(o.vista)[0] : null;
+    if (c.estado === "DETENIDO_POR_FALLOS") return "detenido por fallos: " + (c.motivo || "");
+    return vista === "ACTIVA" ? "mirando el calendario" : (c.estado || "").toLowerCase().replace(/_/g, " ") + (vista ? ` · vista ${vista}` : " · arrancando");
+  };
+  return card("Observador del calendario", h("div", { id: "observador", "data-activos": activos.length,
+    "data-vista": ((d.observadores || [])[0] && Object.values((d.observadores[0].vista || {}))[0]) || "" },
+    h("p", { class: "muted" }, "Mira el calendario del laboratorio y avisa al plan cuando aparece un día. Sin observador, el plan no recibe fechas nuevas."),
+    activos.length ? h("ul", {}, activos.map((c) => h("li", { "data-observador": c.clave },
+      h("b", {}, `${c.sucursal} · ${TRAMITES[c.tramite] || c.tramite} · ${c.mes || "mes actual"}`), " — ", estadoTexto(c, vivo(c))))) :
+      h("p", { class: "warn-text", id: "observador-apagado" }, "No hay ningún observador en marcha."),
+    h("div", { class: "actions" },
+      activos.length ? h("button", { class: "btn", id: "btn-detener-observador", onclick: async () => {
+        errs.textContent = "";
+        try { await api("/api/observador", { method: "DELETE" }); refresh(true); } catch (err) { errs.textContent = err.message; }
+      } }, "Detener") : [h("label", {}, "Sucursal ", suc), h("label", {}, "Trámite ", tram), h("label", {}, "Mes ", mes),
+        h("button", { class: "btn primary", id: "btn-iniciar-observador", onclick: async (ev) => {
+          errs.textContent = ""; ev.target.disabled = true;
+          try {
+            await api("/api/observador", { method: "POST", body: { sucursal: suc.value.trim(), tramite: tram.value, mes: mes.value || null, estrategia: "dom" } });
+            toast("Observador iniciado", 3000); refresh(true);
+          } catch (err) { errs.textContent = err.message; ev.target.disabled = false; }
+        } }, "Iniciar observador")]),
+    h("button", { class: "btn ghost small", onclick: () => refresh(true) }, "Actualizar estado"), errs));
+}
+
+// ---------------------------------------------------------------- Calendario del laboratorio (portal propio)
+S.calLab = S.calLab || { sucursal: "NOR-1", tramite: "alta", mes: null };
+
+async function viewCalendarioLab() {
+  const est = await api("/api/laboratorio/portal");
+  const cab = h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Calendario del laboratorio"),
+    h("div", { class: "muted" }, "Portal de reservaciones PROPIO en este equipo, con datos ficticios. Aquí simulas lo que haría el proveedor: ",
+      "abrir un día, liberar o agotar lugares. El observador lo ve y el plan lo asigna. No se conecta a ningún portal externo.")));
+  if (!est.disponible) return h("div", { id: "calendario-lab", "data-disponible": "no" }, cab, card("No disponible", h("p", {}, est.motivo)));
+  const f = S.calLab;
+  if (!f.mes) {
+    const n = new Date(); const s = new Date(n.getFullYear(), n.getMonth() + 1, 1);
+    f.mes = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const q = new URLSearchParams({ sucursal: f.sucursal, tramite: f.tramite, mes: f.mes });
+  const [cal, regs] = await Promise.all([api("/api/laboratorio/portal/calendario?" + q),
+    api("/api/laboratorio/portal/registros?cuantos=6&tramite=" + encodeURIComponent(f.tramite)).catch(() => ({ registros: [] }))]);
+  const errs = h("div", { class: "error", role: "alert", id: "calendario-lab-error" });
+  const capacidad = h("input", { type: "number", id: "cal-capacidad", min: 1, max: 20, value: 1, class: "small" });
+  const accion = async (acc, fecha) => {
+    errs.textContent = "";
+    try {
+      await api(`/api/laboratorio/portal/calendario/${acc}`, { method: "POST", body: { sucursal: f.sucursal, tramite: f.tramite, fecha, capacidad: Number(capacidad.value) || 1 } });
+      toast(`${fecha}: ${acc}`, 2500); refresh(true);
+    } catch (err) { errs.textContent = err.message; }
+  };
+  const [y, m] = cal.mes.split("-").map(Number);
+  const primero = new Date(y, m - 1, 1).getDay();
+  const celdas = [];
+  for (let i = 0; i < (primero + 6) % 7; i++) celdas.push(h("div", { class: "dia vacio" }));
+  for (const d of cal.dias) {
+    const estado = d.estado.toLowerCase();
+    celdas.push(h("div", { class: `dia e-${estado}`, "data-fecha": d.fecha, "data-estado": d.estado },
+      h("b", {}, Number(d.fecha.slice(8))),
+      h("small", {}, d.estado === "DISPONIBLE" ? `${d.libres} libre(s)` : d.estado === "AGOTADO" ? "agotado" : d.estado === "DESHABILITADO" ? "cerrado" : ""),
+      d.pasado ? null : h("div", { class: "actions" },
+        d.estado === "DISPONIBLE" ? h("button", { class: "btn small", "data-agotar": d.fecha, onclick: () => accion("agotar", d.fecha) }, "Agotar")
+          : d.estado === "AGOTADO" ? h("button", { class: "btn small", "data-liberar": d.fecha, onclick: () => accion("liberar", d.fecha) }, "Liberar")
+            : h("button", { class: "btn small primary", "data-abrir": d.fecha, onclick: () => accion("habilitar", d.fecha) }, "Abrir"))));
+  }
+  const mover = (k) => { const dt = new Date(y, m - 1 + k, 1); f.mes = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`; refresh(true); };
+  return h("div", { id: "calendario-lab", "data-disponible": "si", "data-mes": cal.mes }, cab,
+    card(`${f.sucursal} · ${TRAMITES[f.tramite] || f.tramite} · ${cal.mes}`,
+      h("div", { class: "filters actions" },
+        h("label", {}, "Sucursal ", h("input", { id: "cal-sucursal", value: f.sucursal, maxlength: 32, class: "small",
+          onchange: (ev) => { f.sucursal = ev.target.value.trim().toUpperCase(); refresh(true); } })),
+        h("label", {}, "Trámite ", h("select", { id: "cal-tramite", onchange: (ev) => { f.tramite = ev.target.value; refresh(true); } },
+          Object.entries(TRAMITES).map(([k, v]) => h("option", { value: k, selected: k === f.tramite }, v)))),
+        h("button", { class: "btn small", onclick: () => mover(-1) }, "‹ Mes anterior"), h("button", { class: "btn small", onclick: () => mover(1) }, "Mes siguiente ›"),
+        h("label", {}, "Lugares al abrir o liberar ", capacidad)),
+      h("div", { class: "mes", id: "calendario-lab-mes" }, ["L", "M", "M", "J", "V", "S", "D"].map((d) => h("div", { class: "dsem" }, d)), celdas),
+      h("p", { class: "muted" }, `Hoy en el laboratorio: ${cal.hoy}. Los días pasados y el de hoy no se abren. `,
+        h("a", { href: cal.vista_observador, target: "_blank", rel: "noopener" }, "Ver la página que mira el observador")), errs),
+    h("div", { class: "section" }, card("Personas FICTICIAS que el portal de laboratorio reconoce",
+      h("p", { class: "muted" }, "Para dar de alta a una persona de prueba usa uno de estos registros previos con su fecha de nacimiento ",
+        "(el nombre, teléfono y correo los inventas; usa 555… y @ejemplo.test). No son personas reales."),
+      table([{ t: "Registro previo", f: (r) => h("b", { class: "mono", "data-registro": r.identificador }, r.identificador) },
+        { t: "Fecha de nacimiento", f: (r) => h("span", { "data-nacimiento": r.fecha_nacimiento }, r.fecha_nacimiento) },
+        { t: "Trámite", f: (r) => TRAMITES[r.tramite] || r.tramite }], regs.registros || []))));
 }

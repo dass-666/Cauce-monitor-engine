@@ -209,6 +209,7 @@ const VIEWS = {
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
   tramites: { t: "Trámites a mano", f: () => viewTramitesManuales(), lab: true },   // v2.0 · P2: captura manual (ventanilla.js)
   conexiones: { t: "Conexiones", f: () => viewConexiones(), admin: true, lab: true },   // v2.0: gestor de conexiones (ventanilla.js)
+  "laboratorio-calendario": { t: "Calendario lab", f: () => viewCalendarioLab(), admin: true, lab: true },   // v2.3 (ventanilla.js)
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
   config: { t: "Configuración", f: viewConfig, admin: true },
 };

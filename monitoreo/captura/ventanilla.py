@@ -431,6 +431,72 @@ def cerrar(db: Database, user, aid: int, now: datetime, resultado: str | None = 
     return out
 
 
+# ---------------------------------------------------------------- v2.3 · dejar a la persona en el plan del día
+EN_PLAN_DEL_DIA = "EN_PLAN_DEL_DIA"
+
+
+def al_plan(db: Database, user, aid: int, now: datetime, fechas_desde: str | None = None,
+            fechas_hasta: str | None = None, prioridad: int | None = None) -> dict:
+    """v2.3: hoy no hay día para la persona; se queda en el plan de la jornada para que el observador
+    le busque uno. Cierra la atención SIN cita (resultado EN_PLAN_DEL_DIA) y pasa el expediente de esta
+    atención al plan YA ABIERTO de hoy, con las mismas reglas de `plan.agregar` (elegibilidad, sucursales,
+    fechas, capacidad y propiedad). Crear el plan o ampliarlo sigue siendo solo del administrador.
+
+    Orden: primero se comprueba todo lo que puede rechazarse sin tocar nada; luego se suelta el
+    expediente y se agrega al plan; si el plan lo rechaza en ese instante (p. ej. la cola general lo
+    tomó entre medias), se vuelve a tomar para esta atención y se informa el motivo."""
+    from ..planificador import plan as pl
+    from . import consentimiento as cs
+    from . import zona
+    from ..models import PlanDiario, PlanElemento
+    with db.session() as s:
+        a = _visible(s, aid, user)
+        if not abierta(a):
+            raise ErrorVentanilla(409, "La atención ya está cerrada")
+        if a.expediente_id is None:
+            raise ErrorVentanilla(409, "Primero busca o registra el expediente de la persona")
+        e = s.get(Expediente, a.expediente_id)
+        res = _reservacion(s, a)
+        if res is not None and res.estado in rs.VIVAS and res.estado != rs.PREPARADA:
+            raise ErrorVentanilla(409, "Hay una operación con el portal en curso: termínala o ciérrala antes")
+        if res is not None and res.estado == rs.CONFIRMADA:
+            raise ErrorVentanilla(409, "La persona ya tiene cita confirmada")
+        if cs.exigido() and cs.vigente(s, e, now) is None:
+            raise ErrorVentanilla(409, "Sin consentimiento vigente no entra al plan: regístralo primero")
+        if e.estado not in ex.OPERACION_ACTIVA:
+            raise ErrorVentanilla(409, f"El expediente está {e.estado}: completa o corrige sus datos antes")
+        hoy = zona.hoy(now)
+        p = s.scalar(select(PlanDiario).where(PlanDiario.fecha_jornada == hoy))
+        if p is None or p.estado != "ABIERTO":
+            raise ErrorVentanilla(409, f"No hay un plan abierto para la jornada {hoy.isoformat()}: lo crea un "
+                                  "administrador desde «Plan del día»", {"codigo": "SIN_PLAN"})
+        vivos = s.scalar(select(func.count()).select_from(PlanElemento).where(
+            PlanElemento.plan_id == p.id, PlanElemento.estado.in_(pl.VIVOS))) or 0
+        if vivos >= p.capacidad:
+            raise ErrorVentanilla(409, f"El plan del día está completo ({p.capacidad}); un administrador puede "
+                                  "ampliar su capacidad", {"codigo": "PLAN_COMPLETO"})
+        d = {"expediente_id": e.id, "fechas_desde": fechas_desde, "fechas_hasta": fechas_hasta,
+             "prioridad": prioridad}
+        try:
+            pl._normalizar(e, d, p.fecha_jornada)          # fechas, sucursales y prioridad, sin escribir nada
+        except pl.ErrorPlan as err:
+            raise ErrorVentanilla(err.http, err.mensaje, err.detalle) from err
+        plan_id, exp_id = p.id, e.id
+    if not _devolver_a_la_cola(db, user, exp_id, now, EN_PLAN_DEL_DIA):
+        raise ErrorVentanilla(409, "No se pudo soltar el expediente de esta atención; vuelve a intentarlo")
+    r = pl.agregar(db, plan_id, [d], user.username, now)
+    if not r["aceptados"]:
+        motivo = (r["rechazados"] or [{}])[0].get("motivo", "el plan no lo aceptó")
+        try:
+            _tomar(db, user, exp_id, now)                   # la persona sigue atendida aquí
+        except ErrorVentanilla:
+            pass
+        raise ErrorVentanilla(409, f"No entró al plan: {motivo}")
+    out = cerrar(db, user, aid, now, SIN_DISPONIBILIDAD, EN_PLAN_DEL_DIA)
+    out["plan"] = {"jornada": hoy.isoformat(), "elemento": r["aceptados"][0]}
+    return out
+
+
 # ---------------------------------------------------------------- 5. lo que resuelve el motor
 def resolver_pendientes(db: Database, now: datetime) -> dict:
     """Atenciones cerradas con la confirmación en verificación: cuando el motor obtiene la respuesta

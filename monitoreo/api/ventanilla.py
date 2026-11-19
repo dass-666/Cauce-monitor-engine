@@ -108,3 +108,19 @@ def cerrar(aid: int, body: CerrarIn, user: CurrentUser = Depends(current_user), 
         return vt.cerrar(db, user, aid, utcnow(), body.resultado, body.motivo, body.cerrar_expediente)
     except vt.ErrorVentanilla as e:
         _err(e)
+
+
+class AlPlanIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fechas_desde: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    fechas_hasta: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    prioridad: int | None = Field(default=None, ge=1, le=5)
+
+
+@router.post("/atenciones/{aid}/plan")
+def al_plan(aid: int, body: AlPlanIn, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v2.3: sin día disponible ahora, la persona se queda en el plan abierto de hoy (cierra la atención)."""
+    try:
+        return vt.al_plan(db, user, aid, utcnow(), **body.model_dump())
+    except vt.ErrorVentanilla as e:
+        _err(e)
