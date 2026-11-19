@@ -635,6 +635,8 @@ jobs:
         run: |
           python -m pytest -q -rs tests/test_recorrido_v23.py
           python scripts/recorrido_ventanilla_v23.py --salida resultados/recorrido_v23
+      - name: v2.3 · Recorrido integral (respaldo, restauración, continuidad, cierre y retención con fecha simulada)
+        run: python scripts/recorrido_integral.py --salida resultados/recorrido_integral
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -724,6 +726,10 @@ jobs:
           python -m pytest -q -rs tests/test_recorrido_v23.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/recorrido_ventanilla_v23.py --salida resultados/recorrido_v23
+          exit $LASTEXITCODE
+      - name: v2.3 · Recorrido integral (respaldo, restauración, continuidad, cierre y retención con fecha simulada)
+        run: |
+          python scripts/recorrido_integral.py --salida resultados/recorrido_integral
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |
