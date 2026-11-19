@@ -34,6 +34,8 @@ Piezas:
 
 Consola:  python -m monitoreo.recuperacion estado | exportar-clave <archivo> | importar-clave <archivo>
           | marcar-restauracion <nombre>   (tras un pg_restore manual)
+          | revisar-copia [<carpeta>]      (comprueba una carpeta para la copia externa SIN activarla;
+                                            ver docs/RESPALDO_EXTERNO_DIARIO.md)
 """
 from __future__ import annotations
 
@@ -236,6 +238,102 @@ def proteccion_clave() -> str | None:
         return json.loads(ruta_clave().read_text("utf-8")).get("proteccion")
     except (OSError, ValueError):
         return None
+
+
+def huella_clave(raw: bytes) -> str:
+    """Huella corta y pública de la clave (no permite reconstruirla): sirve para comprobar que una clave
+    exportada es la misma que usa este equipo."""
+    return hashlib.sha256(b"cauce-diario-huella-v1" + raw).hexdigest()[:16]
+
+
+def _ruta_marca_exportada() -> Path:
+    return ruta_clave().with_name(ruta_clave().name + ".exportada")
+
+
+def clave_exportada() -> dict | None:
+    """{"hora", "huella"} de la última exportación de la clave hecha en este equipo, o None."""
+    try:
+        return json.loads(_ruta_marca_exportada().read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _volumen(p: Path):
+    """Identificador de la unidad/volumen que contiene p (o su ancestro existente más cercano)."""
+    q = p
+    while not q.exists() and q != q.parent:
+        q = q.parent
+    try:
+        return os.stat(q).st_dev
+    except OSError:
+        return None
+
+
+def revisar_copia(carpeta_copia: str | Path | None = None, probar_escritura: bool = False) -> dict:
+    """Revisa la carpeta de la copia externa del diario (la configurada o una candidata) SIN activarla.
+    Comprueba: que exista (unidad montada), que esté en OTRA unidad que el diario principal y fuera de la
+    carpeta de datos, y opcionalmente que se pueda escribir (crea y borra un archivo de prueba vacío, sin
+    datos). Devuelve {"apta", "problemas", "avisos", ...}."""
+    if carpeta_copia is None:
+        c = ruta_copia()
+        carpeta_copia = c.parent if c is not None else None
+    out: dict = {"configurada": ruta_copia() is not None, "carpeta": None, "apta": False, "problemas": [],
+                 "avisos": []}
+    if carpeta_copia is None:
+        out["problemas"].append("No hay carpeta de copia configurada (MONITOREO_DIARIO_COPIA vacía)")
+        return out
+    cc = Path(carpeta_copia).expanduser()
+    out["carpeta"] = str(cc)
+    principal = carpeta()
+    if not cc.is_dir():
+        out["problemas"].append("La carpeta no existe o la unidad no está conectada/montada")
+    else:
+        try:
+            res = cc.resolve()
+            if res == principal or principal in res.parents or res in principal.parents:
+                out["problemas"].append("La copia no puede estar dentro de la carpeta del diario principal "
+                                        "(ni contenerla)")
+            datos = settings.data_dir.resolve()
+            if res == datos or datos in res.parents:
+                out["problemas"].append("La copia está dentro de la carpeta de datos de Cauce: se perdería con ella")
+        except OSError as e:
+            out["problemas"].append(f"No se pudo resolver la ruta: {type(e).__name__}")
+        vc, vp = _volumen(cc), _volumen(principal)
+        out["misma_unidad"] = vc is not None and vc == vp
+        if out["misma_unidad"]:
+            out["problemas"].append("La copia está en la MISMA unidad que el diario principal: no protege contra "
+                                    "la pérdida o el daño del disco. Usa otra unidad (USB, segundo disco o red).")
+        if probar_escritura and not out["problemas"]:
+            prueba = cc / f".cauce-prueba-escritura-{secrets.token_hex(4)}"
+            try:
+                fd = os.open(prueba, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "wb") as f:
+                    f.flush()
+                    os.fsync(f.fileno())
+                prueba.unlink()
+                out["escritura"] = "OK"
+            except OSError as e:
+                out["escritura"] = "FALLA"
+                out["problemas"].append(f"No se puede escribir en la carpeta: {type(e).__name__}")
+        existente = cc / ARCHIVO
+        out["copia_existente"] = existente.exists()
+        if existente.exists() and ruta_copia() is None:
+            out["avisos"].append("Ya hay un diario en esa carpeta (¿de otra instalación?). Al activarla, el motor "
+                                 "exige que coincida con el principal: si no, BLOQUEA (COPIA_DIVERGENTE).")
+    raw = None
+    try:
+        raw = _leer_clave()
+    except ErrorDiario as e:
+        out["avisos"].append(f"Clave del diario no utilizable: {e}")
+    exp = clave_exportada()
+    out["clave"] = {"proteccion": proteccion_clave(), "exportada": exp,
+                    "exportada_coincide": bool(raw is not None and exp and exp.get("huella") == huella_clave(raw))}
+    if raw is not None and not out["clave"]["exportada_coincide"]:
+        out["avisos"].append("La clave del diario no se ha exportado desde este equipo (o cambió después). Sin ella, "
+                             "la copia externa no se puede verificar en otro equipo ni con otra cuenta de Windows: "
+                             "python -m monitoreo.recuperacion exportar-clave <archivo en otro medio>")
+    out["apta"] = not out["problemas"]
+    return out
 
 
 class _Claves:
@@ -804,7 +902,8 @@ def _evaluar(s) -> dict:
             if ev is None or ev["mac"] != ancla.get("mac"):
                 motivos.append("DIARIO_TRUNCADO")
                 detalle["truncado"] = f"la línea {n_ancla} no es la que la base registró (diario sustituido)"
-    copia = {"configurada": ruta_copia() is not None}
+    copia = {"configurada": ruta_copia() is not None,
+             "carpeta": str(ruta_copia().parent) if ruta_copia() is not None else None}
     if ruta_copia() is not None and not lect.problema:
         c = ruta_copia()
         try:
@@ -819,6 +918,11 @@ def _evaluar(s) -> dict:
             elif lect.lineas[:len(lc.lineas)] != lc.lineas:
                 motivos.append("COPIA_DIVERGENTE")
             copia.update(eventos=lc.ultimo[0], al_dia=lc.ultimo[0] == lect.ultimo[0])
+            vc, vp = _volumen(c.parent), _volumen(carpeta())
+            copia["misma_unidad"] = vc is not None and vc == vp
+            if copia["misma_unidad"]:
+                avisos.append("La copia externa del diario está en la MISMA unidad que el diario principal: no "
+                              "protege contra la pérdida del disco")
         except ErrorDiario as e:
             motivos.append(str(e).split(":")[0] if str(e).startswith("COPIA") else "COPIA_NO_DISPONIBLE")
         except OSError:
@@ -857,7 +961,8 @@ def _evaluar(s) -> dict:
             "motivos": [{"codigo": m, "mensaje": MOTIVOS[m]} for m in motivos],
             "discrepancias": disc, "pendientes": len(pend), "_rev_pendientes": rev_pend,
             "diario": {"ruta": str(ruta), "eventos": lect.ultimo[0], "fragmentos": lect.fragmentos,
-                       "ancla_en_base": n_ancla, "clave": proteccion_clave(), **detalle},
+                       "ancla_en_base": n_ancla, "clave": proteccion_clave(),
+                       "clave_exportada": (clave_exportada() or {}).get("hora"), **detalle},
             "copia": copia, "avisos": avisos,
             "ultimo_control": {"tipo": control["tipo"], "hora": control["t"]} if control else None}
 
@@ -1177,11 +1282,23 @@ def main(argv: list[str]) -> int:
             print("El archivo de destino ya existe: no se sobrescribe.", file=sys.stderr)
             return 1
         fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        huella = huella_clave(raw)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write("CLAVE DEL DIARIO DE EVENTOS CRÍTICOS DE CAUCE. Guárdala fuera de este equipo (sin ella la copia "
-                    "externa del diario no se puede verificar).\n" + base64.b64encode(raw).decode() + "\n")
-        print(f"Clave exportada a {dst}. Guárdala en un lugar seguro y bórrala de este equipo.")
+                    f"externa del diario no se puede verificar). Huella: {huella}\n" + base64.b64encode(raw).decode() + "\n")
+        marca = _ruta_marca_exportada()
+        marca.write_text(json.dumps({"hora": _utc(), "huella": huella}), encoding="utf-8")
+        _proteger(marca)
+        print(f"Clave exportada a {dst} (huella {huella}). Guárdala en un lugar seguro, en un medio distinto de la "
+              "copia del diario, y bórrala de este equipo.")
         return 0
+    if cmd == "revisar-copia" and len(argv) <= 2:
+        r = revisar_copia(argv[1] if len(argv) == 2 else None, probar_escritura=True)
+        print(json.dumps(r, ensure_ascii=False, indent=2, default=str))
+        if r["apta"] and len(argv) == 2 and not r["configurada"]:
+            print(f"\nCarpeta apta. Para activarla, añade a .env (con el motor detenido):\n"
+                  f"  MONITOREO_DIARIO_COPIA={r['carpeta']}\nNo se ha cambiado ninguna configuración.")
+        return 0 if r["apta"] else 1
     if cmd == "importar-clave" and len(argv) == 2:
         if ruta_clave().exists():
             print("Ya hay una clave del diario: no se sobrescribe.", file=sys.stderr)
@@ -1191,7 +1308,13 @@ def main(argv: list[str]) -> int:
         if len(raw) < 32:
             print("La clave no es válida.", file=sys.stderr)
             return 1
-        print(f"Clave importada ({_guardar_clave(raw)}).")
+        prot = _guardar_clave(raw)
+        # La clave viene de un archivo exportado: ya existe una copia fuera de este equipo con esta huella.
+        marca = _ruta_marca_exportada()
+        marca.write_text(json.dumps({"hora": _utc(), "huella": huella_clave(raw), "origen": "importada"}),
+                         encoding="utf-8")
+        _proteger(marca)
+        print(f"Clave importada ({prot}, huella {huella_clave(raw)}).")
         return 0
     if cmd == "marcar-restauracion" and len(argv) == 2:
         anotar_restauracion(argv[1], None)

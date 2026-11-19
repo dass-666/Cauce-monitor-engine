@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 import psutil
 from sqlalchemy import case, func, select, text
 
-from . import entorno
+from . import entorno, modulos
 from .config import settings
 from .db import Database, utcnow
 
@@ -411,8 +411,8 @@ def check_reparaciones(out: list[Item], db: Database, now: datetime, ctx: dict) 
 
 def check_conexiones(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
     """v2.0: interfaces de red, destino del portal, restricciones del proveedor y caídas (24 h)."""
-    if entorno.is_production():
-        return                      # en producción no hay portal de reservaciones: nada que revisar
+    if not modulos.flujo_admin_activo():
+        return                      # producción sin flujo administrativo: no hay portal de reservaciones
     from .captura import portal
     from .conexiones import diagnostico as dg
     for x in dg.revisar(db, now, portal.url(), profundo=bool(ctx.get("profundo"))):
@@ -421,7 +421,7 @@ def check_conexiones(out: list[Item], db: Database, now: datetime, ctx: dict) ->
 
 def check_proveedor(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
     """v2.0: esta instancia (y las demás activas) apuntan al MISMO portal que registró la base."""
-    if entorno.is_production():
+    if not modulos.flujo_admin_activo():
         return
     from . import proveedor
     e = proveedor.estado(db, now)
@@ -445,7 +445,7 @@ def check_proveedor(out: list[Item], db: Database, now: datetime, ctx: dict) -> 
 def check_observador(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
     """Cierre v2.1: observadores configurados que no pueden arrancar (sin Chromium) o que se
     detuvieron por fallos, con su motivo. Sin observadores configurados no dice nada."""
-    if entorno.is_production():
+    if not modulos.flujo_admin_activo():
         return
     from . import navegador
     from .models import ObservadorConfig
@@ -532,6 +532,17 @@ def check_recuperacion(out: list[Item], db: Database, now: datetime, ctx: dict) 
                         "NO está protegida contra la pérdida del disco.",
                         "En el equipo físico, define MONITOREO_DIARIO_COPIA con una carpeta en otra unidad y exporta "
                         "la clave (python -m monitoreo.recuperacion exportar-clave).", "recuperacion:sin_copia"))
+    elif not recuperacion.revisar_copia()["apta"]:
+        r = recuperacion.revisar_copia()
+        out.append(Item("Recuperación", AVISO, "La carpeta de la copia externa del diario no es adecuada",
+                        "; ".join(r["problemas"]), "Revisa la carpeta con: python -m monitoreo.recuperacion "
+                        "revisar-copia (ver docs/RESPALDO_EXTERNO_DIARIO.md).", "recuperacion:copia_no_apta"))
+    if e["diario"].get("clave") and not e["diario"].get("clave_exportada"):
+        out.append(Item("Recuperación", AVISO, "La clave del diario no se ha exportado",
+                        "La clave está ligada a este equipo (en Windows, a la cuenta que ejecuta el motor, por DPAPI). "
+                        "Si se pierde el equipo o la cuenta, la copia externa del diario no se puede verificar.",
+                        "python -m monitoreo.recuperacion exportar-clave <archivo en otro medio> "
+                        "(ver docs/RESPALDO_EXTERNO_DIARIO.md).", "recuperacion:clave_sin_exportar"))
     for a in e.get("avisos", []):
         if not a.startswith("Sin copia externa"):
             out.append(Item("Recuperación", AVISO, "Diario de eventos críticos", a, "", "recuperacion:aviso"))
