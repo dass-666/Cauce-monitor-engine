@@ -45,7 +45,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", default=str(ROOT / "resultados" / "recorrido_rc1"))
     a = ap.parse_args()
-    out = Path(a.salida)
+    out = Path(a.salida).resolve()  # el navegador corre con cwd=scripts: la ruta debe ser absoluta
     capt = out / "capturas"
     if capt.exists():
         shutil.rmtree(capt)
@@ -105,7 +105,7 @@ def main() -> int:
         check("base · la cita confirmada es solo la del expediente que coincidió",
               [c for c, s in sit.items() if s == "CONFIRMADA"] == ["EXP-000001"], sit)
         check("base · los bloqueados (sin consentimiento o incompletos) no están en el plan",
-              all(sit[c] in ("SIN_CONSENTIMIENTO", "INCOMPLETO") for c in ("EXP-000003", "EXP-000004", "EXP-000005")), sit)
+              all(sit.get(c) in ("SIN_CONSENTIMIENTO", "INCOMPLETO") for c in ("EXP-000003", "EXP-000004", "EXP-000005")), sit)
         check("base · los otros dos elegibles siguen en el plan esperando (sin cita)",
               sit.get("EXP-000002") == "EN_PLAN" and sit.get("EXP-000006") == "EN_PLAN", sit)
         lotes = adm.get("/api/admin/importaciones").json()["lotes"]
