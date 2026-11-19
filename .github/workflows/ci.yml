@@ -289,7 +289,8 @@ jobs:
       - name: Diagnóstico de la instalación (diagnostico.bat)
         run: |
           cmd /c C:\inst\motor\diagnostico.bat --motor-detenido
-          if ($LASTEXITCODE -gt 1) { exit 1 }
+          if ($LASTEXITCODE -gt 1) { Write-Host "::error::el autodiagnóstico encontró problemas críticos"; exit 1 }
+          exit 0   # 1 = solo avisos (v2.4: «sin copia externa del diario», que es la configuración por omisión): aceptable
       - name: Arranque real desde la carpeta instalada
         run: |
           Set-Location C:\inst\motor

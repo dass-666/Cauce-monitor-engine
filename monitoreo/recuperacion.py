@@ -50,6 +50,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from .config import settings
 
 log = logging.getLogger("monitoreo.recuperacion")
@@ -528,6 +530,16 @@ def anotar_revocacion(db, consentimiento_id: int, reaplicada_de: int | None = No
         _marcar_fallo(db, f"REVOCACION: {type(e).__name__}")
 
 
+def _base_no_disponible(tipo: str, res_id: int, e: Exception) -> None:
+    """La BASE (no el diario) no respondió al leer la reservación. No es un fallo del diario y no bloquea:
+    - en un intento, quien llama no habla con el portal (se lanza ErrorDiario);
+    - en un resultado, el diario se queda con el intento (incierto), que es coherente con CONFIRMANDO /
+      EN_VERIFICACION / CONFIRMADA en la base; la recuperación automática escribirá el resultado después.
+      Si más tarde se restaurara una base anterior, ese intento sin resultado aparece como discrepancia."""
+    log.warning("diario: la base no respondió al registrar %s de la reservación %s (%s); sin bloqueo: "
+                "el diario conserva el intento", tipo, res_id, type(e).__name__)
+
+
 def _datos_res(k, s, res_id: int) -> tuple[dict, object]:
     from .models import Expediente, Reservacion
     r = s.get(Reservacion, res_id)
@@ -542,6 +554,9 @@ def confirmacion_intento(db, res_id: int) -> None:
         with db.session() as s:
             d, r = _datos_res(k, s, res_id)
             d["clave"] = seud(k, "clave", r.clave or "")
+    except SQLAlchemyError as e:
+        _base_no_disponible("CONFIRMACION_INTENTO", res_id, e)
+        raise ErrorDiario("la base de datos no respondió") from e
     except ErrorDiario as e:
         _marcar_fallo(db, f"CONFIRMACION_INTENTO: {e}")
         raise
@@ -563,12 +578,16 @@ def confirmacion_resultado(db, res_id: int, origen: str = "motor") -> None:
     """Después de la llamada al portal (o de la recuperación). Nunca lanza: si falla, bloquea."""
     try:
         k = _claves(crear=False)
-        with db.session() as s:
-            d, r = _datos_res(k, s, res_id)
-            d["resultado"] = _resultado_confirmacion(r.estado)
-            if r.folio and d["resultado"] == "CONFIRMADA":
-                d["folio"] = seud(k, "folio", r.folio)
-            d["origen"] = origen
+        try:
+            with db.session() as s:
+                d, r = _datos_res(k, s, res_id)
+                d["resultado"] = _resultado_confirmacion(r.estado)
+                if r.folio and d["resultado"] == "CONFIRMADA":
+                    d["folio"] = seud(k, "folio", r.folio)
+                d["origen"] = origen
+        except SQLAlchemyError as e:
+            _base_no_disponible("CONFIRMACION_RESULTADO", res_id, e)
+            return
         registrar(db, "CONFIRMACION_RESULTADO", d)
     except ErrorDiario:
         pass                                    # registrar() ya marcó el fallo
@@ -582,6 +601,9 @@ def cancelacion_intento(db, res_id: int) -> None:
         with db.session() as s:
             d, r = _datos_res(k, s, res_id)
             d["folio"] = seud(k, "folio", r.folio or "")
+    except SQLAlchemyError as e:
+        _base_no_disponible("CANCELACION_INTENTO", res_id, e)
+        raise ErrorDiario("la base de datos no respondió") from e
     except ErrorDiario as e:
         _marcar_fallo(db, f"CANCELACION_INTENTO: {e}")
         raise
@@ -594,9 +616,13 @@ def cancelacion_intento(db, res_id: int) -> None:
 def cancelacion_resultado(db, res_id: int) -> None:
     try:
         k = _claves(crear=False)
-        with db.session() as s:
-            d, r = _datos_res(k, s, res_id)
-            d["resultado"] = "CANCELADA" if r.estado == "CANCELADA" else "NO_CANCELADA"
+        try:
+            with db.session() as s:
+                d, r = _datos_res(k, s, res_id)
+                d["resultado"] = "CANCELADA" if r.estado == "CANCELADA" else "NO_CANCELADA"
+        except SQLAlchemyError as e:
+            _base_no_disponible("CANCELACION_RESULTADO", res_id, e)
+            return
         registrar(db, "CANCELACION_RESULTADO", d)
     except ErrorDiario:
         pass

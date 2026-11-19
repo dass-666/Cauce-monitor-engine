@@ -211,6 +211,34 @@ def test_fallo_de_escritura_no_llama_al_portal_y_bloquea_aunque_se_reinicie(lab,
     assert confirmar(lab, rid, h).status_code == 200
 
 
+def test_base_caida_al_anotar_el_resultado_no_bloquea_y_el_diario_queda_coherente(lab, monkeypatch):
+    """CI 100 (resistencia_v20 con PostgreSQL detenido a mitad de la confirmación): si lo que falla es la BASE
+    al leer el resultado, no es un fallo del diario. No debe bloquear el motor; el diario se queda con el
+    intento (incierto), coherente con la base, y la recuperación automática sigue funcionando."""
+    from sqlalchemy.exc import OperationalError
+    eid, u, h = asignado(lab)
+    rid, dia = lab.hasta_fecha(eid, h)
+    real = rc._datos_res
+    llamadas = {"n": 0}
+
+    def segunda_falla(k, s, res_id):
+        llamadas["n"] += 1
+        if llamadas["n"] >= 2:                       # 1 = intento (funciona); 2 = resultado (base caída)
+            raise OperationalError("SELECT", {}, Exception("la base no responde (simulado)"))
+        return real(k, s, res_id)
+    monkeypatch.setattr(rc, "_datos_res", segunda_falla)
+    r = confirmar(lab, rid, h)
+    assert r.status_code == 200, r.text
+    monkeypatch.setattr(rc, "_datos_res", real)
+    assert [e["tipo"] for e in eventos()][-1] == "CONFIRMACION_INTENTO"
+    e = estado(lab)
+    assert not e["bloqueado"] and e["pendientes"] == 0, e["motivos"]
+    assert not auditoria(lab, "diario_fallo_escritura")
+    reabrir(lab)                                     # tras reiniciar tampoco: el intento es coherente con CONFIRMADA
+    e = estado(lab)
+    assert not e["bloqueado"] and e["pendientes"] == 0, e["motivos"]
+
+
 def test_revocacion_sin_diario_queda_hecha_y_bloquea(lab, monkeypatch):
     e = crear(lab)
     monkeypatch.setattr(rc, "_escribir_linea", lambda *a: (_ for _ in ()).throw(OSError("sin permiso")))
