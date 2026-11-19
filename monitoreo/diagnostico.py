@@ -509,18 +509,46 @@ def check_consentimientos(out: list[Item], db: Database, now: datetime, ctx: dic
                         "Registra el consentimiento de cada persona o cierra el expediente.", "cons:sin-vigente"))
 
 
+def check_recuperacion(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """v2.4: diario de eventos críticos y bloqueo RECUPERACION_PENDIENTE (ver monitoreo/recuperacion.py)."""
+    from . import recuperacion
+    # Desde el motor (planificador) completa el diario; desde la consola solo lee (un solo proceso escribe).
+    e = recuperacion.preparar(db) if ctx.get("scheduler") is not None else None
+    if e is None:
+        with db.session() as s:
+            e = recuperacion.publico(recuperacion.evaluar(s, usar_cache=False))
+    if e["bloqueado"]:
+        out.append(Item("Recuperación", CRITICO, "Operaciones con el portal BLOQUEADAS: recuperación pendiente",
+                        "; ".join(m["mensaje"] for m in e["motivos"]) + f". Discrepancias pendientes: {e.get('pendientes', 0)}.",
+                        "Un administrador debe revisar GET /api/recuperacion, conciliar cada discrepancia y levantar "
+                        "el bloqueo (ver docs/RECUPERACION_SEGURA.md).", "recuperacion:bloqueo"))
+    else:
+        out.append(Item("Recuperación", OK, "Diario de eventos críticos íntegro y coherente con la base",
+                        f"{e['diario'].get('eventos', 0)} evento(s); clave: {e['diario'].get('clave') or 'aún no creada'}.",
+                        "", ""))
+    if not e["copia"].get("configurada"):
+        out.append(Item("Recuperación", AVISO, "Sin copia externa del diario de eventos críticos",
+                        "Si se pierde o se daña este disco se pierden a la vez la base y el diario: la recuperación "
+                        "NO está protegida contra la pérdida del disco.",
+                        "En el equipo físico, define MONITOREO_DIARIO_COPIA con una carpeta en otra unidad y exporta "
+                        "la clave (python -m monitoreo.recuperacion exportar-clave).", "recuperacion:sin_copia"))
+    for a in e.get("avisos", []):
+        if not a.startswith("Sin copia externa"):
+            out.append(Item("Recuperación", AVISO, "Diario de eventos críticos", a, "", "recuperacion:aviso"))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
          "check_resources": "Recursos", "check_integrity": "Integridad", "check_eventos": "Eventos",
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
          "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad",
-         "check_proveedor": "Proveedor", "check_observador": "Observador",
+         "check_proveedor": "Proveedor", "check_observador": "Observador", "check_recuperacion": "Recuperación",
          "check_consentimientos": "Consentimiento"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
           check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones,
-          check_proveedor, check_observador, check_consentimientos]
+          check_proveedor, check_observador, check_consentimientos, check_recuperacion]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

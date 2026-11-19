@@ -210,6 +210,20 @@ def restore(url: str, backup_file: str, force_running: bool = False) -> dict:
                 raise MigrationError(f"El motor parece estar en marcha (planificador de {row[0]}). "
                                      "Ciérralo y espera 15 s antes de restaurar.")
         report["respaldo_previo"] = backup(url, label="antes-de-restaurar")
+    # v2.4: la restauración queda en el diario de eventos críticos (fuera de la base) ANTES de sustituirla.
+    # Al arrancar, el motor bloqueará las operaciones con el portal hasta que un administrador concilie.
+    from . import recuperacion
+    try:
+        recuperacion.anotar_restauracion(str(src), report["respaldo_previo"])
+        report["diario"] = "restauración registrada: el motor arrancará con RECUPERACION_PENDIENTE"
+    except recuperacion.ErrorDiario as e:
+        if "DIARIO_MANIPULADO" in str(e) or "CLAVE_NO_DISPONIBLE" in str(e) or "No existe la clave" in str(e):
+            # El diario ya no es fiable: el motor arrancará bloqueado por eso mismo.
+            report["diario"] = f"no se pudo registrar ({e}); el motor arrancará bloqueado por el diario"
+        else:
+            raise MigrationError(f"No se pudo registrar la restauración en el diario de eventos críticos ({e}). "
+                                 "No se restaura: sin esa marca nada impediría operar sobre una base que "
+                                 "retrocedió.") from e
     dst = sqlite3.connect(target, timeout=60)
     s = sqlite3.connect(src)
     try:
@@ -222,8 +236,25 @@ def restore(url: str, backup_file: str, force_running: bool = False) -> dict:
     if ok != "ok":
         raise MigrationError(f"La base restaurada no pasó la verificación: {ok}. "
                              f"La anterior está en {report['respaldo_previo']}")
+    _marcar_restaurada(target, src.name)
     report["revision"] = inspect_state(url)["revision_actual"]
     return report
+
+
+def _marcar_restaurada(target: str, nombre: str) -> None:
+    """v2.4: segunda marca, dentro de la base restaurada (tabla settings). Bloquea aunque falte el diario."""
+    import json as _json
+    from datetime import timezone
+    c = sqlite3.connect(target, timeout=60)
+    try:
+        val = _json.dumps({"respaldo": nombre[:120], "t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")})
+        c.execute("DELETE FROM settings WHERE key='recuperacion_restaurada'")
+        c.execute("INSERT INTO settings(key, value) VALUES ('recuperacion_restaurada', ?)", (val,))
+        c.commit()
+    except sqlite3.DatabaseError as e:
+        log.warning("no se pudo marcar la base restaurada: %s", e)
+    finally:
+        c.close()
 
 
 # ---------------------------------------------------------------- actualización / reversión

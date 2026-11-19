@@ -34,7 +34,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from .. import conexiones, proveedor
+from .. import conexiones, proveedor, recuperacion
 from ..db import Database, utcnow
 from ..engine import assignment as asg
 from ..engine.params import get_params
@@ -198,9 +198,11 @@ OTRO_PROVEEDOR = ("Esta reservación pertenece a otro proveedor (portal) distint
 
 
 def _exigir_proveedor(s, res: Reservacion) -> None:
-    """v2.0: una instancia solo opera reservaciones creadas con SU portal (ver monitoreo/proveedor.py)."""
+    """v2.0: una instancia solo opera reservaciones creadas con SU portal (ver monitoreo/proveedor.py).
+    v2.4: y solo si no hay una recuperación pendiente (tras restaurar un respaldo, diario dañado...)."""
     if proveedor.de_reservacion(s, res) != proveedor.identidad_local()["id"]:
         raise ErrorReservacion(409, OTRO_PROVEEDOR, {"codigo": "OTRO_PROVEEDOR"})
+    recuperacion.exigir_operable(s, ErrorReservacion)
 
 
 def _datos_intento(db: Database, res_id: int, user, estados: tuple, now: datetime | None = None) -> tuple[dict, Expediente]:
@@ -580,6 +582,7 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         cond = [t.c.id == res_id, t.c.estado.in_(list(LISTAS_PARA_CONFIRMAR))]
         if not user.is_admin:
             cond.append(t.c.operator_id == user.operator_id)
+        previo, por_previo = res.estado, res.confirmada_por
         # Se GUARDA que se está confirmando ANTES de hablar con el portal: si el motor se cae a mitad,
         # la recuperación sabe que debe preguntar al portal por esta clave.
         ok = s.execute(update(t).where(*cond).values(estado=CONFIRMANDO, confirmando_desde=now,
@@ -595,6 +598,27 @@ def confirmar(db: Database, res_id: int, user, now: datetime, confirmo: bool) ->
         clave, sesion, aid, modo = res.clave, res.sesion_portal, res.assignment_id, res.modo
         conexion = res.conexion
         sucursal, fecha = res.sucursal, res.fecha
+    # v2.4: el intento queda en el diario de eventos críticos ANTES de hablar con el portal. Si no se puede
+    # escribir, NO se llama al portal y la reservación vuelve a como estaba.
+    try:
+        recuperacion.confirmacion_intento(db, res_id)
+    except recuperacion.ErrorDiario as e:
+        with db.session() as s:
+            t = Reservacion.__table__
+            s.execute(update(t).where(t.c.id == res_id, t.c.estado == CONFIRMANDO).values(
+                estado=previo, confirmando_desde=None, confirmada_por=por_previo, updated_at=now,
+                error_codigo="DIARIO_NO_DISPONIBLE", error="No se pudo registrar el intento en el diario de eventos "
+                                                           "críticos: no se llamó al portal"))
+        raise ErrorReservacion(503, "No se pudo registrar el intento en el diario de eventos críticos: no se llamó "
+                                    "al portal. Un administrador debe revisar el autodiagnóstico.",
+                               {"codigo": "DIARIO_NO_DISPONIBLE"}) from e
+    try:
+        return _confirmar_en_portal(db, res_id, user, now, actor, clave, sesion, aid, modo, conexion, sucursal, fecha)
+    finally:
+        recuperacion.confirmacion_resultado(db, res_id)
+
+
+def _confirmar_en_portal(db, res_id, user, now, actor, clave, sesion, aid, modo, conexion, sucursal, fecha):
     _tocar(db, aid, user, now)
     nav = _nav(db, sesion=sesion, modo=modo, operacion="confirmar", conexion=conexion, ref={"reservacion_id": res_id})
     try:
@@ -671,6 +695,18 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
         return v
     if estado != CONFIRMADA:
         raise ErrorReservacion(409, f"No se puede cancelar una reservación {estado}")
+    try:
+        recuperacion.cancelacion_intento(db, res_id)          # v2.4: antes de llamar al portal
+    except recuperacion.ErrorDiario as e:
+        raise ErrorReservacion(503, "No se pudo registrar la cancelación en el diario de eventos críticos: no se "
+                                    "llamó al portal", {"codigo": "DIARIO_NO_DISPONIBLE"}) from e
+    try:
+        return _cancelar_en_portal(db, res_id, actor, now, folio, modo)
+    finally:
+        recuperacion.cancelacion_resultado(db, res_id)
+
+
+def _cancelar_en_portal(db, res_id, actor, now, folio, modo) -> dict:
     nav = _nav(db, modo=modo, operacion="nueva_sesion", ref={"reservacion_id": res_id})      # cancelación: petición nueva a la API
     try:
         rp = nav.cancelar(folio)
@@ -698,7 +734,8 @@ def cancelar(db: Database, res_id: int, user, now: datetime) -> dict:
 def recuperar(db: Database, now: datetime) -> dict:
     """Resuelve intentos que quedaron a medias: CONFIRMANDO (motor caído a mitad), EN_VERIFICACION
     (respuesta perdida) y RETENIDA vencidos. Siempre pregunta primero al portal por la clave; si el
-    portal no responde, el intento SIGUE en verificación (nunca se da por confirmado ni por perdido)."""
+    portal no responde, el intento SIGUE en verificación (nunca se da por confirmado ni por perdido).
+    v2.4: con una recuperación pendiente (tras restaurar) no cambia nada: lo concilia un administrador."""
     with db.session() as s:
         gracia = float(get_params(s)["captura_gracia_confirmando_s"])
         timeout = min(5.0, float(get_params(s)["captura_timeout_portal_s"]))
@@ -719,6 +756,11 @@ def recuperar(db: Database, now: datetime) -> dict:
         log.warning("recuperación: %d reservación(es) de otro proveedor (portal) no se tocan desde esta instancia: %s",
                     len(ajenas), ajenas[:20])
     if not pend:
+        return out
+    if recuperacion.bloqueado(db):
+        out["omitida"] = "RECUPERACION_PENDIENTE"
+        log.warning("recuperación automática omitida: hay una recuperación pendiente (%d intento(s) a medias)",
+                    len(pend))
         return out
     navs: dict[str, object] = {}
     try:
@@ -741,6 +783,7 @@ def recuperar(db: Database, now: datetime) -> dict:
             if _evidencia_valida(rp, clave):
                 v = _finalizar(db, rid, rp, "recuperacion_por_clave", "motor", now)
                 out["confirmadas" if v["estado"] == CONFIRMADA else "en_verificacion"] += 1
+                recuperacion.confirmacion_resultado(db, rid, origen="recuperacion")
             elif estado in (CONFIRMANDO, EN_VERIFICACION) and desde and (now - desde).total_seconds() >= gracia:
                 # El portal responde y NO tiene una reservación con esa clave: es seguro reabrir.
                 if modo == "POR_DIA" or (vence and vence > now):
@@ -758,9 +801,11 @@ def recuperar(db: Database, now: datetime) -> dict:
                             log.warning("recuperación: reservación %s reabierta (el portal no tiene su clave; "
                                         "%.1f s desde que empezó a confirmarse)", rid, (now - desde).total_seconds())
                             out["reabiertas"] += 1
+                    recuperacion.confirmacion_resultado(db, rid, origen="recuperacion")
                 elif _cerrar_intento(db, rid, EXPIRADA, "RETENCION_VENCIDA",
                                      "El apartado venció sin confirmación registrada en el portal", "motor", now):
                     out["expiradas"] += 1
+                    recuperacion.confirmacion_resultado(db, rid, origen="recuperacion")
             elif estado == RETENIDA:
                 if _cerrar_intento(db, rid, EXPIRADA, "RETENCION_VENCIDA", "El apartado del horario venció",
                                    "motor", now, desde=(RETENIDA,)):

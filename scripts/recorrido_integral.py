@@ -1,4 +1,5 @@
-"""v2.3 · Recorrido integral del laboratorio: respaldo, restauración, continuidad, cierre y retención.
+"""v2.3/v2.4 · Recorrido integral del laboratorio: respaldo, restauración, RECUPERACIÓN SEGURA, continuidad,
+cierre y retención.
 
 Reutiliza lo que ya existe y NO reimplementa nada:
   - `ventanilla_laboratorio.Laboratorio`: motor + portal de laboratorio propio (127.0.0.1) en una carpeta
@@ -18,11 +19,14 @@ Etapas (un mismo laboratorio, datos ficticios):
   4. RESPALDO con el motor en marcha + huella del estado.
   5. Cambios POSTERIORES al respaldo: se confirma B (folio F2 en el portal), se da de alta X y se revoca G.
   6. Motor detenido -> RESTAURAR -> motor arrancado sobre la misma carpeta.
-  7. Comprobaciones: el estado es el del respaldo, X no existe, G vuelve a tener consentimiento, cadenas
-     íntegras, un solo observador, sin planes ni reservaciones duplicadas.
-  8. Continuidad: la operación de B que quedó a medias en la base, pero confirmada en el portal. Se confirma
-     otra vez y se comprueba que el portal NO acaba con dos citas para la misma persona.
-  9. Retención con fecha simulada +2 días: anonimiza solo lo que corresponde.
+  7. Comprobaciones: el estado de la base es el del respaldo, X no existe, la base tiene a G con su
+     consentimiento VIGENTE (pero el motor NO lo trata como vigente), cadenas íntegras, un solo observador.
+  7b. v2.4 · Recuperación segura: el diario de eventos críticos (fuera de la base) delata la confirmación de B
+     y la revocación de G; las operaciones con el portal quedan BLOQUEADAS (también tras reiniciar); el
+     administrador concilia (folio de B comprobado en el portal, revocación de G reaplicada), con motivo y
+     auditoría, y solo entonces levanta el bloqueo.
+  8. Continuidad: B queda CONFIRMADA con el MISMO folio del portal y una sola cita; el plan se sincroniza.
+  9. Retención con fecha simulada +2 días: anonimiza solo lo que corresponde (G, revocada y cerrada, incluida).
  10. Nada fuera del laboratorio: `git status` y `data/` del proyecto sin cambios; registros sin datos personales.
 
 Uso: python scripts/recorrido_integral.py [--salida resultados/recorrido_integral]
@@ -94,7 +98,7 @@ class Recorrido:
     def __init__(self, carpeta: Path):
         self.lab = Laboratorio(carpeta, nuevo=True)
         self.ck: list[dict] = []
-        self.res: dict = {"version": "2.3", "plataforma": platform.platform(), "python": platform.python_version(),
+        self.res: dict = {"version": "2.4", "plataforma": platform.platform(), "python": platform.python_version(),
                           "inicio": time.strftime("%Y-%m-%dT%H:%M:%S"), "confirmacion_humana": "SIMULADA por el script",
                           "fecha_retencion": f"SIMULADA: ahora + {DIAS_SIMULADOS} días (el reloj del equipo no cambia)",
                           "datos": "ficticios; portal de laboratorio propio en 127.0.0.1"}
@@ -169,6 +173,76 @@ class Recorrido:
         return {"expedientes": exps, "detalle": res,
                 "plan": sorted((x["codigo"], x["estado"]) for x in self.plan().values()),
                 "planes": len(planes), "observadores": len(obs)}
+
+    # ------------------------------------------------------------ v2.4: recuperación segura
+    def recuperacion(self, rid_b: int, folio2: str | None, f2: str) -> None:
+        lab, ck = self.lab, self.check
+        rec = self.adm.get("/api/recuperacion").json()
+        mot = {m["codigo"] for m in rec.get("motivos", [])}
+        disc = {d["tipo"]: d for d in rec.get("discrepancias", [])}
+        self.res["recuperacion_detectada"] = {"motivos": sorted(mot), "discrepancias": [
+            {k: d.get(k) for k in ("ref", "tipo", "expediente", "reservacion_id", "acciones")} for d in disc.values()]}
+        ck("v2.4 detección: tras restaurar el motor arranca con RECUPERACION_PENDIENTE",
+           rec.get("bloqueado") and {"RESTAURACION_PENDIENTE", "DISCREPANCIAS"} <= mot, sorted(mot))
+        ck("v2.4 detección: exactamente 2 discrepancias, la confirmación de B y la revocación de G",
+           set(disc) == {"CONFIRMACION_AUSENTE", "REVOCACION_AUSENTE"}
+           and disc.get("CONFIRMACION_AUSENTE", {}).get("reservacion_id") == rid_b
+           and disc.get("REVOCACION_AUSENTE", {}).get("expediente_id") == self.e["G"]["id"],
+           self.res["recuperacion_detectada"])
+        citas_antes = [x.get("folio") for x in self.portal_reservas() if x.get("estado") == "CONFIRMADA" and x.get("fecha") == f2]
+        r = self.confirmar(rid_b)
+        cod = (r.json().get("detail") or {}).get("codigo") if r.status_code == 409 else None
+        ck("v2.4 bloqueo: confirmar B (operador) responde 409 RECUPERACION_PENDIENTE", cod == "RECUPERACION_PENDIENTE",
+           {"http": r.status_code, "cuerpo": r.text[:200]})
+        r = self.adm.post(f"/api/reservaciones/{rid_b}/confirmar", json={"confirmo": True})
+        ck("v2.4 bloqueo: tampoco el administrador puede operar con el portal", r.status_code == 409, r.status_code)
+        citas = [x.get("folio") for x in self.portal_reservas() if x.get("estado") == "CONFIRMADA" and x.get("fecha") == f2]
+        ck("v2.4 bloqueo: nada se repitió solo: el portal sigue con una sola cita de ese día", citas == citas_antes
+           and len(citas) == 1, citas)
+        r = self.adm.post("/api/recuperacion/levantar", json={"motivo": "intento sin conciliar"})
+        ck("v2.4 bloqueo: no se puede levantar con discrepancias pendientes", r.status_code == 409, r.text[:200])
+        lab.motor.stop()
+        lab.motor.start()
+        lab.motor.wait_ready()
+        self.conectar()
+        rec = self.adm.get("/api/recuperacion").json()
+        ck("v2.4 bloqueo: persiste tras reiniciar el motor", bool(rec.get("bloqueado")), rec.get("motivos"))
+
+        def resolver(d, accion, **kw):
+            return self.adm.post(f"/api/recuperacion/discrepancias/{d['ref']}/resolver",
+                                 json={"tipo": d["tipo"], "accion": accion, **kw})
+        dc, dr = disc.get("CONFIRMACION_AUSENTE", {"ref": 0, "tipo": "?"}), disc.get("REVOCACION_AUSENTE", {"ref": 0, "tipo": "?"})
+        r = self.op.post(f"/api/recuperacion/discrepancias/{dc['ref']}/resolver",
+                         json={"tipo": dc["tipo"], "accion": "registrar_folio", "motivo": "operador", "folio": folio2})
+        ck("v2.4 conciliación: un operador no puede conciliar (403)", r.status_code == 403, r.status_code)
+        r = resolver(dc, "registrar_folio", motivo="folio comprobado en el portal", folio="F-QUE-NO-ES")
+        ck("v2.4 conciliación: un folio que no es el del diario se rechaza (FOLIO_NO_COINCIDE)",
+           r.status_code == 422 and (r.json().get("detail") or {}).get("codigo") == "FOLIO_NO_COINCIDE", r.text[:200])
+        # SIMULADO: el administrador lee el folio en el portal (aquí, el calendario de control del laboratorio)
+        folio_portal = citas[0] if citas else None
+        r = resolver(dc, "registrar_folio", motivo="folio comprobado en el portal de laboratorio", folio=folio_portal)
+        ck("v2.4 conciliación: con el folio del portal, B queda CONFIRMADA (evidencia conciliacion_manual)",
+           r.status_code == 200 and folio_portal == folio2, {"http": r.status_code, "folio": folio_portal, "f2": folio2})
+        r = resolver(dr, "reaplicar_revocacion", motivo="revocación por escrito, registrada en el diario")
+        cg = self.adm.get(f"/api/expedientes/{self.e['G']['id']}/consentimientos").json()
+        ck("v2.4 conciliación: la revocación de G se reaplica (cadena de sellos íntegra)",
+           r.status_code == 200 and cg["consentimientos"][-1]["estado"] == "REVOCADO"
+           and self.adm.get("/api/consentimientos/verificar").json().get("ok"), {"http": r.status_code, "texto": r.text[:200]})
+        rec = r.json() if r.status_code == 200 else {}
+        ck("v2.4 conciliación: 0 pendientes, pero el bloqueo sigue hasta que el administrador lo levante",
+           rec.get("pendientes") == 0 and rec.get("bloqueado"), {k: rec.get(k) for k in ("pendientes", "bloqueado")})
+        r = self.adm.post("/api/recuperacion/levantar", json={"motivo": "conciliación revisada por el administrador"})
+        ck("v2.4 desbloqueo: se levanta solo ahora", r.status_code == 200 and r.json().get("levantado"), r.text[:200])
+        aud = [a["accion"] for a in self.adm.get("/api/audit", params={"limit": 200}).json()]
+        ck("v2.4 auditoría: 2 conciliaciones y el desbloqueo quedan en el registro de auditoría",
+           aud.count("recuperacion_conciliada") == 2 and "recuperacion_levantada" in aud,
+           {"conciliadas": aud.count("recuperacion_conciliada"), "levantada": "recuperacion_levantada" in aud})
+        diario = lab.carpeta / "datos" / "diario" / "eventos-criticos.jsonl"
+        texto = diario.read_text("utf-8") if diario.exists() else ""
+        ck("v2.4 diario: fuera de la base, sin códigos de expediente, folios ni datos personales en claro",
+           bool(texto) and not any(x and x in texto for x in [folio2, *self.personales, *(e.get("codigo") for e in self.e.values())]),
+           {"existe": diario.exists()})
+        self.res["recuperacion_final"] = {k: rec.get(k) for k in ("pendientes",)}
 
     # ------------------------------------------------------------ etapas
     def run(self) -> None:
@@ -287,8 +361,11 @@ class Recorrido:
            h_rest == h_respaldo, {"respaldo": h_respaldo, "restaurado": h_rest} if h_rest != h_respaldo else None)
         ck("tras restaurar: X (alta posterior) no existe",
            x_codigo not in {c for c, _ in h_rest["expedientes"]}, x_codigo)
-        ck("tras restaurar: G vuelve a tener su consentimiento VIGENTE (la revocación era posterior)",
+        ck("tras restaurar: la base tiene a G con su consentimiento VIGENTE (la revocación era posterior)",
            h_rest["detalle"]["G"]["consentimientos"][-1] != "REVOCADO", h_rest["detalle"]["G"])
+        cg = adm.get(f"/api/expedientes/{self.e['G']['id']}/consentimientos").json()
+        ck("v2.4: pero el motor NO trata a G como vigente: la revocación está en el diario (nunca se reactiva sola)",
+           cg["vigente"] is None and (cg.get("bloqueo") or {}).get("codigo") == "REVOCACION_EN_DIARIO", cg.get("bloqueo"))
         ck("tras restaurar: cadenas de sellos de consentimiento íntegras",
            all(v["cadena_ok"] for v in h_rest["detalle"].values()), {k: v["cadena_ok"] for k, v in h_rest["detalle"].items()})
         ck("tras restaurar: un solo plan y un solo observador, y el observador vuelve solo",
@@ -296,6 +373,10 @@ class Recorrido:
            {"planes": h_rest["planes"], "observadores": h_rest["observadores"], "activo": bool(activo)})
         ck("tras restaurar: F1 sigue CONFIRMADA en el motor", ("CONFIRMADA", folio1) in h_rest["detalle"]["A"]["reservaciones"],
            h_rest["detalle"]["A"]["reservaciones"])
+
+        # 7b. recuperación segura (v2.4) -----------------------------------------------------
+        self.recuperacion(rid_b, folio2, f2)
+        adm, op = self.adm, self.op
 
         # 8. continuidad: B quedó a medias en la base pero confirmada en el portal ---------------
         r = self.confirmar(rid_b)
@@ -305,6 +386,8 @@ class Recorrido:
         de_b = [x for x in en_portal if x.get("estado") == "CONFIRMADA" and x.get("fecha") == f2]
         self.res["continuidad_b"] = {"http": r.status_code, "folio_motor": folio_b, "folio_portal_tras_respaldo": folio2,
                                      "citas_confirmadas_ese_dia_en_portal": [x.get("folio") for x in de_b]}
+        ck("continuidad: tras desbloquear, la operación de B ya está CONFIRMADA (se responde sin llamar al portal)",
+           r.status_code == 200 and bool(cuerpo.get("repetida")), {"http": r.status_code, "repetida": cuerpo.get("repetida")})
         ck("continuidad: confirmar otra vez la operación de B NO crea una segunda cita en el portal",
            len(de_b) == 1, self.res["continuidad_b"])
         ck("continuidad: el motor termina con el MISMO folio que tiene el portal (F2)",
@@ -338,11 +421,12 @@ class Recorrido:
         ck("retención: D (sin consentimiento, sin cambios) se cierra por RETENCION",
            despues["D"]["estado"] == "CERRADO" and (despues["D"].get("motivo_cierre") or "").upper() == "RETENCION",
            {"estado": despues["D"]["estado"], "motivo": despues["D"].get("motivo_cierre")})
-        ck("retención: E (LISTO, esperando) y G (en el plan) NO se tocan",
-           not anon["E"] and not anon["G"] and despues["E"]["estado"] == antes_ret["E"]["estado"]
-           and despues["G"]["estado"] == antes_ret["G"]["estado"],
-           {"E": [antes_ret["E"]["estado"], despues["E"]["estado"], anon["E"]],
-            "G": [antes_ret["G"]["estado"], despues["G"]["estado"], anon["G"]]})
+        ck("retención: E (LISTO, esperando) NO se toca",
+           not anon["E"] and despues["E"]["estado"] == antes_ret["E"]["estado"],
+           {"E": [antes_ret["E"]["estado"], despues["E"]["estado"], anon["E"]]})
+        ck("retención: G (consentimiento revocado y reaplicado, expediente cerrado) se anonimiza",
+           antes_ret["G"]["estado"] == "CERRADO" and anon["G"],
+           {"G": [antes_ret["G"]["estado"], despues["G"]["estado"], anon["G"]]})
         ta, tb = self.traza(self.e["A"]), self.traza(self.e["B"])
         ck("retención: se conservan código, folio e historial; desaparecen nombre, teléfono y correo",
            despues["A"]["codigo"] == antes_ret["A"]["codigo"]

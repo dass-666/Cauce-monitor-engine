@@ -93,6 +93,11 @@ def vigente(s, exp: Expediente, now: datetime, bloquear: bool = False) -> Consen
         q = q.with_for_update()
     for c in s.scalars(q):
         if c.vigente_hasta is None or c.vigente_hasta > now:
+            # v2.4: si el diario de eventos críticos tiene una revocación que la base (restaurada) no refleja,
+            # el consentimiento NO es vigente: una restauración nunca lo reactiva por sí sola.
+            from .. import recuperacion
+            if recuperacion.revocacion_pendiente(s, exp):
+                return None
             return c
     return None
 
@@ -103,6 +108,11 @@ def motivo_bloqueo(s, exp: Expediente, now: datetime) -> dict:
                       .order_by(Consentimiento.id.desc()).limit(1))
     if ultimo is None:
         return {"codigo": "SIN_CONSENTIMIENTO", "mensaje": "El expediente no tiene consentimiento registrado"}
+    from .. import recuperacion
+    if ultimo.estado == VIGENTE and recuperacion.revocacion_pendiente(s, exp):
+        return {"codigo": "REVOCACION_EN_DIARIO", "consentimiento": ultimo.codigo,
+                "mensaje": f"El diario de eventos críticos registra la revocación de {ultimo.codigo}, que la base "
+                           "restaurada no refleja: no se permiten operaciones hasta que un administrador la concilie"}
     if ultimo.estado == REVOCADO:
         return {"codigo": MOTIVO_CIERRE, "consentimiento": ultimo.codigo,
                 "mensaje": f"La persona revocó su consentimiento ({ultimo.codigo}, "
@@ -278,6 +288,10 @@ def otorgar(s, exp: Expediente, d: dict, actor: str, now: datetime, ip: str = ""
                  .values(version=Expediente.version + 1, updated_at=now)).rowcount != 1:
         raise ErrorConsentimiento(409, "El expediente cambió mientras tanto: recárgalo")
     s.refresh(exp)
+    from .. import recuperacion
+    if recuperacion.revocacion_pendiente(s, exp):
+        raise ErrorConsentimiento(409, "Hay una revocación de este expediente pendiente de conciliar tras restaurar un "
+                                       "respaldo: un administrador debe revisarla antes", {"codigo": "REVOCACION_EN_DIARIO"})
     if vigente(s, exp, now) is not None:
         raise ErrorConsentimiento(409, "Ya hay un consentimiento vigente para este expediente y trámite")
     c = Consentimiento(codigo=f"TMP-{os.urandom(6).hex()}", expediente_id=exp.id, responsable=actor[:64], estado=VIGENTE,
@@ -309,7 +323,8 @@ def otorgar_seguro(db, exp_id: int, d: dict, user, now: datetime, ip: str = "") 
 
 
 # ---------------------------------------------------------------- revocar
-def revocar(db, consentimiento_id: int, d: dict, user, now: datetime, ip: str = "") -> dict:
+def revocar(db, consentimiento_id: int, d: dict, user, now: datetime, ip: str = "",
+            reaplicada_de: int | None = None) -> dict:
     """Registra la revocación (definitiva) y aplica sus efectos. Idempotente: revocar dos veces
     devuelve la misma revocación."""
     from . import expedientes as ex
@@ -350,6 +365,10 @@ def revocar(db, consentimiento_id: int, d: dict, user, now: datetime, ip: str = 
         _retirar_del_plan(s, exp.id, actor, now)
         exp.ultimo_error = f"{MOTIVO_CIERRE}: no se permiten nuevas operaciones"
         vc = vista(c)
+    # v2.4: fuera de la base (sobrevive a una restauración). Si falla, la revocación sigue hecha y el motor
+    # queda bloqueado para operar con el portal hasta que un administrador lo revise.
+    from .. import recuperacion
+    recuperacion.anotar_revocacion(db, c.id, reaplicada_de)
     efectos = _efectos_finales(db, c.expediente_id, aplicar_revocacion(db, c.expediente_id, actor, now))
     return {"consentimiento": vc, "repetida": False, "efectos": efectos}
 

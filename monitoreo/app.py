@@ -103,6 +103,13 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             print(msg, flush=True)
             (settings.data_dir / "CREDENCIAL_INICIAL.txt").write_text(
                 msg + "\nBorra este archivo después de iniciar sesión.\n", encoding="utf-8")
+        # v2.4: recuperación segura. Antes de arrancar nada: si se restauró un respaldo o el diario de eventos
+        # críticos no cuadra con la base, las operaciones con el portal quedan bloqueadas (y se dice por qué).
+        from . import recuperacion
+        try:
+            recuperacion.preparar(db)
+        except Exception:  # noqa: BLE001 - la puerta de cada operación vuelve a evaluar y falla cerrada
+            log.exception("recuperación: la comprobación de arranque falló")
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()
@@ -166,6 +173,8 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
     app.include_router(router)
     app.include_router(obs_router)
     app.include_router(centro_router)
+    from .api.recuperacion import router as recuperacion_router     # v2.4: recuperación segura (administrador)
+    app.include_router(recuperacion_router)
     if not production:
         # Laboratorio, rutas de prueba y emulador de Telegram: solo fuera de producción.
         from .api.test_api import router as test_router

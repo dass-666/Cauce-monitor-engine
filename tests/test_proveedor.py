@@ -33,7 +33,14 @@ def _confirmada_pero_escritura_perdida(lab):
     antes de guardar el resultado: CONFIRMANDO desde hace rato (el caso que la recuperación resuelve)."""
     eid, u, h = asignado(lab)
     rid, _ = lab.hasta_fecha(eid, h, manuales=MANUALES)
-    r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
+    # v2.4: si el motor se cae antes de guardar el resultado, tampoco llega a escribir la línea de resultado del
+    # diario de eventos críticos (se escribe DESPUÉS de guardarlo). Se simula igual: sin esa línea, el diario
+    # solo tiene el intento, coherente con CONFIRMANDO. Con la línea, el diario diría CONFIRMADA y la base
+    # CONFIRMANDO: una base que retrocedió, que bloquea (eso lo prueba tests/test_recuperacion_v24.py).
+    from unittest import mock
+    from monitoreo import recuperacion
+    with mock.patch.object(recuperacion, "confirmacion_resultado", lambda *a, **k: None):
+        r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
     assert r.status_code == 200, r.text
     folio = r.json()["reservacion"]["folio"]
     with lab.db.session() as s:
