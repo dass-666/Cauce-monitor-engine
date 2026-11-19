@@ -44,8 +44,10 @@ def _run(db, monkeypatch, events):
         await s1.stop()
         return s1.wakeups
     wakeups = asyncio.run(scenario())
-    # el planificador siguió lanzando sus tareas de fondo (solo se vació su contenido)
-    assert {"recuperacion", "envio", "captura", "historial"} <= set(fondo), fondo
+    # el planificador siguió lanzando sus tareas de fondo (solo se vació su contenido). El historial no
+    # se exige: su primera vuelta depende de time.monotonic() >= mantenimiento_historial_cada_s, y en una
+    # máquina recién arrancada (ejecutores de CI) el reloj monotónico puede ser menor.
+    assert {"recuperacion", "envio", "captura"} <= set(fondo), fondo
     return wakeups, calls, polled
 
 
