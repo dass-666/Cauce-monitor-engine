@@ -62,7 +62,7 @@ llama a la API directamente con el token del operador:
 | `aceptacion_v21` | 42/42 |
 | `recorrido_ventanilla_v23` | 21/21 |
 | Suite completa SQLite | 595 pasan, 8 omitidas, 0 fallan |
-| CI de GitHub de este commit | ver §6 |
+| CI de GitHub, corrida 44526532327 (`93328a3`) | **30/30 trabajos en verde** (Linux y Windows 3.11/3.12/3.13, Windows+PostgreSQL, integración HTTP, instalación, actualizaciones, Jarvis, regresión v2.2.2; recorrido v2.3 y demo_v22 en Windows 3.11 incluidos) |
 
 ## 5. Windows físico
 
@@ -76,6 +76,6 @@ Tampoco está comprobado en Windows que cerrar con `Ctrl + C` detenga motor y po
 
 ## 6. Pendiente
 
-1. Resultado de la CI de este commit (se anota abajo al terminar).
+1. Corrida anterior 44484561084 (`10a4a5e`, solo documentación): falló **solo** «Regresión v2.2.2 · Windows · 3.11», `test_ciclo_despertar` con 8 procesos de carga artificial, 1 de 30 (0,438 s frente al umbral 0,4). Es el defecto de tiempos ya conocido de v2.2.2, ajeno a Ventanilla; no se tocó el umbral. En esa misma corrida demo_v22 pasó en Windows 3.11 (coherente con una carrera que depende del orden).
 2. Validación en el MSI con la guía del §5.
 3. Si el recorrido entra al manifiesto de Jarvis: exige volver a fijar; no se hizo.

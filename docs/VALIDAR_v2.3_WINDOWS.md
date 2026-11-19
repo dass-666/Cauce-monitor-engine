@@ -14,7 +14,7 @@ Tiempo aproximado: 25 minutos (10 de instalación, 1 de demostración automátic
 Con git:
 
 ```powershell
-git clone -b claude/project-thread-2wwz8e https://github.com/dass-666/cauce-monitor-engine C:\cauce-v23
+git clone -b claude/project-thread-2wwz8e https://github.com/dass-666/Cauce-monitor-engine C:\cauce-v23
 ```
 
 Sin git: en GitHub elige la rama `claude/project-thread-2wwz8e` → *Code* → *Download ZIP* y descomprímelo
