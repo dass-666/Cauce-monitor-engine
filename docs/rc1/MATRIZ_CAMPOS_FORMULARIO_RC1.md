@@ -41,7 +41,7 @@ lista, opcional; clave para no duplicar al reimportar) y `folio_anterior` (folio
 | D2 | Las confirmaciones del archivo nunca se comparaban: un teléfono mal capturado en una de las dos columnas pasaba sin aviso | Media | Si hay columna de confirmación se compara; si no coincide, la fila se rechaza con el motivo | `test_ocho_campos_…` (filas 4 y 5 rechazadas) |
 | D3 | No se reconocían las etiquetas del propio formulario («Identificador de registro», «Operación a realizar», «Teléfono de contacto») ni las del importador («Folio de la cita anterior»): la columna quedaba «sin uso» y el identificador podía perderse si no se asignaba a mano | Media | Sinónimos añadidos y cada campo reconoce su propia etiqueta | `test_ocho_campos_…`, `test_plantilla_…` |
 | D4 | El valor «Nueva cita» (la etiqueta que muestran las pantallas) se rechazaba como «Operación no válida»; «Renovación (ficticia)» tampoco se aceptaba | Media | Se acepta la clave o la etiqueta del catálogo | `test_ocho_campos_…` |
-| D5 | «ID cliente» se asignaba solo a `id_externo`, en conflicto con tu término «identificador de cliente» (= registro previo) | Media (dato en el campo equivocado) | «Identificador de cliente» → registro previo; «ID cliente» ya no se asigna solo: el administrador elige en la vista previa | `test_ocho_campos_…` |
+| D5 | «ID cliente» se asignaba solo a `id_externo`, en conflicto con tu término «identificador de cliente» (= registro previo) | Media (dato en el campo equivocado) | «Identificador de cliente» → registro previo; «ID cliente» ya no se asigna solo: el administrador elige en la vista previa (**decisión confirmada por el propietario**, 2026-11-19) | `test_plantilla_…` |
 | D6 | La Mesa de control no permitía corregir datos: el botón «Ver / corregir» solo mostraba la ficha | Alta para el flujo administrativo | Botón **Corregir datos** con los 8 campos + folio anterior; usa el PATCH existente (mismas validaciones, control de versión, revalidación, historial sin valores) | `test_corregir_…`, recorrido 4b |
 | D7 | La plantilla no traía «Operación» ni «Folio de la cita anterior», y sus columnas no eran Texto: Excel convertiría «00450001» tecleado en 450001 | Baja-media | Columnas añadidas; identificador, teléfono y folio con formato Texto | `test_plantilla_…` |
 
@@ -57,4 +57,26 @@ operación ni Ventanilla.
   **vaciar** un campo (el PATCH ignora valores vacíos).
 - Catálogos (trámites, sucursales) y formato real del identificador **siguen siendo del laboratorio**: falta
   documentación del servicio real.
-- Probado en Linux con SQLite y en la CI; no en PostgreSQL local ni en el MSI.
+- Probado en Linux con SQLite y en la CI de GitHub (corrida 98, commit `497f63c`: **30/30 trabajos**, incluido el
+  recorrido RC1 en Linux con SQLite/PostgreSQL y Windows con Python 3.11, 3.12 y 3.13:
+  https://github.com/dass-666/Cauce-monitor-engine/actions/runs/44574124275). No probado en el MSI.
+
+## 5. Mejora pendiente (documentada, no implementada)
+
+**Vaciar un campo incorrecto.** Hoy «Corregir datos» solo puede cambiar valores; no puede dejar vacío un campo
+mal importado (por ejemplo, un folio anterior que no corresponde). Propuesta para una fase futura, cuando se decida:
+
+- Acción **explícita** «Quitar este dato» por campo (nunca al dejar la casilla vacía), con motivo obligatorio.
+- Validada: solo campos que pueden faltar (no nombre, región ni trámite); el expediente vuelve a validarse y,
+  si queda incompleto, sale de «Listo» como cualquier otro faltante.
+- Auditada: evento en el historial con el **nombre** del campo y el motivo, nunca el valor.
+- Bloqueada durante operaciones activas (en el plan con coincidencia, operación preparada, confirmación en curso o
+  incierta, cita confirmada), igual que hoy los cambios de región, sucursal o trámite.
+
+## 6. Decisiones confirmadas por el propietario (2026-11-19)
+
+- Las siete correcciones D1–D7 quedan aceptadas.
+- «ID cliente» permanece ambiguo: exige asignación manual en la vista previa.
+- Se conservan separados `id_registro_previo` (identificador del formulario), `id_externo` (identificador interno
+  de la lista, clave de no duplicación) y `folio_anterior` (folio de la cita que se reprograma).
+- Los catálogos y reglas son del **laboratorio**; no se presentan como requisitos de un servicio externo.

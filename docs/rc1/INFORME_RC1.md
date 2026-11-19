@@ -129,6 +129,9 @@ reproducido en local con ruta relativa: 26/26. Las regresiones v2.3.1 (21/21) e 
 misma corrida. Corrida 96 con la corrección (commit 8e22e50): **30/30 trabajos pasan** en Linux (SQLite y PostgreSQL) y Windows
 (Python 3.11, 3.12 y 3.13), incluido el recorrido RC1 con la interfaz: https://github.com/dass-666/Cauce-monitor-engine/actions/runs/44555138969
 
+Tras la revisión de los 8 campos (commit `497f63c`), corrida 98: **30/30** de nuevo:
+https://github.com/dass-666/Cauce-monitor-engine/actions/runs/44574124275
+
 Ajustes a pruebas existentes (no son umbrales): `test_captura_datos` y `test_interop_jarvis` esperaban la
 migración 0015 como última; ahora es 0016. `scripts/e2e_panel.js` entra por `#inicio` porque el admin del
 laboratorio ahora aterriza en la Mesa de control.
