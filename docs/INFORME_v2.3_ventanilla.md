@@ -68,6 +68,8 @@ Lo que **solo** existía por API o script (comprobado: ninguna pantalla llamaba 
 | `scripts/demo_v20.py` (Ventanilla v2.0 con navegador), tras la corrección | 56 OK, 0 fallas |
 | Suite completa local (SQLite), tras la corrección | 593 pasan, 8 omitidas, 0 fallan |
 | CI de GitHub, 1.ª corrida (44471952998 / 44472069000) | **FALLÓ por dos defectos míos** (ver §5.1); corregidos y vueltos a subir |
+| CI de GitHub tras la corrección (corrida 44478520364, `b34fb47`) | **29 de 30 trabajos en verde**: suites completas Linux 3.11/3.12/3.13 y Windows 3.11/3.12/3.13, Windows+PostgreSQL, integración HTTP, instalación, actualizaciones, Jarvis y regresión v2.2.2. El recorrido v2.3 pasó en Linux y en Windows 3.12 y 3.13 (en Windows 3.11 no llegó a ejecutarse, ver la fila siguiente) |
+| El trabajo que falló: Reservaciones · Windows · Python 3.11 | `demo_v22`, paso 6 (revocar con el día elegido: `intento_descartado: None`). **INFERENCIA:** intermitente ajeno a la v2.3: ese paso solo usa la API de consentimiento y reservaciones, que esta rama no cambia; el mismo paso pasó en Windows 3.12 y 3.13, en Linux (SQLite y PostgreSQL) y en local. No lo reproduje ni lo demostré |
 
 ### 5.1 Lo que encontró la CI (HECHO) y cómo se corrigió
 
