@@ -21,6 +21,7 @@ import argparse
 import calendar
 import json
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -102,6 +103,9 @@ def main() -> int:
             check(f"interfaz · {x['paso']}", x["ok"], x["detalle"])
         check("interfaz · recorrido completo sin interrupciones", not nav.get("fallo"), nav.get("fallo"))
         check("interfaz · sin errores de JavaScript", not nav["errores_js"], nav["errores_js"])
+        # el único error HTTP esperado es el 409 del duplicado exacto (el motor lo detiene a propósito)
+        otros = [x for x in nav["http_errores"] if not re.fullmatch(r"operador 409 POST /api/ventanilla/atenciones/\d+/expediente", x)]
+        check("interfaz · sin respuestas HTTP de error inesperadas (solo el 409 del duplicado)", not otros, otros)
         folio = nav.get("folio")
         # --- comprobación independiente: el portal tiene la cita
         if folio:

@@ -1,7 +1,7 @@
 """v2.3 · «Calendario del laboratorio»: manejar el portal de laboratorio PROPIO desde el panel.
 
 Antes, abrir un día en el calendario del laboratorio (para que el observador lo vea y el plan lo asigne)
-solo se podía con las rutas `/control/...` del portal y su `X-Control-Token`, es decir, con un script.
+solo se podía con las rutas `/control/...` del portal y su token de control, es decir, con un script.
 Estas rutas hacen de intermediario para el administrador, con tres condiciones que se comprueban en cada
 petición:
 
@@ -9,6 +9,7 @@ petición:
 2. `MONITOREO_PORTAL_TOKEN_CONTROL` está definido (lo pone `scripts/ventanilla_laboratorio.py`);
 3. `MONITOREO_PORTAL_URL` apunta a 127.0.0.1/localhost: nunca se envía el token a otro equipo.
 
+El protocolo de control (cabecera y token) vive en `portal_reservas/control.py`, no en el motor.
 Solo se permiten las acciones de calendario (habilitar, liberar, agotar, deshabilitar, rehabilitar) y
 leer registros ficticios de ejemplo. No hay vía para portales externos: el portal es el de laboratorio.
 """
@@ -23,6 +24,8 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
+
+from portal_reservas import control
 
 from .. import security
 from ..captura import portal
@@ -48,8 +51,7 @@ def _ctl(metodo: str, ruta: str, **kw):
     if not ok:
         raise HTTPException(409, motivo)
     try:
-        r = httpx.request(metodo, portal.url() + ruta, headers={"X-Control-Token": os.environ[VARIABLE]},
-                          timeout=10, trust_env=False, **kw)
+        r = control.peticion(portal.url(), os.environ[VARIABLE], metodo, ruta, **kw)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"El portal de laboratorio no responde ({type(e).__name__})") from None
     if r.status_code >= 400:

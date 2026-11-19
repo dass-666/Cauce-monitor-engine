@@ -29,7 +29,7 @@ Lo que **solo** existía por API o script (comprobado: ninguna pantalla llamaba 
 | 10. Historial | `/api/expedientes/{id}/trazabilidad` sin pantalla (la ficha del admin mostraba solo el historial del expediente). |
 | Alta de personas de prueba | Los registros ficticios que el portal acepta solo se obtenían con `/control/registro-ejemplo`. |
 
-## 3. Qué puede hacer ahora (HECHO: recorrido con navegador real, 19/19)
+## 3. Qué puede hacer ahora (HECHO: recorrido con navegador real, 20/20)
 
 1. **«Dejarla en el plan del día»** en la atención: fechas aceptables opcionales; cierra la atención sin
    cita (resultado `EN_PLAN_DEL_DIA`) y el expediente entra al plan abierto de hoy con las mismas reglas
@@ -64,8 +64,25 @@ Lo que **solo** existía por API o script (comprobado: ninguna pantalla llamaba 
 | `test_ventanilla`, `test_consentimiento_v22`, `test_planificador`, `test_plan_unidades_propiedad`, `test_cierre_v21`, `test_observador_persistente`, `test_api` (solo SQLite) | 89/89 |
 | `scripts/aceptacion_v21.py` (Ventanilla «Plan del día» con navegador) | 42 OK, 0 fallas |
 | `scripts/demo_v22.py` (consentimiento con navegador) | 36 OK, 0 fallas |
-| `scripts/recorrido_ventanilla_v23.py` (nuevo, ver §6) | 19/19, 3 ejecuciones locales seguidas en verde |
-| CI de GitHub (Linux y Windows, suite completa + el recorrido nuevo en ambos) | ver la respuesta de entrega (corrida 44471952998) |
+| `scripts/recorrido_ventanilla_v23.py` (nuevo, ver §6) | 19/19 en 3 ejecuciones seguidas; tras la corrección, 20/20 (comprobación nueva de errores HTTP) |
+| `scripts/demo_v20.py` (Ventanilla v2.0 con navegador), tras la corrección | 56 OK, 0 fallas |
+| Suite completa local (SQLite), tras la corrección | 593 pasan, 8 omitidas, 0 fallan |
+| CI de GitHub, 1.ª corrida (44471952998 / 44472069000) | **FALLÓ por dos defectos míos** (ver §5.1); corregidos y vueltos a subir |
+
+### 5.1 Lo que encontró la CI (HECHO) y cómo se corrigió
+
+1. `test_engine_core_has_no_provider_specific_code` (todas las suites completas): el núcleo `monitoreo/` no
+   debe conocer el protocolo de control del portal y mi intermediario escribía la cabecera `X-Control-Token`.
+   Es una regla de arquitectura correcta: **no** se tocó la prueba; la cabecera pasó a
+   `portal_reservas/control.py` (el propio portal de laboratorio) y el motor solo llama a esa función.
+2. `demo_v20` («respuestas HTTP de error: solo las esperadas», Windows/Linux e instalación pwsh): al cerrar
+   una atención SIN cita, la pantalla pedía el historial y la ficha de un expediente que el operador ya no
+   tiene a su cargo, y eso daba 404. Era ruido nuevo causado por v2.3. Ahora la atención informa
+   `operador_id` del expediente y la pantalla solo pide ficha e historial cuando el usuario puede verlos;
+   si no, lo explica sin llamar al servidor. El recorrido v2.3 también comprueba ahora que no haya errores
+   HTTP inesperados (20 comprobaciones).
+
+Lección: antes de subir debí ejecutar también `demo_v20` y la suite completa, no solo las suites afectadas.
 
 No se cambiaron umbrales, criterios ni pruebas existentes. No se añadieron benchmarks ni pruebas de estrés.
 

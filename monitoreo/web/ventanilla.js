@@ -202,7 +202,12 @@ async function pantallaAtencion(aid) {
     h("p", { class: "siguiente-paso", id: "siguiente-paso", "data-siguiente": a.siguiente.clave }, "Siguiente: ", a.siguiente.texto),
     h("div", { class: "actions" }, h("button", { class: "btn small ghost", onclick: () => { S.ventanilla.aid = null; refresh(true, true); } },
       a.abierta ? "Volver a la lista (la atención queda abierta)" : "Volver a la lista")));
-  const hist = a.expediente ? await historialExpediente(a.expediente.id, !a.abierta) : null;   // v2.3
+  // v2.3: el historial se pide solo cuando este usuario puede verlo (así no se generan 404 que confundan):
+  // el administrador siempre; el operador mientras el expediente está a su cargo o cuando ya tiene su cita.
+  const aCargo = a.expediente && (isAdmin() || (S.user.operator_id != null && a.expediente.operador_id === S.user.operator_id));
+  const enEspera = a.expediente && (ESPERA_EXP.includes(a.expediente.estado) || !aCargo);
+  const verHist = aCargo;
+  const hist = !a.expediente ? null : verHist ? await historialExpediente(a.expediente.id, !a.abierta) : sinHistorial();
   if (!a.abierta) return h("div", {}, cab, resultadoFinal(a), hist);
   // v2.3: una atención abierta por error (o sin persona) también se puede cerrar desde aquí
   if (!a.expediente) return h("div", {}, cab, h("div", { class: "grid cols-2 section" }, buscarPersona(a), registrarPersona(a)), cierre(a, false, null));
@@ -210,6 +215,7 @@ async function pantallaAtencion(aid) {
   if (a.siguiente.clave === "consentimiento") return h("div", {}, cab, tarjetaConsentimiento(a), cierre(a, false, null), hist);
   // v2.3: un expediente en revisión (posible duplicado) o incompleto no queda asignado al operador, así que
   // su ficha no se puede abrir; antes la pantalla volvía a la lista SIN decir nada. Ahora se explica qué pasa.
+  if (enEspera && !isAdmin()) return h("div", {}, cab, expedienteEnEspera(a), cierre(a, false, null), hist);
   let e;
   try { e = await api(`/api/expedientes/${a.expediente.id}`); }
   catch (err) {
@@ -232,6 +238,10 @@ async function pantallaAtencion(aid) {
   return h("div", {}, cab, barraConsentimiento(a), flujo, alPlan, cierre(a, !!conf, viva), hist);
 }
 
+const ESPERA_EXP = ["NUEVO", "INCOMPLETO", "EN_VALIDACION", "REQUIERE_REVISION"];   // no quedan a cargo del operador
+const sinHistorial = () => h("div", { class: "card section muted", id: "historial-expediente", "data-disponible": "no" },
+  "El historial de este expediente lo consulta un administrador (ya no está a tu cargo).");
+
 function expedienteEnEspera(a) {
   const x = a.expediente;
   const revision = x.estado === "REQUIERE_REVISION";
@@ -240,7 +250,9 @@ function expedienteEnEspera(a) {
     revision ? h("p", {}, `El expediente ${x.codigo} se parece mucho a otro (nombre casi igual y la misma fecha de nacimiento). `,
       "No entra a la cola ni al plan hasta que un administrador decida en su Ventanilla («Posibles duplicados por revisar») ",
       "si es la misma persona o son personas distintas.") :
-      h("p", {}, x.faltan && x.faltan.length ? `Faltan datos: ${x.faltan.join(", ")}.` : "Todavía no está listo para operar."),
+      h("p", {}, x.estado === "CERRADO" ? "El expediente ya está cerrado: no habrá más operaciones con él. Cierra esta atención."
+        : x.faltan && x.faltan.length ? `Faltan datos: ${x.faltan.join(", ")}.`
+          : ESPERA_EXP.includes(x.estado) ? "Todavía no está listo para operar." : "Ahora no está a tu cargo (lo tiene el plan del día u otro operador)."),
     h("p", { class: "muted" }, "Puedes cerrar esta atención (abajo) y retomarla cuando se resuelva; la persona no pierde su lugar."));
 }
 
@@ -611,7 +623,7 @@ async function historialExpediente(expId, abierto) {
   try { t = await api(`/api/expedientes/${expId}/trazabilidad`); }
   catch (err) {
     return h("div", { class: "card section muted", id: "historial-expediente", "data-disponible": "no" },
-      err.status === 404 ? "El historial de este expediente lo consulta un administrador (ya no está asignado a ti)." : err.message);
+      err.status === 404 ? "El historial de este expediente lo consulta un administrador (ya no está a tu cargo)." : err.message);
   }
   const r = t.expediente || {};
   const v = t.verificacion_consentimientos || {};

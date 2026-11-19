@@ -104,6 +104,7 @@ def vista(s, a: Atencion) -> dict:
         "expediente": None if exp is None else {
             "id": exp.id, "codigo": exp.codigo, "estado": exp.estado, "tipo_tramite": exp.tipo_tramite,
             "region": exp.region, "sucursal": exp.sucursal, "modo": exp.modo,
+            "operador_id": exp.operator_id,     # v2.3: la pantalla sabe si puede abrir su ficha e historial
             "titular": val.enmascarar_nombre(exp.nombre) if exp.nombre else None,
             "faltan": falta},
         "reservacion": None if res is None else rs.vista(res),
