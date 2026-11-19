@@ -171,7 +171,8 @@ class Scheduler:
 
     def _anunciar_proveedor(self) -> None:
         from .. import entorno
-        if entorno.is_production():
+        from .. import modulos
+        if entorno.is_production() and not modulos.flujo_admin_solicitado():
             return
         try:
             from .. import proveedor

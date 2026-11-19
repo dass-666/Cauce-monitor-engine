@@ -100,7 +100,9 @@ def info(request: HttpRequest, user: CurrentUser = Depends(current_user)):
     """Entorno y funciones disponibles (el panel oculta lo que no existe en producción)."""
     from ..app import VERSION
     ent = request.app.state.entorno
+    mods = getattr(request.app.state, "modulos", None) or {}
     return {"version": VERSION, "entorno": ent.entorno, "laboratorio": ent.entorno != "produccion",
+            "flujo_admin": bool(mods.get("flujo_admin", ent.entorno != "produccion")),
             "avisos_configuracion": ent.avisos if user.role == "admin" else []}
 
 

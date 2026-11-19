@@ -11,6 +11,8 @@ from ..planificador import plan as pl
 from .deps import CurrentUser, current_user, get_db, require_admin
 
 router = APIRouter(prefix="/api")
+# Solo laboratorio (nunca en producción; ver monitoreo/modulos.py): herramientas de prueba de resistencia.
+router_lab = APIRouter(prefix="/api")
 
 
 def _err(e):
@@ -144,7 +146,7 @@ def iniciar_observador(body: ObservadorIn, request: Request, user: CurrentUser =
             "en_otro_proceso": c["clave"] in r["de_otro_proceso"]}
 
 
-@router.post("/observador/simular-caida-navegador")
+@router_lab.post("/observador/simular-caida-navegador")
 def simular_caida(request: Request, user: CurrentUser = Depends(require_admin)):
     """Laboratorio (pruebas de resistencia): corta de golpe el navegador de los observadores de este
     proceso, como si Chromium se cerrara. El supervisor debe relanzarlo."""

@@ -113,7 +113,7 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()
-        if not production:     # v2.1: restaura los observadores de calendario configurados (laboratorio)
+        if app.state.modulos["flujo_admin"]:   # v2.1: restaura los observadores de calendario configurados
             from .planificador.observador import Supervisor
             app.state.supervisor = Supervisor(db)
             app.state.supervisor.start()
@@ -167,7 +167,7 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
         log.exception("error no controlado en %s", request.url.path)
         return JSONResponse({"detail": "Error interno"}, status_code=500)
 
-    from .api.routes import lab_router, router
+    from .api.routes import router
     from .api.observability import router as obs_router
     from .api.centro import router as centro_router
     app.include_router(router)
@@ -175,40 +175,11 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
     app.include_router(centro_router)
     from .api.recuperacion import router as recuperacion_router     # v2.4: recuperación segura (administrador)
     app.include_router(recuperacion_router)
-    if not production:
-        # Laboratorio, rutas de prueba y emulador de Telegram: solo fuera de producción.
-        from .api.test_api import router as test_router
-        from .emuladores.telegram import router as telegram_emulator
-        app.include_router(lab_router)
-        # v1.5: captura y reservaciones de LABORATORIO (portal de prueba propio): nunca en producción
-        from .api.captura import router as captura_router
-        app.include_router(captura_router)
-        # v2.2: consentimiento verificable y trazabilidad por expediente
-        from .api.consentimiento import router as consentimiento_router
-        app.include_router(consentimiento_router)
-        # v2.0: modo ventanilla (atención presencial) sobre la captura de laboratorio
-        from .api.ventanilla import router as ventanilla_router
-        app.include_router(ventanilla_router)
-        # v2.3: «Calendario del laboratorio» (portal propio en 127.0.0.1, solo con su token de control)
-        from .api.laboratorio_portal import router as laboratorio_portal_router
-        app.include_router(laboratorio_portal_router)
-        # v2.0: gestor de conexiones (por qué red sale el motor hacia el portal de prueba)
-        from .api.conexiones import router as conexiones_router
-        app.include_router(conexiones_router)
-        # v2.0 · P2: adaptadores de proveedor y captura manual (sin conectar portales externos)
-        from .api.adaptadores import router as adaptadores_router
-        app.include_router(adaptadores_router)
-        # v2.0: identidad del proveedor (portal) de esta instancia
-        from .api.proveedor import router as proveedor_router
-        app.include_router(proveedor_router)
-        # v2.1: planificador diario, observador de calendario y coincidencias (laboratorio)
-        from .api.planificador import router as planificador_router
-        app.include_router(planificador_router)
-        # RC1: mesa de control del administrador (panel, importación por lotes, planificación por selección)
-        from .api.administracion import router as administracion_router
-        app.include_router(administracion_router)
-        app.include_router(test_router)
-        app.include_router(telegram_emulator)
+    # Flujo administrativo (captura, consentimiento, ventanilla, plan, mesa de control): siempre fuera de
+    # producción; en producción solo con MONITOREO_PRODUCCION_FLUJO_ADMIN=1 (desactivado por omisión).
+    # Laboratorio, portal de prueba, emuladores y rutas de prueba: NUNCA en producción. Ver monitoreo/modulos.py.
+    from . import modulos
+    app.state.modulos = modulos.montar(app, production)
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/", include_in_schema=False)

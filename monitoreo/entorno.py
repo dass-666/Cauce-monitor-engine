@@ -7,6 +7,7 @@ que conserva el comportamiento de la v1.0/v1.1).
 |-------------------------------------------|------------|---------|------------|
 | Laboratorio (/api/lab/*)                  | sí         | sí      | NO         |
 | Rutas de prueba (/api-prueba/*) y emulador Telegram | sí | sí      | NO         |
+| Flujo administrativo (captura, consentimiento, ventanilla, plan, mesa de control) | sí | sí | solo con MONITOREO_PRODUCCION_FLUJO_ADMIN=1 (ver modulos.py) |
 | Datos de demostración                     | según .env | según .env | NUNCA   |
 | Documentación interactiva (/api/docs)     | sí         | sí      | NO         |
 | Detector de sesiones anidadas             | opcional   | sí      | no         |
@@ -119,6 +120,11 @@ def review(env: dict | None = None) -> Revision:
     if prod and (not db_url or db_url.startswith("sqlite")):
         r.avisos.append("Producción con SQLite: válido para una sola máquina. Para varias instancias en "
                         "máquinas distintas usa PostgreSQL.")
+    from . import modulos   # flujo administrativo en producción: solo con activación explícita y requisitos
+    if prod and modulos.flujo_admin_solicitado(env):
+        r.errores.extend(modulos.requisitos_produccion(env))
+        r.avisos.append(f"{modulos.VARIABLE}=1: el flujo administrativo (importar, expedientes, consentimiento, "
+                        "ventanilla, plan del día, mesa de control) está montado en producción.")
     if env.get("MONITOREO_DETECTAR_ANIDADAS") == "1" and prod:
         r.avisos.append("MONITOREO_DETECTAR_ANIDADAS=1 es una herramienta de pruebas.")
     return r

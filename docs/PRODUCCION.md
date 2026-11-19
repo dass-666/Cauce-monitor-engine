@@ -139,9 +139,46 @@ justificaría con muchas instancias y no se ha visto esa necesidad.
 6. Abrir el panel → Salud → Autodiagnóstico y revisar cada aviso.
 7. Hacer una copia de seguridad y comprobar que se puede restaurar (ver `README.md`).
 
-## 7. Lo que esta guía no cubre
+## 7. Flujo administrativo en producción (preparado, desactivado)
+
+Hasta la candidata RC1 + v2.4, el modo producción **no** montaba el flujo administrativo: importar,
+expedientes, consentimiento, Ventanilla, plan del día, observador y mesa de control eran solo de laboratorio.
+Ahora el montaje está separado en `monitoreo/modulos.py`:
+
+| Grupo | desarrollo / pruebas | produccion |
+|---|---|---|
+| API básica, panel, recuperación segura (pantalla «Recuperación») | sí | sí |
+| Flujo administrativo (`FLUJO_ADMIN`) | sí | **solo con `MONITOREO_PRODUCCION_FLUJO_ADMIN=1`** |
+| Laboratorio, portal de prueba, conexiones, adaptadores P2, emuladores, rutas de prueba, simular caída del navegador (`SOLO_LABORATORIO`) | sí | **nunca** |
+
+Por omisión la variable está **vacía**: la producción se comporta exactamente como en la candidata.
+
+Al activarla se montan **los mismos routers** que en el laboratorio, con los mismos controles: sesión
+obligatoria (401), rol administrador donde ya se exigía (403 para operadores), consentimiento verificable,
+bloqueo de recuperación y auditoría. El panel muestra «Mesa de control», «Importar», «Expedientes»,
+«Ventanilla» y «Captura» solo si el servidor los montó (`flujo_admin` en `/api/info`).
+
+**Requisitos.** Con la variable en 1, el servidor **no arranca** (y explica por qué) si falta alguno:
+
+1. `MONITOREO_PORTAL_URL` en este equipo (127.0.0.1/localhost). Operar un portal externo exige la autorización
+   expresa de su proveedor y esta versión no lo implementa.
+2. `MONITOREO_EXIGIR_CONSENTIMIENTO=1` (o sin definir).
+3. `MONITOREO_DIARIO_COPIA` configurada (ver [RESPALDO_EXTERNO_DIARIO.md](RESPALDO_EXTERNO_DIARIO.md)).
+
+Lo que **no** cambia la variable: no crea datos de demostración, no activa la documentación interactiva y no
+monta ninguna herramienta de laboratorio.
+
+**Antes de activarla con datos reales** (decisión del propietario, fuera de esta versión): aviso de
+privacidad y procedimiento ARCO; `MONITOREO_CAPTURA_SOLO_SINTETICOS=0` es una decisión explícita aparte; la
+autorización del proveedor del portal si algún día se conecta uno externo.
+
+Verificación automatizada: `tests/test_produccion_flujo_admin.py` (por omisión no se monta; sin requisitos
+no arranca; activado, mismas rutas con 401/403 y nada del laboratorio).
+
+## 8. Lo que esta guía no cubre
 
 - Endurecimiento del sistema operativo, cortafuegos y antivirus.
-- Copias de seguridad fuera de la máquina (el motor solo hace copias locales).
+- Copias de seguridad de la BASE fuera de la máquina (el motor solo hace copias locales). La copia externa
+  del diario de eventos críticos sí está cubierta: ver [RESPALDO_EXTERNO_DIARIO.md](RESPALDO_EXTERNO_DIARIO.md).
 - Alta disponibilidad real: dos instancias se coordinan con el arrendamiento, pero
   comparten la misma base de datos; si esta cae, el servicio se detiene.
