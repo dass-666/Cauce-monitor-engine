@@ -1,0 +1,96 @@
+{
+ "que": "reapertura tras sesión caducada, CPU saturada (6 bucles ocupados, 4 núcleos), Linux, Chromium de Playwright 1.63",
+ "criterio": "bloqueo = sin REABIERTA en 20 s tras la orden de reabrir",
+ "corridas": [
+  {
+   "version": "sin candado (0d0d755), 1.ª corrida",
+   "ciclos": 8,
+   "bloqueos": 1,
+   "ciclos_bloqueados": [
+    7
+   ],
+   "reapertura_s_mediana": 0.27,
+   "reapertura_s_max": 0.31
+  },
+  {
+   "version": "sin candado (0d0d755), 2.ª corrida",
+   "ciclos": 60,
+   "bloqueos": 7,
+   "ciclos_bloqueados": [
+    4,
+    13,
+    22,
+    27,
+    32,
+    37,
+    43
+   ],
+   "reapertura_s_mediana": 0.29,
+   "reapertura_s_max": 0.35
+  },
+  {
+   "version": "con candado (c3d949a), 1.ª corrida",
+   "ciclos": 150,
+   "bloqueos": 0,
+   "ciclos_bloqueados": [],
+   "reapertura_s_mediana": 0.29,
+   "reapertura_s_max": 0.42
+  },
+  {
+   "version": "con candado (versión de trabajo de esta fase; puede incluir o no el cambio de unidades del DOM, que no toca la navegación), 2.ª corrida",
+   "ciclos": 600,
+   "bloqueos": 0,
+   "ciclos_bloqueados": [],
+   "reapertura_s_mediana": 0.42,
+   "reapertura_s_max": 1.92
+  }
+ ],
+ "registro_playwright_primer_bloqueo": [
+  "2026-11-14T03:48:52.576Z pw:api   \"commit\" event fired",
+  "2026-11-14T03:48:52.576Z pw:api   navigated to \"http://127.0.0.1:52967/observar/calendario?sucursal=NOR-1&tramite=alta\"",
+  "2026-11-14T03:48:52.578Z pw:api   \"domcontentloaded\" event fired",
+  "2026-11-14T03:48:52.578Z pw:api   \"load\" event fired",
+  "2026-11-14T03:48:52.579Z pw:api <= page.goto succeeded",
+  "2026-11-14T03:48:52.579Z pw:api => page.waitForSelector started",
+  "2026-11-14T03:48:52.579Z pw:api waiting for locator('[data-calendario=mensual]') to be visible",
+  "2026-11-14T03:48:52.604Z pw:api   locator resolved to visible <table class=\"mes\" data-disponibles=\"8\" data-calendario=\"mensual\">…</table>",
+  "2026-11-14T03:48:52.624Z pw:api <= page.waitForSelector succeeded",
+  "2026-11-14T03:48:52.625Z pw:api => page.evaluate started",
+  "2026-11-14T03:48:52.629Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:48:52.629Z pw:api => page.evaluate started",
+  "2026-11-14T03:48:52.636Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:48:52.636Z pw:api => page.screenshot started",
+  "2026-11-14T03:48:59.148Z pw:api   \"networkidle\" event fired",
+  "2026-11-14T03:49:22.539Z pw:api taking page screenshot",
+  "2026-11-14T03:49:22.541Z pw:api <= page.screenshot failed",
+  "2026-11-14T03:49:22.545Z pw:api waiting for fonts to load...",
+  "2026-11-14T03:49:22.546Z pw:api fonts loaded",
+  "2026-11-14T03:49:22.565Z pw:api <= page.screenshot succeeded",
+  "2026-11-14T03:49:22.565Z pw:api => page.evaluate started",
+  "2026-11-14T03:49:22.567Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:49:22.567Z pw:api => page.screenshot started",
+  "2026-11-14T03:49:22.568Z pw:api taking page screenshot",
+  "2026-11-14T03:49:22.568Z pw:api waiting for fonts to load...",
+  "2026-11-14T03:49:22.569Z pw:api fonts loaded",
+  "2026-11-14T03:49:22.595Z pw:api <= page.screenshot succeeded",
+  "2026-11-14T03:49:22.595Z pw:api => page.evaluate started",
+  "2026-11-14T03:49:22.597Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:49:22.597Z pw:api => page.screenshot started",
+  "2026-11-14T03:49:22.597Z pw:api taking page screenshot",
+  "2026-11-14T03:49:22.598Z pw:api waiting for fonts to load...",
+  "2026-11-14T03:49:22.598Z pw:api fonts loaded",
+  "2026-11-14T03:49:22.628Z pw:api <= page.screenshot succeeded",
+  "2026-11-14T03:49:22.628Z pw:api => page.evaluate started",
+  "2026-11-14T03:49:22.636Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:49:22.636Z pw:api => page.screenshot started",
+  "2026-11-14T03:49:22.636Z pw:api taking page screenshot",
+  "2026-11-14T03:49:22.637Z pw:api waiting for fonts to load...",
+  "2026-11-14T03:49:22.637Z pw:api fonts loaded",
+  "2026-11-14T03:49:22.662Z pw:api <= page.screenshot succeeded",
+  "2026-11-14T03:49:22.662Z pw:api => page.evaluate started",
+  "2026-11-14T03:49:22.664Z pw:api <= page.evaluate succeeded",
+  "2026-11-14T03:49:22.665Z pw:api => page.$$eval started",
+  "2026-11-14T03:49:22.672Z pw:api <= page.$$eval succeeded"
+ ],
+ "lectura": "Una captura de la tabla (estrategia visual) empezó 12 ms antes de la navegación de la reapertura y nunca terminó; la captura siguiente, ya con la página nueva, quedó esperando 30 s (el tiempo de espera por omisión de Playwright). Eso coincide con la hipótesis: captura y navegación simultáneas sobre la misma página. La causa interna (Playwright/Chromium) no se investigó a nivel de protocolo."
+}

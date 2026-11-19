@@ -1,0 +1,878 @@
+# Integración continua del motor de monitoreo (v1.3).
+#
+# Qué demuestra cada trabajo:
+#   linux       pruebas completas en SQLite y PostgreSQL 16 (Python 3.11, 3.12, 3.13) + arranque real
+#   windows     pruebas completas en SQLite en Windows (Python 3.11, 3.12, 3.13) + arranque real
+#               + panel con navegador real (3.13)
+#   windows-pg  pruebas con el PostgreSQL que trae preinstalado la imagen de Windows (experimental)
+#   powershell  sintaxis de todos los .ps1 en PowerShell 5.1 y 7, PSScriptAnalyzer y codificación
+#   instalacion instalación limpia desde un ZIP, reinstalación, diagnóstico y actualización lado a
+#               lado desde una instalación con datos de la v1.0, con PowerShell 5.1 y 7
+#   integracion-http-linux / integracion-http-windows (v1.3) proveedor de prueba, motor y emulador de Telegram como PROCESOS
+#               independientes que hablan por HTTP real en 127.0.0.1 (Linux y Windows): pruebas de
+#               fiabilidad + escenario operativo corto con fallos, cortes bruscos y auditoría.
+#               Nada se publica en Internet ni se contacta a terceros.
+#
+# Si algo falla se adjuntan los registros (servidores, instalación, capturas, JUnit) como
+# artefacto "diagnostico-…" en la página de la ejecución.
+name: CI (Windows y Linux)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PLAYWRIGHT_VERSION: "1.63.0"
+
+jobs:
+  linux:
+    name: Linux · Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres-ci
+          POSTGRES_DB: monitoreo_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      MONITOREO_TEST_PG: postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: Comprobar pg_dump (respaldo antes de migrar)
+        run: |
+          if command -v pg_dump >/dev/null; then pg_dump --version
+          else echo "::warning::pg_dump no disponible: la migración de PostgreSQL se prueba sin respaldo"
+               echo "MONITOREO_RESPALDO_PG=omitir" >> "$GITHUB_ENV"; fi
+      - name: Pruebas (SQLite y PostgreSQL)
+        run: |
+          mkdir -p resultados
+          python -m pytest -q -rs --junitxml=resultados/junit.xml 2>&1 | tee resultados/pytest.txt
+      - name: Preparar navegador para el panel
+        if: matrix.python == '3.13'
+        run: |
+          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          npx playwright install --with-deps chromium
+      - name: Arranque real del servidor (desarrollo y producción)
+        run: |
+          E2E=""; [ "${{ matrix.python }}" = "3.13" ] && E2E="--e2e"
+          python scripts/verificar_arranque.py $E2E --salida resultados/arranque
+      - name: Adjuntar resultados y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-linux-py${{ matrix.python }}
+          path: |
+            resultados/
+            data/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows:
+    name: Windows · Python ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: Pruebas (SQLite)
+        run: |
+          New-Item -ItemType Directory -Force resultados | Out-Null
+          python -m pytest -q -rs --junitxml=resultados/junit.xml 2>&1 | Tee-Object resultados/pytest.txt
+          exit $LASTEXITCODE
+      - name: Preparar navegador para el panel
+        if: matrix.python == '3.13'
+        run: |
+          npm install --no-save --no-audit --no-fund "playwright@$env:PLAYWRIGHT_VERSION"
+          npx playwright install chromium
+      - name: Arranque real del servidor (desarrollo y producción)
+        run: |
+          $e2e = @(); if ("${{ matrix.python }}" -eq "3.13") { $e2e = @("--e2e") }
+          python scripts/verificar_arranque.py @e2e --salida resultados/arranque
+          exit $LASTEXITCODE
+      - name: Adjuntar resultados y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-windows-py${{ matrix.python }}
+          path: |
+            resultados/
+            data/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows-pg:
+    name: Windows · PostgreSQL preinstalado (experimental)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true   # depende de la imagen del ejecutor; no bloquea, pero el resultado queda visible
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Iniciar el PostgreSQL de la imagen
+        run: |
+          if (-not $env:PGBIN) { Write-Host "::warning::La imagen no trae PostgreSQL"; exit 1 }
+          Get-Service postgresql* | Set-Service -StartupType Manual -PassThru | Start-Service
+          $env:PGPASSWORD = "root"
+          & "$env:PGBIN\psql.exe" -U postgres -h localhost -c "CREATE DATABASE monitoreo_test"
+          "MONITOREO_TEST_PG=postgresql+psycopg://postgres:root@localhost:5432/monitoreo_test" >> $env:GITHUB_ENV
+          "$env:PGBIN" >> $env:GITHUB_PATH
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: Pruebas (SQLite y PostgreSQL)
+        run: |
+          New-Item -ItemType Directory -Force resultados | Out-Null
+          python -m pytest -q -rs --junitxml=resultados/junit.xml 2>&1 | Tee-Object resultados/pytest.txt
+          exit $LASTEXITCODE
+      - name: Adjuntar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-windows-postgresql
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  powershell:
+    name: Scripts PowerShell (5.1 y 7)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintaxis en Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion | Out-String | Write-Host
+          $fallos = 0
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1) {
+            $tokens = $null; $errores = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$errores) | Out-Null
+            if ($errores) { $fallos++; foreach ($e in $errores) { Write-Host "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)" } }
+            else { Write-Host "OK  $($f.FullName)" }
+          }
+          exit $fallos
+      - name: Sintaxis en PowerShell 7
+        shell: pwsh
+        run: |
+          $PSVersionTable.PSVersion | Out-String | Write-Host
+          $fallos = 0
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1) {
+            $tokens = $null; $errores = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$errores) | Out-Null
+            if ($errores) { $fallos++; foreach ($e in $errores) { Write-Host "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)" } }
+            else { Write-Host "OK  $($f.FullName)" }
+          }
+          exit $fallos
+      - name: Codificación (PowerShell 5.1 necesita BOM si hay acentos; .bat solo ASCII)
+        shell: pwsh
+        run: |
+          $mal = 0
+          foreach ($f in Get-ChildItem -Recurse -Include *.ps1, *.bat) {
+            $b = [IO.File]::ReadAllBytes($f.FullName)
+            $bom = $b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF
+            $noAscii = @($b | Where-Object { $_ -gt 127 }).Count -gt 0
+            if ($f.Extension -eq ".ps1" -and $noAscii -and -not $bom) { $mal++; Write-Host "::error file=$($f.FullName)::UTF-8 sin BOM: PowerShell 5.1 leerá mal los acentos" }
+            if ($f.Extension -eq ".bat" -and $noAscii) { $mal++; Write-Host "::error file=$($f.FullName)::caracteres no ASCII en un .bat" }
+          }
+          exit $mal
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -Force -Scope CurrentUser }
+          $r = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost
+          $r | Format-Table Severity, RuleName, ScriptName, Line, Message -AutoSize | Out-String -Width 250 | Write-Host
+          $errores = @($r | Where-Object Severity -eq "Error")
+          foreach ($e in $errores) { Write-Host "::error file=$($e.ScriptPath),line=$($e.Line)::$($e.RuleName): $($e.Message)" }
+          exit $errores.Count
+
+  instalacion:
+    name: Instalación y actualización · ${{ matrix.ps }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        ps: ["powershell", "pwsh"]     # Windows PowerShell 5.1 (el de serie) y PowerShell 7
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      MONITOREO_ADMIN_PASSWORD: Instalacion-CI-2026
+      MONITOREO_SIN_PAUSA: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0               # para extraer la v1.1 del historial
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Crear el ZIP tal como lo recibiría el usuario
+        run: |
+          git archive --format=zip -o "$env:RUNNER_TEMP\motor.zip" HEAD
+          Expand-Archive "$env:RUNNER_TEMP\motor.zip" C:\inst\motor
+          Get-ChildItem C:\inst\motor | Format-Table Name | Out-String | Write-Host
+      - name: Instalación limpia (no interactiva)
+        run: |
+          & ${{ matrix.ps }} -NoProfile -ExecutionPolicy Bypass -File C:\inst\motor\instalar.ps1 -NoInteractivo
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::instalar.ps1 terminó con $LASTEXITCODE"; exit 1 }
+          foreach ($p in "C:\inst\motor\.env", "C:\inst\motor\data\monitoreo.db", "C:\inst\motor\.venv\Scripts\python.exe") {
+            if (-not (Test-Path $p)) { Write-Host "::error::falta $p"; exit 1 }
+          }
+          if (-not (Get-ChildItem C:\inst\motor\data\logs\instalacion-*.log)) { Write-Host "::error::no quedó registro de instalación"; exit 1 }
+          $reg = Get-Content -Raw -Encoding utf8 (Get-ChildItem C:\inst\motor\data\logs\instalacion-*.log | Select-Object -First 1).FullName
+          if ($reg -match "\uFFFD") { Write-Host "::error::acentos dañados en la salida (problema de codificación)"; exit 1 }
+          if ($reg -notmatch "Autodiagnóstico") { Write-Host "::error::no aparece el autodiagnóstico con acentos en el registro"; exit 1 }
+      - name: Reinstalar encima (debe respaldar y conservar .env)
+        run: |
+          $antes = Get-FileHash C:\inst\motor\.env
+          & ${{ matrix.ps }} -NoProfile -ExecutionPolicy Bypass -File C:\inst\motor\instalar.ps1 -NoInteractivo
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ((Get-FileHash C:\inst\motor\.env).Hash -ne $antes.Hash) { Write-Host "::error::.env modificado"; exit 1 }
+          $r = @(Get-ChildItem C:\inst\motor\respaldos-instalacion -Directory)
+          if ($r.Count -lt 1) { Write-Host "::error::no se creó respaldo previo"; exit 1 }
+          Write-Host "Respaldo creado: $($r[0].FullName)"
+      - name: Diagnóstico de la instalación (diagnostico.bat)
+        run: |
+          cmd /c C:\inst\motor\diagnostico.bat --motor-detenido
+          if ($LASTEXITCODE -gt 1) { exit 1 }
+      - name: Arranque real desde la carpeta instalada
+        run: |
+          Set-Location C:\inst\motor
+          .\.venv\Scripts\python.exe scripts\verificar_arranque.py --salida C:\inst\resultados\arranque
+          exit $LASTEXITCODE
+      - name: v2.0 · demo_ventanilla.bat desde la carpeta instalada (navegador real; no es el MSI físico)
+        if: matrix.ps == 'pwsh'
+        run: |
+          Set-Location C:\inst\motor
+          cmd /c demo_ventanilla.bat
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::demo_ventanilla.bat terminó con $LASTEXITCODE"; exit 1 }
+          New-Item -ItemType Directory -Force C:\inst\resultados | Out-Null
+          Copy-Item -Recurse -Force resultados\demo_v20 C:\inst\resultados\demo_ventanilla
+      - name: Preparar una instalación anterior con datos de la v1.0
+        run: |
+          New-Item -ItemType Directory C:\inst\anterior | Out-Null
+          git archive --format=zip -o "$env:RUNNER_TEMP\v11.zip" 06f90763f4494086b30b7127bd7c3e0db3992be5
+          Expand-Archive "$env:RUNNER_TEMP\v11.zip" C:\inst\anterior -Force
+          New-Item -ItemType Directory -Force C:\inst\anterior\data | Out-Null
+          Copy-Item tests\fixtures\bd_v1_0.sqlite C:\inst\anterior\data\monitoreo.db
+          # Archivos de las fuentes JSON/CSV de demostración que acompañan a esa base en una instalación real
+          New-Item -ItemType Directory -Force C:\inst\anterior\data\feeds | Out-Null
+          '{"complete": true, "items": [{"resource_key": "CJ-1", "name": "Agenda Ficticia", "resource_type": "turno", "available": 0, "capacity": 3}]}' |
+            Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\centro_calendario.json
+          "clave,nombre,tipo,disponibles,capacidad,estado`nNC-1,Lote Ficticio A,unidad,0,5,ACTIVO" |
+            Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\norte_inventario.csv
+          "MONITOREO_ADMIN_PASSWORD=Anterior-Ficticia-2026`nMONITOREO_SECRET_KEY=$([guid]::NewGuid())$([guid]::NewGuid())" |
+            Set-Content -Encoding utf8 C:\inst\anterior\.env
+          (Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash | Set-Content C:\inst\hash-anterior.txt
+      - name: Actualizar lado a lado (actualizar.ps1)
+        run: |
+          Expand-Archive "$env:RUNNER_TEMP\motor.zip" C:\inst\nueva
+          & ${{ matrix.ps }} -NoProfile -ExecutionPolicy Bypass -File C:\inst\nueva\actualizar.ps1 -Anterior C:\inst\anterior -NoInteractivo
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::actualizar.ps1 terminó con $LASTEXITCODE"; exit 1 }
+          if ((Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash -ne (Get-Content C:\inst\hash-anterior.txt)) {
+            Write-Host "::error::la base de la instalación anterior cambió"; exit 1
+          }
+          Set-Location C:\inst\nueva
+          .\.venv\Scripts\python.exe -c "import sqlite3; c=sqlite3.connect('data/monitoreo.db'); n=c.execute('select count(*) from requests').fetchone()[0]; v=c.execute('select version_num from alembic_version').fetchone()[0]; print('solicitudes', n, 'esquema', v); assert n == 40"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if (-not (Get-ChildItem C:\inst\nueva\data\respaldos\*.db)) { Write-Host "::error::no hubo respaldo antes de migrar"; exit 1 }
+      - name: Actualizar otra vez sobre la misma carpeta (debe negarse sin tocar nada)
+        run: |
+          $antes = (Get-FileHash C:\inst\nueva\data\monitoreo.db).Hash
+          & ${{ matrix.ps }} -NoProfile -ExecutionPolicy Bypass -File C:\inst\nueva\actualizar.ps1 -Anterior C:\inst\anterior -NoInteractivo
+          if ($LASTEXITCODE -eq 0) { Write-Host "::error::debió negarse"; exit 1 }
+          if ((Get-FileHash C:\inst\nueva\data\monitoreo.db).Hash -ne $antes) { Write-Host "::error::modificó datos"; exit 1 }
+          Write-Host "Se negó correctamente."
+          exit 0
+      - name: Adjuntar registros de instalación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-instalacion-${{ matrix.ps }}
+          path: |
+            C:\inst\motor\data\logs\
+            C:\inst\nueva\data\logs\
+            C:\inst\resultados\
+          if-no-files-found: ignore
+          retention-days: 14
+
+  actualizar-desde-versiones:
+    # v1.4: actualización real desde cada versión entregada. La v1.2 y la v1.3 se instalan con SU
+    # propio instalar.ps1 y sus datos los crea SU código; la v1.1 (instalador interactivo) usa la
+    # base que creó su código (tests/fixtures/bd_v1_1.sqlite).
+    name: Actualizar desde ${{ matrix.origen }} · Windows PowerShell 5.1
+    runs-on: windows-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { origen: "v1.1", ref: "06f90763f4494086b30b7127bd7c3e0db3992be5", instalador: "no" }
+          - { origen: "v1.2", ref: "995eb46", instalador: "si" }
+          - { origen: "v1.3", ref: "0f3cd78", instalador: "si" }
+          - { origen: "v1.4", ref: "77ced28", instalador: "si" }
+          - { origen: "v1.5", ref: "eb7f469", instalador: "si" }
+          - { origen: "v1.6", ref: "dedc062", instalador: "si" }
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      MONITOREO_ADMIN_PASSWORD: Version-Anterior-123
+      MONITOREO_SIN_PAUSA: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Instalar la versión anterior (${{ matrix.origen }})
+        run: |
+          git archive --format=zip -o "$env:RUNNER_TEMP\anterior.zip" ${{ matrix.ref }}
+          Expand-Archive "$env:RUNNER_TEMP\anterior.zip" C:\inst\anterior
+          if ("${{ matrix.instalador }}" -eq "si") {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File C:\inst\anterior\instalar.ps1 -NoInteractivo
+            if ($LASTEXITCODE -gt 2) { Write-Host "::error::el instalador de ${{ matrix.origen }} terminó con $LASTEXITCODE"; exit 1 }
+            Set-Location C:\inst\anterior
+            .\.venv\Scripts\python.exe "$env:GITHUB_WORKSPACE\scripts\sembrar_version_anterior.py" data\monitoreo.db
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::no se pudieron crear datos con ${{ matrix.origen }}"; exit 1 }
+          } else {
+            New-Item -ItemType Directory -Force C:\inst\anterior\data | Out-Null
+            Copy-Item tests\fixtures\bd_v1_1.sqlite C:\inst\anterior\data\monitoreo.db
+            # Archivos de las fuentes JSON/CSV de demostración que acompañan a esa base en una instalación real
+            New-Item -ItemType Directory -Force C:\inst\anterior\data\feeds | Out-Null
+            '{"complete": true, "items": [{"resource_key": "CJ-1", "name": "Agenda Ficticia", "resource_type": "turno", "available": 0, "capacity": 3}]}' |
+              Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\centro_calendario.json
+            "clave,nombre,tipo,disponibles,capacidad,estado`nNC-1,Lote Ficticio A,unidad,0,5,ACTIVO" |
+              Set-Content -Encoding utf8 C:\inst\anterior\data\feeds\norte_inventario.csv
+            "MONITOREO_ADMIN_PASSWORD=Version-Anterior-123`nMONITOREO_SECRET_KEY=$([guid]::NewGuid())$([guid]::NewGuid())" |
+              Set-Content -Encoding utf8 C:\inst\anterior\.env
+          }
+          python "$env:GITHUB_WORKSPACE\scripts\comprobar_actualizacion.py" cuentas C:\inst\anterior\data\monitoreo.db | Set-Content C:\inst\cuentas-antes.txt
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "antes (solicitudes, en proceso): $(Get-Content C:\inst\cuentas-antes.txt)"
+          (Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash | Set-Content C:\inst\hash-anterior.txt
+      - name: Actualizar lado a lado a esta versión (actualizar.ps1)
+        run: |
+          git archive --format=zip -o "$env:RUNNER_TEMP\nueva.zip" HEAD
+          Expand-Archive "$env:RUNNER_TEMP\nueva.zip" C:\inst\nueva
+          & powershell -NoProfile -ExecutionPolicy Bypass -File C:\inst\nueva\actualizar.ps1 -Anterior C:\inst\anterior -NoInteractivo
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::actualizar.ps1 terminó con $LASTEXITCODE"; exit 1 }
+          if ((Get-FileHash C:\inst\anterior\data\monitoreo.db).Hash -ne (Get-Content C:\inst\hash-anterior.txt)) {
+            Write-Host "::error::la base de la instalación anterior cambió"; exit 1
+          }
+          if (-not (Get-ChildItem C:\inst\nueva\data\respaldos\*.db)) { Write-Host "::error::no hubo respaldo antes de migrar"; exit 1 }
+      - name: Comprobar datos, esquema e integridad en la versión nueva
+        run: |
+          Set-Location C:\inst\nueva
+          $antes = (Get-Content C:\inst\cuentas-antes.txt).Trim()
+          .\.venv\Scripts\python.exe scripts\comprobar_actualizacion.py verificar data\monitoreo.db "$antes"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::datos, esquema o integridad distintos tras actualizar"; exit 1 }
+          cmd /c diagnostico.bat --motor-detenido
+          if ($LASTEXITCODE -gt 1) { Write-Host "::error::el autodiagnóstico encontró problemas críticos"; exit 1 }
+          exit 0   # 1 = solo avisos (p. ej. una fuente de demostración sin conexión): aceptable
+      - name: Arranque real de la versión nueva con los datos actualizados
+        run: |
+          Set-Location C:\inst\nueva
+          New-Item -ItemType Directory -Force C:\inst\resultados | Out-Null
+          $p = Start-Process -PassThru -NoNewWindow -FilePath .\.venv\Scripts\python.exe -ArgumentList "-m", "monitoreo" `
+                 -RedirectStandardOutput C:\inst\resultados\servidor.out -RedirectStandardError C:\inst\resultados\servidor.err
+          try {
+            .\.venv\Scripts\python.exe -c @"
+          import time, httpx, sys
+          c = httpx.Client(base_url='http://127.0.0.1:8000', timeout=5, trust_env=False)
+          for _ in range(120):
+              try:
+                  if c.get('/api/health').status_code == 200: break
+              except httpx.HTTPError: pass
+              time.sleep(0.5)
+          else: sys.exit('el servidor no respondió')
+          h = {'Authorization': 'Bearer ' + c.post('/api/auth/login', json={'username': 'admin', 'password': 'Version-Anterior-123'}).json()['token']}
+          total = c.get('/api/requests?limit=1', headers=h).json()['total']
+          time.sleep(6)   # unos ciclos del planificador con los datos antiguos
+          d = c.get('/api/dashboard', headers=h).json()
+          print('solicitudes', total, 'motor', d['motor'], 'sin_actividad', d['asignaciones_sin_actividad'])
+          sys.exit(0 if total >= 40 and d['motor']['activo'] and not d['motor']['ultimo_error'] else 1)
+          "@
+            $code = $LASTEXITCODE
+          } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          Get-Content C:\inst\resultados\servidor.err -Tail 30
+          exit $code
+      - name: Adjuntar registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actualizar-desde-${{ matrix.origen }}
+          path: |
+            C:\inst\anterior\data\logs\
+            C:\inst\nueva\data\logs\
+            C:\inst\resultados\
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integracion-http-linux:
+    name: Integración HTTP · Linux (SQLite y PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres-ci
+          POSTGRES_DB: monitoreo_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      MONITOREO_TEST_PG: postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: Pruebas de fiabilidad con el proveedor como proceso real (SQLite y PostgreSQL)
+        run: |
+          mkdir -p resultados/integracion_http
+          python -m pytest -q -rs tests/test_integracion_http.py --junitxml=resultados/integracion_http/junit.xml
+      - name: Escenario operativo corto (SQLite)
+        run: |
+          python scripts/integracion_http.py --rapido --salida resultados/integracion_http
+      - name: Escenario operativo corto (PostgreSQL)
+        run: |
+          python scripts/integracion_http.py --rapido --salida resultados/integracion_http --bd "$MONITOREO_TEST_PG"
+      - name: Adjuntar resultados y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integracion-http-linux
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integracion-http-windows:
+    name: Integración HTTP · Windows (SQLite)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+      - name: Pruebas de fiabilidad con el proveedor como proceso real
+        run: |
+          New-Item -ItemType Directory -Force resultados/integracion_http | Out-Null
+          python -m pytest -q -rs tests/test_integracion_http.py --junitxml=resultados/integracion_http/junit.xml
+          exit $LASTEXITCODE
+      - name: Escenario operativo corto (SQLite)
+        run: |
+          python scripts/integracion_http.py --rapido --salida resultados/integracion_http
+          exit $LASTEXITCODE
+      - name: Adjuntar resultados y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integracion-http-windows
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  reservaciones-linux:
+    # v1.5: portal de reservaciones de prueba + motor como procesos reales, recorrido del operador
+    # con Playwright hasta el folio, reinicio brusco de ambos y carga con varios operadores.
+    name: Reservaciones de laboratorio · Linux (SQLite y PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres-ci
+          POSTGRES_DB: monitoreo_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      MONITOREO_TEST_PG: postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
+      - name: Preparar navegador (cierre v2.1 · dentro de la instalación, en .browsers, sin exportar PLAYWRIGHT_BROWSERS_PATH)
+        run: python scripts/preparar_navegador.py --dependencias-linux
+      - name: Diagnóstico del navegador (el motor lo encuentra solo)
+        run: |
+          test -z "${PLAYWRIGHT_BROWSERS_PATH:-}"
+          python -m monitoreo.navegador --probar
+      - name: Crear bases PostgreSQL limpias para demo y carga
+        run: |
+          python -c "import psycopg; c=psycopg.connect('postgresql://postgres:postgres-ci@localhost:5432/postgres', autocommit=True); [c.execute(f'CREATE DATABASE {n}') for n in ('monitoreo_demo', 'monitoreo_carga', 'monitoreo_dia', 'monitoreo_v17', 'monitoreo_v20', 'monitoreo_res', 'monitoreo_v21', 'monitoreo_acep21', 'monitoreo_v22')]"
+      - name: Recorrido completo expediente → folio (SQLite)
+        run: python scripts/demo_reservacion.py --salida resultados/demo_sqlite --capturas resultados/capturas_sqlite
+      - name: Recorrido completo expediente → folio (PostgreSQL)
+        run: python scripts/demo_reservacion.py --salida resultados/demo_pg --capturas resultados/capturas_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_demo"
+      - name: v1.6 · Recorrido POR DÍA expediente → folio, reinicio y calendario sin comunicación (SQLite)
+        run: python scripts/demo_dia.py --salida resultados/demo_dia_sqlite --capturas resultados/capturas_dia_sqlite
+      - name: v1.6 · Recorrido POR DÍA (PostgreSQL)
+        run: python scripts/demo_dia.py --salida resultados/demo_dia_pg --capturas resultados/capturas_dia_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_dia"
+      - name: v1.6 · Laboratorio multisucursal A (eventos) y B (consulta), noche simulada con fallos
+        run: python scripts/laboratorio_dias.py --mecanismo ambos --expedientes 400 --operadores 10 --noche-s 180 --salida resultados/laboratorio_dias
+      - name: v1.7 · Panel en navegador real (centro, supervisión, notificaciones, Mi trabajo, reinicio, sin conexión) · SQLite
+        run: python scripts/demo_v17.py --salida resultados/demo_v17_sqlite --capturas resultados/capturas_v17_sqlite
+      - name: v1.7 · Panel en navegador real · PostgreSQL
+        run: python scripts/demo_v17.py --salida resultados/demo_v17_pg --capturas resultados/capturas_v17_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v17"
+      - name: v2.0 · Ventanilla en navegador real (6 citas, sin cita, duplicado, retomar tras reinicio, móvil) · SQLite
+        run: python scripts/demo_v20.py --salida resultados/demo_v20_sqlite --capturas resultados/capturas_v20_sqlite
+      - name: v2.0 · Ventanilla en navegador real · PostgreSQL
+        run: python scripts/demo_v20.py --salida resultados/demo_v20_pg --capturas resultados/capturas_v20_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v20"
+      - name: v2.0 · Resistencia — PostgreSQL detenido de verdad a mitad de confirmaciones y corte simultáneo motor+portal+BD
+        run: |
+          PG=${{ job.services.postgres.id }}
+          python scripts/resistencia_v20.py --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_res" \
+            --parar "docker stop -t 20 $PG" --parar-golpe "docker kill $PG" --arrancar "docker start $PG" \
+            --caida-s 8 --salida resultados/resistencia_v20
+      - name: v2.1 · Observador de calendario con navegador real (pytest, SQLite y PostgreSQL)
+        run: mkdir -p resultados; python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py tests/test_cierre_v21.py 2>&1 | tee resultados/pytest_v21.txt; exit ${PIPESTATUS[0]}
+      - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio (SQLite)
+        run: python scripts/recorrido_v21.py --salida resultados/recorrido_v21
+      - name: v2.1 · Recorrido integrado con PostgreSQL detenido de verdad a mitad
+        run: |
+          PG=${{ job.services.postgres.id }}
+          python scripts/recorrido_v21.py --salida resultados/recorrido_v21 --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v21" \
+            --pg-parar "docker stop -t 20 $PG" --pg-arrancar "docker start $PG && sleep 3"
+      - name: v2.1 · Aceptación (Ventanilla «Plan del día», varias unidades, propiedad única, reinicios) · SQLite
+        run: python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21
+      - name: v2.1 · Aceptación · PostgreSQL
+        run: python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_acep21"
+      - name: v2.2 · Consentimiento por expediente (pytest, SQLite y PostgreSQL)
+        run: mkdir -p resultados; python -m pytest -q -vv -rs -s tests/test_consentimiento_v22.py 2>&1 | tee resultados/pytest_v22.txt; exit ${PIPESTATUS[0]}
+      - name: v2.2 · Demostración completa con consentimiento exigido (SQLite)
+        run: python scripts/demo_v22.py --salida resultados/demo_v22
+      - name: v2.2 · Demostración completa con PostgreSQL detenido de verdad a mitad
+        run: |
+          PG=${{ job.services.postgres.id }}
+          python scripts/demo_v22.py --salida resultados/demo_v22 --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_v22" \
+            --pg-parar "docker stop -t 20 $PG" --pg-arrancar "docker start $PG && sleep 3"
+      - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
+        run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
+      - name: Carga con varios operadores (SQLite)
+        run: python scripts/carga_captura.py --expedientes 120 --operadores 8 --salida resultados/carga_sqlite
+      - name: Carga con varios operadores (PostgreSQL)
+        run: python scripts/carga_captura.py --expedientes 120 --operadores 8 --salida resultados/carga_pg --bd "postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_carga"
+      - name: Adjuntar resultados, capturas y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reservaciones-linux
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  reservaciones-windows:
+    name: Reservaciones de laboratorio · Windows · Python ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias (solo paquetes precompilados)
+        run: "python -m pip install --only-binary=:all: -r requirements-postgres.txt"
+      - name: Preparar navegador (cierre v2.1 · dentro de la instalación, en .browsers)
+        run: |
+          python scripts/preparar_navegador.py
+          exit $LASTEXITCODE
+      - name: Diagnóstico del navegador (el motor lo encuentra solo)
+        run: |
+          if ($env:PLAYWRIGHT_BROWSERS_PATH) { throw "PLAYWRIGHT_BROWSERS_PATH no debería estar definida" }
+          python -m monitoreo.navegador --probar
+          exit $LASTEXITCODE
+      - name: Recorrido completo expediente → folio, con reinicio brusco
+        run: |
+          python scripts/demo_reservacion.py --salida resultados/demo --capturas resultados/capturas
+          exit $LASTEXITCODE
+      - name: v1.6 · Recorrido POR DÍA con reinicio y calendario sin comunicación
+        run: |
+          python scripts/demo_dia.py --salida resultados/demo_dia --capturas resultados/capturas_dia
+          exit $LASTEXITCODE
+      - name: v1.6 · Laboratorio multisucursal (reducido)
+        run: |
+          python scripts/laboratorio_dias.py --mecanismo ambos --expedientes 150 --operadores 6 --noche-s 90 --salida resultados/laboratorio_dias
+          exit $LASTEXITCODE
+      - name: v1.7 · Panel en navegador real (centro, supervisión, notificaciones, Mi trabajo, reinicio, sin conexión)
+        run: |
+          python scripts/demo_v17.py --salida resultados/demo_v17 --capturas resultados/capturas_v17
+          exit $LASTEXITCODE
+      - name: v2.0 · Ventanilla en navegador real (6 citas, sin cita, duplicado, retomar tras reinicio, móvil)
+        run: |
+          python scripts/demo_v20.py --salida resultados/demo_v20 --capturas resultados/capturas_v20
+          exit $LASTEXITCODE
+      - name: v2.1 · Observador de calendario con navegador real (pytest)
+        run: |
+          python -m pytest -q -vv -rs -s tests/test_observador.py tests/test_observador_persistente.py tests/test_planificador.py tests/test_plan_unidades_propiedad.py tests/test_cierre_v21.py
+          exit $LASTEXITCODE
+      - name: v2.1 · Recorrido integrado plan → calendario abierto → evento → coincidencia → folio
+        run: |
+          python scripts/recorrido_v21.py --salida resultados/recorrido_v21
+          exit $LASTEXITCODE
+      - name: v2.1 · Aceptación (Ventanilla «Plan del día», varias unidades, propiedad única, reinicios)
+        run: |
+          python scripts/aceptacion_v21.py --salida resultados/aceptacion_v21
+          exit $LASTEXITCODE
+      - name: v2.2 · Consentimiento por expediente (pytest)
+        run: |
+          python -m pytest -q -vv -rs -s tests/test_consentimiento_v22.py
+          exit $LASTEXITCODE
+      - name: v2.2 · Demostración completa con consentimiento exigido
+        run: |
+          python scripts/demo_v22.py --salida resultados/demo_v22
+          exit $LASTEXITCODE
+      - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
+        run: |
+          python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 150 --operadores 10 --noche-s 150 --salida resultados/laboratorio_v17
+          exit $LASTEXITCODE
+      - name: Carga con varios operadores
+        run: |
+          python scripts/carga_captura.py --expedientes 80 --operadores 6 --salida resultados/carga
+          exit $LASTEXITCODE
+      - name: Adjuntar resultados, capturas y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reservaciones-windows-py${{ matrix.python }}
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # v2.2.1: contratos de interoperabilidad con Jarvis (lado Cauce). Ejecuta las pruebas de los
+  # contratos y la demostración completa (inventario, manifiesto, suite pequeña, informe, validación,
+  # consulta SIMULADA de Jarvis, repetición e idempotencia). Windows aquí es Windows Server de
+  # GitHub Actions, NO el equipo físico de la oficina.
+  jarvis-interop:
+    name: Jarvis v2.2.1 · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Iniciar PostgreSQL 16 (solo Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=postgres-ci -e POSTGRES_DB=monitoreo_test -p 5432:5432 postgres:16
+          for i in $(seq 1 30); do docker exec pg pg_isready -U postgres && break; sleep 2; done
+          echo "MONITOREO_TEST_PG=postgresql+psycopg://postgres:postgres-ci@localhost:5432/monitoreo_test" >> "$GITHUB_ENV"
+          echo "DEMO_PG=--con-postgres" >> "$GITHUB_ENV"
+      - name: Instalar dependencias (+ jsonschema y PyYAML solo para comparar validadores)
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt jsonschema pyyaml
+      - name: Pruebas de los contratos
+        run: |
+          mkdir -p resultados
+          python -m pytest -q -rs tests/test_interop_jarvis.py --junitxml=resultados/junit_interop.xml
+      - name: Demostración (dos rondas, idempotencia, comando no permitido)
+        run: |
+          python scripts/demo_jarvis_v221.py --suite humo $DEMO_PG --salida resultados/jarvis/demo_jarvis_v221.json
+      - name: El repositorio quedó intacto
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+      - name: Adjuntar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-interop-${{ matrix.os }}
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # v2.2.2 · REGRESIÓN de los dos defectos corregidos (BLOQUEA: si falla una sola repetición, el trabajo
+  # falla). Sustituye a los trabajos de investigación investigar-despertar / investigar-observador, cuyos
+  # resultados están en docs/INFORME_v2.2.2.md. Linux y Windows · Python 3.11 y 3.13.
+  #   1. tests/test_supervisor_v222.py (sin navegador) 5 veces.
+  #   2. test_changes_wake_the_cycle 30 veces normal y 30 veces con la CPU saturada (2 procesos por
+  #      núcleo al 100 %), con el umbral original de 0,4 s; y 3 veces tras los archivos que la preceden.
+  #   3. Solo Windows: test_limite_de_reinicios_detiene_con_motivo con navegador real, 8 veces (la
+  #      prueba que fallaba 0-50 % en Windows).
+  regresion-v222:
+    name: Regresión v2.2.2 · ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --only-binary=:all: -r requirements-postgres.txt
+          mkdir -p resultados
+      - name: "Supervisor: tests/test_supervisor_v222.py, 5 veces"
+        run: |
+          fallos=0
+          for i in 1 2 3 4 5; do
+            python -m pytest -q tests/test_supervisor_v222.py > resultados/supervisor_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +|FAILED" resultados/supervisor_$i.txt | head -5; }
+            tail -1 resultados/supervisor_$i.txt
+          done
+          echo "SUPERVISOR: $fallos fallos de 5"
+          test $fallos -eq 0
+      - name: "Despertar: prueba real 30 veces (normal)"
+        run: |
+          fallos=0
+          for i in $(seq 1 30); do
+            python -m pytest -q tests/test_ciclo_despertar.py > resultados/despertar_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/despertar_$i.txt | head -2; }
+          done
+          echo "DESPERTAR NORMAL: $fallos fallos de 30"
+          test $fallos -eq 0
+      - name: "Despertar: prueba real 30 veces con la CPU saturada"
+        run: |
+          n=$(python -c "import os; print(2 * (os.cpu_count() or 2))")
+          pids=""
+          for j in $(seq 1 $n); do python -c "while True: pass" & pids="$pids $!"; done
+          echo "procesos de carga: $n"
+          fallos=0
+          for i in $(seq 1 30); do
+            python -m pytest -q tests/test_ciclo_despertar.py > resultados/despertar_carga_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/despertar_carga_$i.txt | head -2; }
+          done
+          kill $pids 2>/dev/null || true
+          echo "DESPERTAR CON CARGA: $fallos fallos de 30"
+          test $fallos -eq 0
+      - name: "Despertar: tras los archivos que la preceden en la suite, 3 veces"
+        run: |
+          previos=$(ls tests/test_*.py | awk '$0 < "tests/test_ciclo_despertar.py"')
+          fallos=0
+          for i in 1 2 3; do
+            python -m pytest -q $previos tests/test_ciclo_despertar.py > resultados/contexto_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +|FAILED" resultados/contexto_$i.txt | head -3; }
+            tail -1 resultados/contexto_$i.txt
+          done
+          echo "EN CONTEXTO: $fallos fallos de 3"
+          test $fallos -eq 0
+      - name: "Medición por partes (informativa, no decide)"
+        if: always()
+        run: |
+          python scripts/investigar_despertar.py --repeticiones 40 --salida resultados/investigar_despertar.json 2>/dev/null | grep -E '^(normal|carga|aislado|carga_aislado) ' || true
+      - name: Navegador para el observador (solo Windows)
+        if: runner.os == 'Windows'
+        run: |
+          npm install --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          npx playwright install chromium
+      - name: "Observador real: test_limite_de_reinicios_detiene_con_motivo, 8 veces (solo Windows)"
+        if: runner.os == 'Windows'
+        run: |
+          fallos=0
+          for i in $(seq 1 8); do
+            python -m pytest -q tests/test_observador_persistente.py -k test_limite_de_reinicios > resultados/obs_$i.txt 2>&1 || { fallos=$((fallos+1)); grep -E "^E +" resultados/obs_$i.txt | head -2; }
+            tail -1 resultados/obs_$i.txt
+          done
+          echo "OBSERVADOR: $fallos fallos de 8"
+          test $fallos -eq 0
+      - name: Adjuntar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regresion-v222-${{ matrix.os }}-py${{ matrix.python }}
+          path: resultados/
+          if-no-files-found: ignore
+          retention-days: 14

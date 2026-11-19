@@ -1,0 +1,152 @@
+{
+ "generado": "2026-11-13T08:59:52",
+ "motor": "sqlite",
+ "plataforma": "Linux 6.18.44-fc-v445 · Python 3.13.18 · 4 CPU · 15.7 GB",
+ "etiquetas": {
+  "MEDIDO": "latencias, CPU, memoria, crecimiento, bloqueos, integridad, asignación",
+  "SIMULADO": "fuentes, operadores (clientes HTTP), datos ficticios"
+ },
+ "escenarios": [
+  {
+   "escenario": "s3",
+   "regiones": 25,
+   "sucursales": 25,
+   "fuentes": 100,
+   "expedientes": 10000,
+   "operadores": 20,
+   "sembrado_s": 10.2,
+   "arranque_s": 3.01,
+   "duracion_s": 40.0,
+   "parada": "ordenada",
+   "peticiones": 1562,
+   "errores_http": {},
+   "peticiones_por_s": 39.0,
+   "latencia_api": {
+    "/api/captura/mi-trabajo": {
+     "n": 368,
+     "p50_ms": 114.7,
+     "p95_ms": 1784.6,
+     "max_ms": 4015.4
+    },
+    "/api/captura/resumen": {
+     "n": 11,
+     "p50_ms": 129.7,
+     "p95_ms": 4761.6,
+     "max_ms": 4761.6
+    },
+    "/api/centro": {
+     "n": 390,
+     "p50_ms": 122.4,
+     "p95_ms": 1885.1,
+     "max_ms": 5090.1
+    },
+    "/api/dashboard": {
+     "n": 379,
+     "p50_ms": 110.2,
+     "p95_ms": 1756.1,
+     "max_ms": 4202.1
+    },
+    "/api/expedientes": {
+     "n": 11,
+     "p50_ms": 112.4,
+     "p95_ms": 1805.4,
+     "max_ms": 1805.4
+    },
+    "/api/health": {
+     "n": 2,
+     "p50_ms": 1138.8,
+     "p95_ms": 1138.8,
+     "max_ms": 1138.8
+    },
+    "/api/notificaciones": {
+     "n": 379,
+     "p50_ms": 50.2,
+     "p95_ms": 978.7,
+     "max_ms": 4881.6
+    },
+    "/api/operators": {
+     "n": 11,
+     "p50_ms": 114.2,
+     "p95_ms": 825.7,
+     "max_ms": 825.7
+    },
+    "/api/supervision": {
+     "n": 11,
+     "p50_ms": 119.1,
+     "p95_ms": 1904.7,
+     "max_ms": 1904.7
+    }
+   },
+   "refresco_vistas": {
+    "admin · Centro filtrado": {
+     "n": 11,
+     "p50_ms": 84.7,
+     "p95_ms": 1494.9,
+     "max_ms": 1494.9
+    },
+    "admin · Expedientes": {
+     "n": 11,
+     "p50_ms": 205.4,
+     "p95_ms": 4762.1,
+     "max_ms": 4762.1
+    },
+    "admin · Inicio (centro)": {
+     "n": 11,
+     "p50_ms": 827.9,
+     "p95_ms": 2287.3,
+     "max_ms": 2287.3
+    },
+    "admin · Notificaciones": {
+     "n": 11,
+     "p50_ms": 64.1,
+     "p95_ms": 116.2,
+     "max_ms": 116.2
+    },
+    "admin · Supervisión": {
+     "n": 11,
+     "p50_ms": 119.6,
+     "p95_ms": 1905.2,
+     "max_ms": 1905.2
+    },
+    "operador · Inicio": {
+     "n": 368,
+     "p50_ms": 210.7,
+     "p95_ms": 2555.8,
+     "max_ms": 5091.3
+    },
+    "operador · Mi trabajo": {
+     "n": 368,
+     "p50_ms": 115.2,
+     "p95_ms": 1785.0,
+     "max_ms": 4016.0
+    }
+   },
+   "cpu_servidor_pct": {
+    "media": 97.9,
+    "max": 105.8
+   },
+   "memoria_servidor_mb": {
+    "max": 259.4,
+    "final": 259.4
+   },
+   "base_bytes": {
+    "antes": 10182656,
+    "despues": 23711872,
+    "crecimiento": 13529216
+   },
+   "database_is_locked_en_registro": 0,
+   "asignacion_motor": {
+    "n": 6,
+    "p50_ms": 2.0,
+    "p95_ms": 10.8,
+    "max_ms": 10.8,
+    "recursos": 6,
+    "asignaciones_creadas": 0
+   },
+   "integridad": [],
+   "asignaciones_dobles": 0,
+   "salud_final": true,
+   "motor": "sqlite"
+  }
+ ]
+}

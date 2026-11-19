@@ -153,6 +153,7 @@ def test_acceptance_flow_via_api_and_restart(app_db):
         assert c.post(f"/api/alerts/{mine[0]['id']}/confirmar", headers=h).json()["ok"]
         events = c.get("/api/events?region=ESTE", headers=h).json()
         assert any(e["change_type"] == "NUEVA_DISPONIBILIDAD" for e in events)
+        n_fuentes = len(c.get("/api/sources", headers=h).json())
     # ---- reinicio: nueva instancia de la aplicación sobre la misma base de datos
     with client(app_db) as c2:
         h = login(c2)
@@ -160,7 +161,7 @@ def test_acceptance_flow_via_api_and_restart(app_db):
         assert req["status"] == "ASIGNADO" and len(req["asignaciones"]) == 1
         a = [x for x in c2.get("/api/alerts", headers=h).json() if x["request_id"] == rid][0]
         assert a["status"] == "CONFIRMADA"
-        assert len(c2.get("/api/sources", headers=h).json()) == 8   # no se resiembra
+        assert len(c2.get("/api/sources", headers=h).json()) == n_fuentes   # no se resiembra
         assert c2.get("/api/metrics", headers=h).json()["integridad"] == []
 
 
@@ -201,8 +202,11 @@ def test_operator_take_complete_via_api(app_db):
         assert len(mine) == 1
         aid = mine[0]["id"]
         assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 200
-        assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 409
+        # v1.4: el MISMO operador que repite "tomar" (p. ej. tras perder la respuesta) recibe éxito
+        again = c.post(f"/api/assignments/{aid}/tomar", headers=ho)
+        assert again.status_code == 200 and again.json()["ya_tomada"] is True
         assert c.post(f"/api/assignments/{aid}/completar", headers=ho).status_code == 200
+        assert c.post(f"/api/assignments/{aid}/tomar", headers=ho).status_code == 409   # ya completada
         r = c.get(f"/api/requests/{mine[0]['request_id']}", headers=h).json()
         assert r["status"] == "COMPLETADO"
 
@@ -225,3 +229,45 @@ def test_lab_competition_assigns_by_priority(app_db):
         assert len(assigned) == 2
         assert all(x["priority"] == 1 for x in assigned)
         assert c.get("/api/metrics", headers=h).json()["integridad"] == []
+
+
+def test_v20_bd_caida_responde_503_explicito_sin_cortar_conexion(app_db, monkeypatch):
+    """Resistencia 2.0: con la base caída, una petición autenticada (POST con cuerpo) debe recibir
+    503 BD_NO_DISPONIBLE. Antes la excepción del driver escapaba del middleware y el cliente veía
+    «Connection reset by peer» sin respuesta (hallado con scripts/resistencia_v20.py contra PG real)."""
+    from sqlalchemy.exc import OperationalError
+
+    from monitoreo import security
+
+    with client(app_db) as c:
+        h = login(c)
+
+        def caida(*a, **k):
+            raise OperationalError("SELECT 1", {}, Exception("connection is bad: socket no existe"))
+
+        monkeypatch.setattr(security, "resolve_token", caida)
+        import monitoreo.api.deps as deps
+        monkeypatch.setattr(deps, "resolve_token", caida)
+        for metodo, ruta in (("GET", "/api/auth/me"), ("POST", "/api/reservaciones/1/confirmar")):
+            r = c.request(metodo, ruta, headers=h, json={"confirmo": True} if metodo == "POST" else None)
+            assert r.status_code == 503, (ruta, r.status_code, r.text)
+            assert r.json()["codigo"] == "BD_NO_DISPONIBLE" and r.headers["Retry-After"] == "5"
+            assert "socket" not in r.text and "SELECT" not in r.text   # sin detalles internos
+
+
+def test_v20_health_da_503_si_la_base_no_responde(app_db, monkeypatch):
+    with client(app_db) as c:
+        assert c.get("/api/health").status_code == 200
+        from sqlalchemy.exc import OperationalError
+        db = c.app.state.db
+
+        class Rota:
+            def __enter__(self):
+                raise OperationalError("SELECT 1", {}, Exception("sin socket"))
+
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr(db, "session", lambda: Rota())
+        r = c.get("/api/health")
+        assert r.status_code == 503 and r.json()["ok"] is False and r.json()["base_de_datos"] == "SIN_CONEXION"

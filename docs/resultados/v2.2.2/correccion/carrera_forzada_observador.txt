@@ -1,0 +1,19 @@
+Reproducción local de la carrera de test_limite_de_reinicios_detiene_con_motivo (navegador real,
+Linux, Python 3.13, Playwright 1.63.0). Para forzarla, el hilo del supervisor de la app gira cada
+0,05 s en lugar de 3 s (cambio TEMPORAL, solo en la copia local; no está en el repositorio).
+
+A. Código anterior (6d724e7) + prueba anterior: 3 fallos de 4
+   E AssertionError: {'arrancados': [], 'detenidos': ['NOR-1|alta'], 'fallidos': [], 'de_otro_proceso': []}
+   (el mismo mensaje que en Windows CI 43671435061 y 43674353506)
+
+B. Código corregido + prueba anterior: 1 fallo de 4
+   E AssertionError: {'arrancados': [], 'detenidos': [], 'fallidos': [], 'de_otro_proceso': []}
+   La prueba tenía su propia carrera: si el hilo registra el fallo primero, el ciclo de la prueba ya
+   no ve nada. No hubo relanzamiento.
+
+C. Código corregido + prueba corregida (registra los ciclos del hilo y de la prueba): 5 de 5 aprobadas
+
+tests/test_supervisor_v222.py sin la corrección: 28 de 32 fallan (las 4 que aprueban comprueban
+comportamientos válidos que deben seguir igual). Con la corrección: 32 de 32.
+Solo la primera parte de la corrección (sin releer antes de arrancar): 31 de 32; falla
+test_estado_terminal_escrito_por_otro_proceso_entre_lectura_y_arranque.

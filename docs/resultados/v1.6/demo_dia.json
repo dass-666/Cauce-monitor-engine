@@ -1,0 +1,210 @@
+{
+  "version": "1.6.0",
+  "momento": "2026-11-13 04:53:37",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 21.9,
+  "base_de_datos": "sqlite",
+  "expediente": "EXP-000001",
+  "folio": "DIA-20261118-00001M",
+  "recorrido_panel": {
+    "expediente": "EXP-000001",
+    "fase": "flujo",
+    "recorrido_visible": [
+      "Preparación",
+      "Listo",
+      "Asignado",
+      "Captura",
+      "Fecha elegida",
+      "Folio"
+    ],
+    "error_campo_manual": "Tres letras y seis números (AAA000000)",
+    "casilla_conservada": true,
+    "sin_pegar": "1",
+    "dias_disponibles": 9,
+    "mes": "2026-11",
+    "fecha_elegida": "2026-11-18",
+    "folio": "DIA-20261118-00001M",
+    "fecha_confirmada": "2026-11-18",
+    "errores_js": [
+      "Failed to load resource: the server responded with a status of 422 (Unprocessable Content)"
+    ]
+  },
+  "tras_reinicio": {
+    "expediente": "EXP-000001",
+    "fase": "tras_reinicio",
+    "folio_tras_reinicio": "DIA-20261118-00001M",
+    "banner_calendario": [],
+    "desborde_movil_resumen": false,
+    "desborde_movil_calendario": false,
+    "errores_js": []
+  },
+  "sin_conexion": {
+    "expediente": "EXP-000001",
+    "fase": "sin_conexion",
+    "banner_sin_conexion": [
+      "⚠ Sin comunicación con el calendario (DESCONEXION). Se muestra lo ALMACENADO; última verificación real: 13/11, 04:53:34. No es falta de disponibilidad."
+    ],
+    "dias_desconocidos": 45,
+    "dias_disponibles_mostrados": 0,
+    "errores_js": []
+  },
+  "segundos_hasta_detectar_caida": 0.55,
+  "segundos_hasta_reverificar": 0.54,
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "el portal de prueba (por día) arranca como proceso independiente",
+      "ok": true,
+      "detalle": "http://127.0.0.1:52325"
+    },
+    {
+      "comprobacion": "el motor arranca como proceso independiente",
+      "ok": true,
+      "detalle": "1.62 s"
+    },
+    {
+      "comprobacion": "fuente del calendario por día registrada (mecanismo A: eventos)",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "operador creado (limitado a NOR-1 y NOR-2)",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "expediente POR_DIA creado y validado (LISTO)",
+      "ok": true,
+      "detalle": "LISTO"
+    },
+    {
+      "comprobacion": "un expediente incompleto queda INCOMPLETO",
+      "ok": true,
+      "detalle": [
+        "id_registro_previo",
+        "fecha_nacimiento",
+        "telefono",
+        "correo"
+      ]
+    },
+    {
+      "comprobacion": "el MOTOR detecta cupo en el calendario y asigna el expediente solo",
+      "ok": true,
+      "detalle": "1.54 s"
+    },
+    {
+      "comprobacion": "calendario del motor verificado por eventos (oyente conectado)",
+      "ok": true,
+      "detalle": "3.18 s"
+    },
+    {
+      "comprobacion": "un incompleto NUNCA se asigna",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "navegador real: preparación -> manuales -> calendario diario -> día -> confirmación -> folio",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el campo manual mal tecleado se marca y lo demás se conserva",
+      "ok": true,
+      "detalle": "Tres letras y seis números (AAA000000)"
+    },
+    {
+      "comprobacion": "el campo que el portal no deja pegar está marcado como 'sin pegar'",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el calendario mensual muestra días disponibles (sin horas)",
+      "ok": true,
+      "detalle": 9
+    },
+    {
+      "comprobacion": "el panel mostró un folio con la fecha elegida",
+      "ok": true,
+      "detalle": [
+        "DIA-20261118-00001M",
+        "2026-11-18"
+      ]
+    },
+    {
+      "comprobacion": "evidencia independiente: el PORTAL tiene el folio CONFIRMADO y sin hora",
+      "ok": true,
+      "detalle": "CONFIRMADA"
+    },
+    {
+      "comprobacion": "el expediente queda RESERVACION_CONFIRMADA",
+      "ok": true,
+      "detalle": "RESERVACION_CONFIRMADA"
+    },
+    {
+      "comprobacion": "la clave de identidad tecleada NO quedó en el motor",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "motor y portal detenidos de golpe (kill)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "ambos vuelven a arrancar sobre los mismos datos",
+      "ok": true,
+      "detalle": "motor 1.09 s"
+    },
+    {
+      "comprobacion": "tras el reinicio el folio se recupera en motor y portal",
+      "ok": true,
+      "detalle": [
+        "RESERVACION_CONFIRMADA",
+        "CONFIRMADA"
+      ]
+    },
+    {
+      "comprobacion": "navegador real: el folio se ve en el panel tras el reinicio",
+      "ok": true,
+      "detalle": "DIA-20261118-00001M"
+    },
+    {
+      "comprobacion": "el panel no desborda en pantalla de teléfono",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "sin comunicación: el motor lo nota y lo marca SIN VERIFICAR",
+      "ok": true,
+      "detalle": "0.55 s"
+    },
+    {
+      "comprobacion": "sin comunicación los días se muestran DESCONOCIDO (no 'agotado' ni 'disponible')",
+      "ok": true,
+      "detalle": [
+        "DESCONOCIDO"
+      ]
+    },
+    {
+      "comprobacion": "navegador real: aviso de calendario sin comunicación",
+      "ok": true,
+      "detalle": [
+        "⚠ Sin comunicación con el calendario (DESCONEXION). Se muestra lo ALMACENADO; última verificación real: 13/11, 04:53:34. No es falta de disponibilidad."
+      ]
+    },
+    {
+      "comprobacion": "al volver la comunicación el calendario vuelve a estar verificado",
+      "ok": true,
+      "detalle": "0.54 s"
+    },
+    {
+      "comprobacion": "sin errores de JavaScript en el panel (aparte del 422 provocado a propósito)",
+      "ok": true,
+      "detalle": {
+        "otros": [],
+        "422_esperados": 1
+      }
+    }
+  ]
+}

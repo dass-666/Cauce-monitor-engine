@@ -1,0 +1,57 @@
+{
+  "formato": "cauce.jarvis.run-result/1",
+  "id": "20261115T022123300725Z-interop",
+  "proyecto": "cauce-monitor-engine",
+  "version": "2.2.1-dev",
+  "suite": "interop",
+  "descripcion": "Contratos de Jarvis: manifiesto, ejecutor, exportador, esquema, saneado y compatibilidad (v2.2.1).",
+  "comando": [
+    "{python}",
+    "-m",
+    "pytest",
+    "-q",
+    "-rs",
+    "tests/test_interop_jarvis.py"
+  ],
+  "limites": {
+    "tiempo_s": 600,
+    "salida_bytes": 2000000
+  },
+  "git": {
+    "rama": "claude/project-thread-twugkn",
+    "commit": "69f3743511da3f918dc86668241af4a8dc9d34de",
+    "limpio": true
+  },
+  "inicio": "2026-11-15T02:21:23Z",
+  "fin": "2026-11-15T02:21:55Z",
+  "duracion_s": 31.919,
+  "codigo_salida": 0,
+  "codigo_pytest": 0,
+  "resultado": "APROBADA",
+  "conteo": {
+    "total": 86,
+    "aprobadas": 86,
+    "fallidas": 0,
+    "errores": 0,
+    "omitidas": 0
+  },
+  "bases_de_datos": [
+    "sqlite"
+  ],
+  "salida": {
+    "archivo": "salida.txt",
+    "bytes": 180,
+    "truncada": false,
+    "sha256": "72b173dc64a214604b6646c89cb5ed2ead8aec9d06da56a1902c4aca655526ad",
+    "resumen_final": "86 passed in 31.10s"
+  },
+  "junit": {
+    "archivo": "junit.xml",
+    "sha256": "f4bccc607af52788280354bc7bb0ac5d1beee0577a915f1d2b3105c5b2d058a8"
+  },
+  "integridad": {
+    "git_sin_cambios": true,
+    "data_sin_cambios": true
+  },
+  "avisos": []
+}

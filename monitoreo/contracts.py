@@ -54,3 +54,12 @@ class Snapshot(BaseModel):
     # Una fuente paginada o parcial debe enviar False para no inferir cancelaciones falsas.
     complete: bool = True
     fetched_at: datetime | None = None
+    # v1.3 (genérico, sirve para cualquier fuente que lo soporte):
+    # - not_modified: la fuente confirmó que nada cambió desde la consulta anterior (HTTP 304);
+    #   el detector no compara nada y no se infieren desapariciones.
+    # - state: estado opaco del conector que el motor guarda y le devuelve en la siguiente
+    #   consulta (p. ej. ETag o versión); así sobrevive a reinicios del motor.
+    # - meta: datos de la consulta para diagnóstico (páginas, tiempos HTTP, elementos descartados).
+    not_modified: bool = False
+    state: dict | None = None
+    meta: dict = Field(default_factory=dict)

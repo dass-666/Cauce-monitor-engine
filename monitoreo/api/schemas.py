@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Code = Field(pattern=r"^[A-Za-z0-9_.\-]{2,64}$")
 
@@ -24,6 +24,7 @@ class UserIn(Strict):
     role: Literal["admin", "operador"]
     operator_name: str | None = Field(default=None, max_length=128)
     regions: list[str] = Field(default_factory=list, max_length=10)
+    sucursales: list[str] = Field(default_factory=list, max_length=20)   # v1.6: vacío = todas las de sus regiones
 
 
 class PasswordIn(Strict):
@@ -37,12 +38,22 @@ class SourceIn(Strict):
     region: str = Field(max_length=32)
     category: str = Field(default="general", max_length=64)
     availability_type: Literal["evento", "reservacion", "inventario", "calendario"]
-    connector_type: Literal["simulacion", "json", "csv", "http"]
+    # v1.3: cualquier tipo registrado (antes era una lista fija: añadir un conector obligaba a
+    # tocar también la API).
+    connector_type: str = Field(min_length=1, max_length=32)
     config: dict = Field(default_factory=dict)
     interval_s: float = Field(default=30, ge=1, le=86400)
     jitter_pct: float = Field(default=0.1, ge=0, le=0.9)
     rate_limit_per_min: int = Field(default=30, ge=1, le=600)
     max_retries: int = Field(default=2, ge=0, le=10)
+
+    @field_validator("connector_type")
+    @classmethod
+    def _known_type(cls, v: str) -> str:
+        from ..connectors.registry import REGISTRY
+        if v not in REGISTRY:
+            raise ValueError(f"tipo de conector desconocido; válidos: {sorted(REGISTRY)}")
+        return v
 
 
 class SourcePatch(Strict):
@@ -81,6 +92,7 @@ class RequestPatch(Strict):
 class OperatorIn(Strict):
     name: str = Field(min_length=1, max_length=128)
     regions: list[str] = Field(default_factory=list, max_length=10)
+    sucursales: list[str] = Field(default_factory=list, max_length=20)   # v1.6: vacío = todas las de sus regiones
     max_concurrent: int = Field(default=3, ge=1, le=100)
     active: bool = True
 
@@ -88,6 +100,7 @@ class OperatorIn(Strict):
 class OperatorPatch(Strict):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     regions: list[str] | None = Field(default=None, max_length=10)
+    sucursales: list[str] | None = Field(default=None, max_length=20)
     max_concurrent: int | None = Field(default=None, ge=1, le=100)
     active: bool | None = None
 
@@ -142,3 +155,10 @@ class AcceleratedIn(Strict):
     error_rate: float = Field(default=0.03, ge=0, le=1)
     notify_fail_rate: float = Field(default=0.1, ge=0, le=1)
     intensity: float = Field(default=1.0, gt=0, le=20)
+
+
+class RecoverIn(BaseModel):
+    """v1.4: recuperación manual de una asignación EN_PROCESO."""
+    resultado: Literal["completada", "devolver_a_cola"]
+    motivo: str = Field(min_length=3, max_length=300)
+    confirmar: bool = False

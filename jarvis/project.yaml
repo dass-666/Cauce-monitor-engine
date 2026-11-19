@@ -1,0 +1,118 @@
+# Registro de Cauce Monitor Engine para Jarvis Personal (v2.2.1).
+# Formato: subconjunto simple de YAML (sin anclas, sin bloques | o >, sin listas en línea).
+# Lo lee monitoreo/interop/yaml_simple.py y cualquier biblioteca YAML.
+# Sin credenciales, datos personales ni rutas fijas: {python} es el intérprete del entorno virtual de
+# la instalación y todas las rutas son relativas a la carpeta del proyecto.
+formato: cauce.jarvis.project/1
+proyecto:
+  id: cauce-monitor-engine
+  nombre: Cauce Monitor Engine
+  descripcion: "Motor interno de expedientes, planificador, Ventanilla y laboratorio con datos ficticios."
+  version: 2.2.2-dev
+  lenguaje: python
+  python_minimo: "3.11"
+  python_maximo_probado: "3.13"
+  sistemas:
+    - windows
+    - linux
+  # rama_principal se conserva por compatibilidad: es la rama por omisión de GitHub, HISTÓRICA (v1.0).
+  # Jarvis NO debe supervisar esa rama: debe usar `integracion` (abajo).
+  rama_principal: master
+  rama_principal_es_historica: true
+  nota_ramas: "master sigue en la v1.0. La rama que Jarvis supervisa es integracion.rama, fijada en integracion.commit_fijado."
+integracion:
+  # Rama y commit que Jarvis debe reconocer. Cambiarlos es una decisión humana (editar este archivo en
+  # una revisión); Cauce no los cambia solo y no toca la rama por omisión de GitHub.
+  rama: claude/estabilizacion-v2.2.2
+  commit_fijado: 51bbd3b4e3c82a59b4cb5e106701433487fc903a
+  fijado_en: "2026-11-15"
+  # Commits posteriores al fijado que solo cambian estas rutas no alteran el código verificado.
+  rutas_solo_documentacion:
+    - docs/
+    - jarvis/
+    - README.md
+contratos:
+  manifiesto_pruebas: jarvis/test-manifest.json
+  esquema_informe: jarvis/report.schema.json
+  declaraciones: jarvis/declaraciones.json
+  guia_registro: docs/JARVIS_REGISTRO.md
+herramientas_autorizadas:
+  - id: inventario
+    descripcion: "Estado del repositorio: ramas, commits, migraciones, pruebas, scripts e informes."
+    efecto: solo_lectura
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - inventario
+  - id: suites
+    descripcion: "Lista blanca de suites con sus límites."
+    efecto: solo_lectura
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - suites
+  - id: ejecutar
+    descripcion: "Ejecuta UNA suite del manifiesto. {suite} solo puede ser un id del manifiesto."
+    efecto: ejecuta_pruebas_aisladas
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - ejecutar
+      - "--suite"
+      - "{suite}"
+  - id: informe
+    descripcion: "Exporta el informe JSON de las últimas ejecuciones y lo valida antes de escribirlo."
+    efecto: solo_lectura
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - informe
+  - id: validar
+    descripcion: "Valida un informe contra el esquema y busca datos sensibles. {archivo} es la ruta del informe."
+    efecto: solo_lectura
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - validar
+      - "{archivo}"
+  - id: ciclo
+    descripcion: "ejecutar + informe + validar en una llamada."
+    efecto: ejecuta_pruebas_aisladas
+    argv:
+      - "{python}"
+      - "-m"
+      - monitoreo.interop
+      - ciclo
+      - "--suite"
+      - "{suite}"
+resultados:
+  carpeta: resultados/jarvis
+  informe: resultados/jarvis/informe.json
+  codigos_salida:
+    aprobada: 0
+    fallida: 1
+    solicitud_no_permitida: 2
+    tiempo_agotado: 3
+    cancelada: 4
+    error_interno: 5
+    ocupado: 6
+  cancelar: "Crear el archivo resultados/jarvis/CANCELAR, o enviar Ctrl+C / SIGTERM al ejecutor."
+politicas:
+  comandos_arbitrarios: false
+  fusion_automatica: false
+  despliegue_automatico: false
+  modifica_datos_reales: false
+  modifica_codigo: false
+  portal_externo: false
+  captura_datos_reales: false
+  red: solo_local
+  estados_informe:
+    - VERIFICADO
+    - REPORTADO
+    - SIMULADO
+    - PENDIENTE

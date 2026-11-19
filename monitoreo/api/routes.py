@@ -7,7 +7,9 @@ from datetime import datetime, timedelta, timezone
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as HttpRequest
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from .. import security
 from ..config import settings
@@ -15,6 +17,7 @@ from ..connectors.base import ConnectorError
 from ..connectors.registry import REGISTRY, build_connector
 from ..db import Database, utcnow
 from ..engine import alerts as al
+from .centro import alertas_visibles
 from ..engine import assignment as asg
 from ..engine.clock import RealClock
 from ..engine.integrity import check as integrity_check
@@ -28,6 +31,8 @@ from . import serializers as ser
 from .deps import CurrentUser, client_ip, current_user, get_db, require_admin
 
 router = APIRouter(prefix="/api")
+# Laboratorio de simulación: NO se monta en producción (ver monitoreo/entorno.py).
+lab_router = APIRouter(prefix="/api")
 throttle = security.LoginThrottle()
 clock = RealClock()
 
@@ -47,8 +52,21 @@ def _404(what: str):
 # ======================================================================= auth
 @router.get("/health")
 def health(request: HttpRequest):
+    """Público y mínimo (sin datos internos): apto para un monitor externo."""
     sch = getattr(request.app.state, "scheduler", None)
-    return {"ok": True, "motor_activo": bool(sch and sch.running), "ciclos": sch.cycles if sch else 0}
+    db: Database = request.app.state.db
+    db_ok = True
+    try:
+        with db.session() as s:
+            s.execute(select(1))
+    except Exception:  # noqa: BLE001
+        db_ok = False
+    cuerpo = {"ok": db_ok, "base_de_datos": "OK" if db_ok else "SIN_CONEXION",
+              "motor_activo": bool(sch and sch.running), "rol": sch.role if sch else "SIN_MOTOR",
+              "ciclos": sch.cycles if sch else 0}
+    # v2.0: sin base de datos el servicio NO está sano: 503 para que un monitor externo (que suele mirar
+    # solo el código HTTP) lo detecte. El cuerpo es el mismo de siempre.
+    return cuerpo if db_ok else JSONResponse(cuerpo, status_code=503)
 
 
 @router.post("/auth/login")
@@ -77,6 +95,15 @@ def logout(user: CurrentUser = Depends(current_user), db: Database = Depends(get
     return {"ok": True}
 
 
+@router.get("/info")
+def info(request: HttpRequest, user: CurrentUser = Depends(current_user)):
+    """Entorno y funciones disponibles (el panel oculta lo que no existe en producción)."""
+    from ..app import VERSION
+    ent = request.app.state.entorno
+    return {"version": VERSION, "entorno": ent.entorno, "laboratorio": ent.entorno != "produccion",
+            "avisos_configuracion": ent.avisos if user.role == "admin" else []}
+
+
 @router.get("/auth/me")
 def me(user: CurrentUser = Depends(current_user)):
     return {"username": user.username, "role": user.role, "operator_id": user.operator_id}
@@ -91,8 +118,10 @@ def change_password(body: sc.PasswordIn, user: CurrentUser = Depends(current_use
         if not security.verify_password(body.current_password, u.password_hash):
             raise HTTPException(401, "Contraseña actual incorrecta")
         u.password_hash = security.hash_password(body.new_password)
-        security.audit(s, user.username, "cambio_contrasena")
-    return {"ok": True}
+        # v1.4: si alguien conocía la contraseña anterior y abrió sesión, esa sesión deja de valer
+        closed = security.revoke_other_tokens(s, user.id, keep_token=user.token)
+        security.audit(s, user.username, "cambio_contrasena", detail={"sesiones_cerradas": closed})
+    return {"ok": True, "sesiones_cerradas": closed}
 
 
 # ======================================================================= panel principal
@@ -100,19 +129,27 @@ def change_password(body: sc.PasswordIn, user: CurrentUser = Depends(current_use
 def dashboard(request: HttpRequest, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     since = utcnow() - timedelta(hours=1)
     with db.session() as s:
+        # v1.4 (optimización medida): 4 consultas agrupadas en lugar de 4 por región (con 10 regiones,
+        # 40 consultas por cada refresco del panel, que se repite cada 4 s por usuario).
+        src_rows = s.execute(select(Source.region, Source.status, Source.circuit_state, func.count())
+                             .group_by(Source.region, Source.status, Source.circuit_state)).all()
+        free = dict(s.execute(select(SlotState.region, func.coalesce(func.sum(SlotState.available - SlotState.held), 0))
+                              .where(SlotState.status == "ACTIVO").group_by(SlotState.region)).all())
+        queue_st, busy_st = asg.MATCHABLE + (asg.PENDIENTE,), (asg.ASIGNADO, asg.EN_PROCESO)
+        req_rows = s.execute(select(Request.region, Request.status, func.count())
+                             .where(Request.status.in_(queue_st + busy_st))
+                             .group_by(Request.region, Request.status)).all()
         regions = []
         for r in s.scalars(select(Region).order_by(Region.code)):
-            srcs = list(s.scalars(select(Source).where(Source.region == r.code)))
+            mine = [x for x in src_rows if x[0] == r.code]
             regions.append({
                 "code": r.code, "name": r.name,
-                "fuentes": len(srcs), "fuentes_activas": sum(1 for x in srcs if x.status == "ACTIVA"),
-                "fuentes_con_error": sum(1 for x in srcs if x.status == "ERROR" or x.circuit_state != "CERRADO"),
-                "unidades_libres": s.scalar(select(func.coalesce(func.sum(SlotState.available - SlotState.held), 0))
-                                            .where(SlotState.region == r.code, SlotState.status == "ACTIVO")),
-                "solicitudes_en_cola": s.scalar(select(func.count()).select_from(Request).where(
-                    Request.region == r.code, Request.status.in_(asg.MATCHABLE + (asg.PENDIENTE,)))),
-                "asignadas": s.scalar(select(func.count()).select_from(Request).where(
-                    Request.region == r.code, Request.status.in_([asg.ASIGNADO, asg.EN_PROCESO]))),
+                "fuentes": sum(n for *_, n in mine),
+                "fuentes_activas": sum(n for _, st, _c, n in mine if st == "ACTIVA"),
+                "fuentes_con_error": sum(n for _, st, c, n in mine if st == "ERROR" or c != "CERRADO"),
+                "unidades_libres": int(free.get(r.code) or 0),
+                "solicitudes_en_cola": sum(n for reg, st, n in req_rows if reg == r.code and st in queue_st),
+                "asignadas": sum(n for reg, st, n in req_rows if reg == r.code and st in busy_st),
             })
         sch = getattr(request.app.state, "scheduler", None)
         return {
@@ -122,13 +159,21 @@ def dashboard(request: HttpRequest, user: CurrentUser = Depends(current_user), d
             "fuentes": {st: n for st, n in s.execute(select(Source.status, func.count()).group_by(Source.status))},
             "solicitudes": {st: n for st, n in s.execute(select(Request.status, func.count()).group_by(Request.status))},
             "operadores_activos": s.scalar(select(func.count()).select_from(Operator).where(Operator.active.is_(True))),
+            # v1.4: lo que necesita atención de una persona
+            "fuentes_en_recuperacion": s.scalar(select(func.count()).select_from(Source).where(
+                Source.status == "ACTIVA", Source.circuit_state != "CERRADO")),
+            "asignaciones_sin_actividad": s.scalar(select(func.count()).select_from(Assignment).where(
+                Assignment.status == "EN_PROCESO", Assignment.inactive_alerted_at.is_not(None),
+                *([] if user.is_admin else [Assignment.operator_id == (user.operator_id or -1)]))),
             "operadores": [ser.operator(o) for o in s.scalars(select(Operator).order_by(Operator.id))],
             "ultimas_disponibilidades": [ser.event(e) for e in s.scalars(
                 select(ChangeEvent).where(ChangeEvent.change_type.in_(["NUEVA_DISPONIBILIDAD", "REAPARICION", "AUMENTO"]))
                 .order_by(ChangeEvent.id.desc()).limit(10))],
-            "alertas_recientes": [ser.alert(a) for a in s.scalars(select(Alert).order_by(Alert.id.desc()).limit(10))],
-            "alertas_sin_confirmar": s.scalar(select(func.count()).select_from(Alert)
-                                              .where(Alert.acknowledged_at.is_(None))),
+            # v1.7: un operador no ve en Inicio las alertas de asignaciones de otros operadores
+            "alertas_recientes": [ser.alert(a) for a in s.scalars(select(Alert).where(
+                *([] if user.is_admin else [alertas_visibles(user)])).order_by(Alert.id.desc()).limit(10))],
+            "alertas_sin_confirmar": s.scalar(select(func.count()).select_from(Alert).where(
+                Alert.acknowledged_at.is_(None), *([] if user.is_admin else [alertas_visibles(user)]))),
             "errores_recientes": [ser.poll(p) for p in s.scalars(
                 select(PollLog).where(PollLog.outcome != "OK").order_by(PollLog.id.desc()).limit(10))],
             "ultima_hora": {
@@ -209,7 +254,9 @@ def source_action(sid: int, action: str, request: HttpRequest, user: CurrentUser
         src = s.get(Source, sid) or _404("Fuente")
         if action == "suspender":
             src.status = "SUSPENDIDA"
+            src.status_reason, src.status_changed_at = f"Suspendida manualmente por {user.username}", utcnow()
         elif action == "reanudar":
+            src.status_reason, src.status_changed_at = f"Reanudada por {user.username}", utcnow()
             src.status, src.circuit_state, src.circuit_opened_at = "ACTIVA", "CERRADO", None
             src.consecutive_failures, src.circuit_open_count, src.next_poll_at = 0, 0, None
         security.audit(s, user.username, f"fuente_{action}", src.code)
@@ -269,12 +316,23 @@ def list_slots(region: str | None = None, only_free: bool = False, user: Current
 
 
 # ======================================================================= solicitudes
+def _solicitudes_visibles(user: CurrentUser):
+    """v1.7 (auditoría): antes cualquier operador listaba TODAS las solicitudes con el nombre del
+    titular y podía abrir cualquiera por su id. Ahora: las que tiene asignadas o las que registró."""
+    registradas = select(RequestEvent.request_id).where(RequestEvent.actor == user.username,
+                                                        RequestEvent.from_status.is_(None))
+    return or_(Request.operator_id == (user.operator_id if user.operator_id is not None else -1),
+               Request.id.in_(registradas))
+
+
 @router.get("/requests")
 def list_requests(region: str | None = None, status: str | None = None, q: str | None = Query(None, max_length=64),
                   limit: int = Query(200, ge=1, le=2000), offset: int = Query(0, ge=0),
                   user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         query = select(Request)
+        if not user.is_admin:   # v1.7: un operador solo ve las suyas (asignadas o registradas por él)
+            query = query.where(_solicitudes_visibles(user))
         if region:
             query = query.where(Request.region == region)
         if status:
@@ -315,6 +373,8 @@ def create_request(body: sc.RequestIn, user: CurrentUser = Depends(current_user)
 def get_request(rid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         r = s.get(Request, rid) or _404("Solicitud")
+        if not user.is_admin and not s.scalar(select(Request.id).where(Request.id == rid, _solicitudes_visibles(user))):
+            _404("Solicitud")      # 404 y no 403: no revela que existe
         op = s.get(Operator, r.operator_id) if r.operator_id else None
         hist = [{"ts": ser.iso(e.ts), "from": e.from_status, "to": e.to_status, "actor": e.actor, "note": e.note}
                 for e in s.scalars(select(RequestEvent).where(RequestEvent.request_id == rid).order_by(RequestEvent.id))]
@@ -336,6 +396,17 @@ def patch_request(rid: int, body: sc.RequestPatch, user: CurrentUser = Depends(r
 
 @router.post("/requests/{rid}/cancelar")
 def cancel_request(rid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    if not user.is_admin:
+        # v1.4 (auditoría): un operador solo cancela lo que registró él o lo que tiene asignado.
+        # Antes podía cancelar cualquier solicitud, también la que otro operador estaba atendiendo.
+        with db.session() as s:
+            r = s.get(Request, rid) or _404("Solicitud")
+            creator = s.scalar(select(RequestEvent.actor).where(RequestEvent.request_id == rid,
+                                                                RequestEvent.from_status.is_(None))
+                               .order_by(RequestEvent.id).limit(1))
+            mine = r.operator_id is not None and r.operator_id == user.operator_id
+            if creator != user.username and not mine:
+                raise HTTPException(403, "Solo puedes cancelar solicitudes que registraste o que tienes asignadas")
     if not asg.cancel_request(db, rid, utcnow(), user.username):
         raise HTTPException(409, "La solicitud no existe o ya está cerrada")
     with db.session() as s:
@@ -358,11 +429,14 @@ def reactivate_request(rid: int, user: CurrentUser = Depends(require_admin), db:
 # ======================================================================= asignaciones
 @router.get("/assignments")
 def list_assignments(status: str | None = None, mine: bool = False, limit: int = Query(200, ge=1, le=2000),
+                     sin_actividad: bool = False,
                      user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(Assignment).order_by(Assignment.id.desc()).limit(limit)
         if status:
             q = q.where(Assignment.status == status)
+        if sin_actividad:  # v1.4: EN_PROCESO con aviso de inactividad pendiente
+            q = q.where(Assignment.status == "EN_PROCESO", Assignment.inactive_alerted_at.is_not(None))
         if mine or not user.is_admin:  # un operador solo ve sus propias asignaciones
             q = q.where(Assignment.operator_id == (user.operator_id or -1))
         out = []
@@ -370,6 +444,16 @@ def list_assignments(status: str | None = None, mine: bool = False, limit: int =
             out.append(ser.assignment(a, s.get(SlotState, a.slot_id), s.get(Request, a.request_id),
                                       s.get(Operator, a.operator_id)))
         return out
+
+
+def _es_de_expediente(db: Database, aid: int) -> bool:
+    """v1.5: la asignación de un expediente solo se completa al confirmar su reservación con
+    evidencia del portal (captura/reservaciones.py). Completarla a mano dejaría la solicitud
+    COMPLETADA sin folio verificado."""
+    from ..models import Expediente
+    with db.session() as s:
+        a = s.get(Assignment, aid)
+        return a is not None and s.scalar(select(Expediente.id).where(Expediente.request_id == a.request_id)) is not None
 
 
 def _op_scope(user: CurrentUser) -> int | None:
@@ -381,26 +465,137 @@ def _op_scope(user: CurrentUser) -> int | None:
     return user.operator_id
 
 
+_OP_KEY_OK = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
+
+
+def _op_key(http: HttpRequest) -> str | None:
+    """v1.4: clave de operación opcional (`Idempotency-Key`), elegida por el cliente."""
+    key = http.headers.get("Idempotency-Key")
+    if key is None:
+        return None
+    if not (8 <= len(key) <= 80) or not set(key) <= _OP_KEY_OK:
+        raise HTTPException(422, "Idempotency-Key debe tener 8-80 caracteres (letras, números, - _ . :)")
+    return key
+
+
+def _stored_operation(db: Database, username: str, key: str):
+    from ..models import Operation
+    with db.session() as s:
+        o = s.scalar(select(Operation).where(Operation.username == username, Operation.op_key == key))
+        return None if o is None else {"accion": o.action, "asignacion": o.target, "codigo": o.status_code,
+                                       "resultado": o.result, "hora": ser.iso(o.created_at)}
+
+
+def _replay(stored: dict, action: str, aid: int):
+    if stored["accion"] != action or stored["asignacion"] != str(aid):
+        raise HTTPException(422, "Esa Idempotency-Key ya se usó para otra operación")
+    if stored["codigo"] != 200:
+        raise HTTPException(stored["codigo"], stored["resultado"].get("detail", "operación rechazada"))
+    return {**stored["resultado"], "repetida": True}
+
+
+@router.get("/operaciones/{key}")
+def operation_result(key: str, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v1.4: ¿qué pasó con mi operación? 404 = el servidor nunca la registró (es seguro repetirla
+    con la misma clave). Cada usuario solo ve las suyas."""
+    stored = _stored_operation(db, user.username, key)
+    if stored is None:
+        raise HTTPException(404, "Operación desconocida: no llegó a registrarse; puedes repetirla con la misma clave")
+    return stored
+
+
+@router.post("/assignments/{aid}/actividad")
+def assignment_activity(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """v1.4: "sigo con esto". Renueva la actividad de una asignación EN_PROCESO."""
+    if not asg.touch_assignment(db, aid, _op_scope(user), utcnow(), user.username):
+        raise HTTPException(409, "La asignación no está EN_PROCESO o no es tuya")
+    return {"ok": True}
+
+
+@router.post("/assignments/{aid}/recuperar")
+def assignment_recover(aid: int, body: sc.RecoverIn, user: CurrentUser = Depends(require_admin),
+                       db: Database = Depends(get_db)):
+    """v1.4: recuperación MANUAL de una asignación EN_PROCESO (p. ej. abandonada). Solo el
+    administrador, con confirmación explícita y motivo; queda en el registro de auditoría.
+    - `completada`: el administrador comprobó que la reserva sí se hizo.
+    - `devolver_a_cola`: comprobó que NO se hizo; la solicitud vuelve a la cola."""
+    if not body.confirmar:
+        raise HTTPException(422, "Falta confirmar: revisa con el operador o en la fuente antes de recuperar")
+    now = utcnow()
+    with db.session() as s:
+        a = s.get(Assignment, aid)
+        if a is None or a.status != "EN_PROCESO":
+            raise HTTPException(409, "Solo se recuperan asignaciones EN_PROCESO")
+        params = get_params(s)
+        before = {"tomada_por": a.taken_by, "tomada": ser.iso(a.taken_at), "actividad": ser.iso(a.last_activity_at)}
+    actor = f"{user.username} (recuperación manual)"
+    if body.resultado == "completada" and _es_de_expediente(db, aid):
+        raise HTTPException(409, "Esta asignación es de un expediente: se completa al confirmar la reservación "
+                                 "(Reservaciones). Si ya se reservó, la recuperación del motor la detecta por su clave.")
+    if body.resultado == "completada":
+        ok = asg.complete_assignment(db, aid, None, now, actor)
+    else:
+        ok = asg.reject_assignment(db, aid, None, now, actor, params, reason=f"recuperación manual: {body.motivo}",
+                                   only_status=("EN_PROCESO",))
+    if not ok:
+        raise HTTPException(409, "La asignación cambió de estado mientras tanto; vuelve a cargarla")
+    with db.session() as s:
+        security.audit(s, user.username, "asignacion_recuperar", str(aid),
+                       {"resultado": body.resultado, "motivo": body.motivo, **before})
+        for al_ in s.scalars(select(Alert).where(Alert.assignment_id == aid, Alert.kind == "SISTEMA",
+                                                 Alert.acknowledged_at.is_(None))):
+            al_.acknowledged_at, al_.acknowledged_by = now, user.username
+    return {"ok": True, "resultado": body.resultado}
+
+
 @router.post("/assignments/{aid}/{action}")
-def assignment_action(aid: int, action: str, user: CurrentUser = Depends(current_user),
+def assignment_action(aid: int, action: str, http: HttpRequest, user: CurrentUser = Depends(current_user),
                       db: Database = Depends(get_db)):
+    """Tomar, completar o rechazar. v1.4: con `Idempotency-Key`, repetir la misma petición (p. ej.
+    tras perder la respuesta) devuelve el resultado guardado sin repetir el efecto; y un operador
+    que repite "tomar" sobre una asignación que ya es suya recibe éxito ("ya_tomada")."""
+    if action not in ("tomar", "completar", "rechazar"):
+        raise HTTPException(404, "Acción desconocida")
     now = utcnow()
     scope = _op_scope(user)
+    if action == "completar" and _es_de_expediente(db, aid):
+        raise HTTPException(409, "Esta asignación es de un expediente: se completa al confirmar la reservación")
+    key = _op_key(http)
+    if key:
+        stored = _stored_operation(db, user.username, key)
+        if stored:
+            return _replay(stored, action, aid)
     with db.session() as s:
         params = get_params(s)
-    if action == "tomar":
-        ok = asg.take_assignment(db, aid, scope, now, user.username)
-    elif action == "completar":
-        ok = asg.complete_assignment(db, aid, scope, now, user.username)
-    elif action == "rechazar":
-        ok = asg.reject_assignment(db, aid, scope, now, user.username, params)
-    else:
-        raise HTTPException(404, "Acción desconocida")
+    op = {"user": user.username, "key": key, "action": action} if key else None
+    try:
+        if action == "tomar":
+            ok = asg.take_assignment(db, aid, scope, now, user.username, op=op, idempotent=True)
+        elif action == "completar":
+            ok = asg.complete_assignment(db, aid, scope, now, user.username, op=op)
+        else:
+            ok = asg.reject_assignment(db, aid, scope, now, user.username, params, op=op)
+    except asg.ConcurrentChange:
+        ok = False            # la solicitud cambió a la vez (p. ej. la cancelaron): no se hizo nada
+    except IntegrityError:
+        # misma clave enviada dos veces a la vez: la otra petición ganó; se devuelve su resultado
+        stored = _stored_operation(db, user.username, key) if key else None
+        if stored:
+            return _replay(stored, action, aid)
+        raise
+    detail = "No se pudo: la asignación no existe, no es tuya, expiró o cambió de estado"
     if not ok:
-        raise HTTPException(409, "No se pudo: la asignación no existe, no es tuya, expiró o cambió de estado")
+        if key:
+            try:
+                with db.session() as s:
+                    asg.record_operation(s, op, aid, 409, {"detail": detail})
+            except IntegrityError:
+                pass
+        raise HTTPException(409, detail)
     with db.session() as s:
-        security.audit(s, user.username, f"asignacion_{action}", str(aid))
-    return {"ok": True}
+        security.audit(s, user.username, f"asignacion_{action}", str(aid),
+                       {"ya_tomada": True} if ok == "ya_tomada" else None)
+    return {"ok": True, **({"ya_tomada": True} if ok == "ya_tomada" else {})}
 
 
 # ======================================================================= alertas
@@ -410,6 +605,8 @@ def list_alerts(region: str | None = None, status: str | None = None, unacked: b
                 user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(Alert).order_by(Alert.id.desc()).limit(limit)
+        if not user.is_admin:   # v1.7: no las de asignaciones de otros operadores
+            q = q.where(alertas_visibles(user))
         if region:
             q = q.where(Alert.region == region)
         if status:
@@ -425,6 +622,8 @@ def list_alerts(region: str | None = None, status: str | None = None, unacked: b
 def get_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         a = s.get(Alert, aid) or _404("Alerta")
+        if not user.is_admin and not s.scalar(select(Alert.id).where(Alert.id == aid, alertas_visibles(user))):
+            _404("Alerta")
         deliveries = []
         for d in s.scalars(select(Delivery).where(Delivery.alert_id == aid)):
             ch = s.get(Channel, d.channel_id)
@@ -439,6 +638,10 @@ def get_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database 
 
 @router.post("/alerts/{aid}/confirmar")
 def ack_alert(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    if not user.is_admin:
+        with db.session() as s:
+            if not s.scalar(select(Alert.id).where(Alert.id == aid, alertas_visibles(user))):
+                _404("Alerta")
     ok = al.acknowledge(db, aid, user.username, utcnow())
     with db.session() as s:
         if s.get(Alert, aid) is None:
@@ -459,7 +662,7 @@ def list_operators(user: CurrentUser = Depends(current_user), db: Database = Dep
 def create_operator(body: sc.OperatorIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     with db.session() as s:
         _check_regions(s, body.regions)
-        op = Operator(**body.model_dump())
+        op = Operator(**{**body.model_dump(), "sucursales": _check_sucursales(body.sucursales)})
         s.add(op)
         s.flush()
         security.audit(s, user.username, "crear_operador", op.name, body.model_dump())
@@ -472,6 +675,18 @@ def _check_regions(s, regions: list[str]):
         raise HTTPException(422, f"Regiones inexistentes: {bad}")
 
 
+def _check_sucursales(sucursales: list[str] | None) -> list[str]:
+    import re as _re
+    out = []
+    for x in sucursales or []:
+        x = str(x).strip().upper()
+        if not _re.fullmatch(r"[A-Z0-9-]{2,32}", x):
+            raise HTTPException(422, f"Sucursal no válida: {x[:40]}")
+        if x not in out:
+            out.append(x)
+    return out
+
+
 @router.patch("/operators/{oid}")
 def patch_operator(oid: int, body: sc.OperatorPatch, user: CurrentUser = Depends(require_admin),
                    db: Database = Depends(get_db)):
@@ -480,6 +695,8 @@ def patch_operator(oid: int, body: sc.OperatorPatch, user: CurrentUser = Depends
         changes = body.model_dump(exclude_none=True)
         if "regions" in changes:
             _check_regions(s, changes["regions"])
+        if "sucursales" in changes:
+            changes["sucursales"] = _check_sucursales(changes["sucursales"])
         for k, v in changes.items():
             setattr(op, k, v)
         security.audit(s, user.username, "editar_operador", op.name, changes)
@@ -540,8 +757,10 @@ def create_user(body: sc.UserIn, user: CurrentUser = Depends(require_admin), db:
         s.flush()
         if body.role == "operador":
             _check_regions(s, body.regions)
-            s.add(Operator(name=body.operator_name or body.username, user_id=u.id, regions=body.regions))
-        security.audit(s, user.username, "crear_usuario", u.username, {"role": body.role})
+            s.add(Operator(name=body.operator_name or body.username, user_id=u.id, regions=body.regions,
+                           sucursales=_check_sucursales(body.sucursales)))
+        security.audit(s, user.username, "crear_usuario", u.username,
+                       {"role": body.role, "regions": body.regions, "sucursales": body.sucursales})
         return {"id": u.id, "username": u.username, "role": u.role}
 
 
@@ -613,7 +832,7 @@ def metrics(user: CurrentUser = Depends(current_user), db: Database = Depends(ge
 lab_jobs: dict[str, dict] = {}
 
 
-@router.get("/lab/items")
+@lab_router.get("/lab/items")
 def lab_items(feed: str | None = None, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         q = select(SimItem).order_by(SimItem.region, SimItem.name)
@@ -622,7 +841,7 @@ def lab_items(feed: str | None = None, user: CurrentUser = Depends(current_user)
         return [ser.sim_item(i) for i in s.scalars(q)]
 
 
-@router.post("/lab/items", status_code=201)
+@lab_router.post("/lab/items", status_code=201)
 def lab_create_item(body: sc.SimItemIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     with db.session() as s:
         if s.get(Region, body.region) is None:
@@ -636,7 +855,7 @@ def lab_create_item(body: sc.SimItemIn, user: CurrentUser = Depends(require_admi
     return ser.sim_item(item)
 
 
-@router.post("/lab/items/{iid}/{action}")
+@lab_router.post("/lab/items/{iid}/{action}")
 def lab_item_action(iid: int, action: str, body: dict | None = None, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     w = World(db)
@@ -665,7 +884,7 @@ def lab_item_action(iid: int, action: str, body: dict | None = None, user: Curre
     return {"cambio": ch.kind, "feed": ch.feed, "recurso": ch.resource_key, "detalle": ch.detail}
 
 
-@router.post("/lab/random")
+@lab_router.post("/lab/random")
 def lab_random(body: sc.RandomStepIn, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
     w = World(db)
     changes = []
@@ -676,7 +895,7 @@ def lab_random(body: sc.RandomStepIn, user: CurrentUser = Depends(require_admin)
     return {"cambios": len(changes), "detalle": [c.__dict__ for c in changes[:50]]}
 
 
-@router.post("/lab/competencia")
+@lab_router.post("/lab/competencia")
 def lab_competition(body: sc.CompetitionIn, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     """Crea N solicitudes compitiendo por el mismo recurso y libera `units` unidades."""
@@ -699,7 +918,7 @@ def lab_competition(body: sc.CompetitionIn, user: CurrentUser = Depends(require_
     return {"solicitudes_creadas": body.requests, "unidades_liberadas": body.units, "grupo": f"COMP-{tag}"}
 
 
-@router.post("/lab/acelerada", status_code=202)
+@lab_router.post("/lab/acelerada", status_code=202)
 def lab_accelerated(body: sc.AcceleratedIn, user: CurrentUser = Depends(require_admin),
                     db: Database = Depends(get_db)):
     if any(j["estado"] == "EN_CURSO" for j in lab_jobs.values()):
@@ -730,7 +949,7 @@ def lab_accelerated(body: sc.AcceleratedIn, user: CurrentUser = Depends(require_
     return {"run_id": run_id, "estado": "EN_CURSO"}
 
 
-@router.get("/lab/runs")
+@lab_router.get("/lab/runs")
 def lab_runs(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     with db.session() as s:
         return [{"id": r.id, "started_at": ser.iso(r.started_at), "finished_at": ser.iso(r.finished_at),

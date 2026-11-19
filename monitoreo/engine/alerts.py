@@ -16,52 +16,77 @@ import json
 import logging
 import random
 import threading
+import time
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..webhook_firma import sign_v2
 from ..db import Database
 from ..models import Alert, Channel, Delivery, NotificationLog
 from .resilience import backoff_delay
 
 log = logging.getLogger("monitoreo.alertas")
 
+_http_lock = threading.Lock()
+_http: httpx.Client | None = None
+
+
+def http_client() -> httpx.Client:
+    """Cliente HTTP compartido por los canales (webhook, Telegram). Crear uno por envío cargaba
+    los certificados TLS cada vez (~20 ms de CPU) y no reutilizaba conexiones: con un destinatario
+    caído y reintentos, eso dominaba el consumo de CPU (medido en la prueba de resistencia v1.1).
+    Sin seguir redirecciones: una redirección podría llevar a un host no permitido."""
+    global _http
+    with _http_lock:
+        if _http is None:
+            _http = httpx.Client(follow_redirects=False,
+                                 limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+        return _http
+
 
 class DeliveryError(Exception):
-    def __init__(self, msg: str, permanent: bool = False):
+    def __init__(self, msg: str, permanent: bool = False, retry_after: float | None = None):
         super().__init__(msg)
         self.permanent = permanent
+        self.retry_after = retry_after  # p. ej. Telegram 429: segundos que pide esperar
 
 
 class ChannelSender(ABC):
     """Interfaz de canal. Telegram o correo se integran implementando `send`."""
+
+    checkpoint = staticmethod(lambda progress: None)  # el despachador la sustituye (progreso parcial)
 
     def __init__(self, channel: Channel):
         self.channel = channel
         self.config = channel.config or {}
 
     @abstractmethod
-    def send(self, alert_payload: dict) -> str:
-        """Envía y devuelve un detalle corto. Lanza DeliveryError si falla."""
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
+        """Envía y devuelve un detalle corto. Lanza DeliveryError si falla.
+
+        `progress` es un diccionario persistente entre reintentos (Delivery.meta): un canal con
+        varios destinatarios anota ahí a quién ya entregó para no repetirle el mensaje."""
 
 
 class PanelSender(ChannelSender):
     """La alerta queda visible en el panel (ya está en la BD): entrega inmediata."""
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         return "visible en panel"
 
 
 class LogSender(ChannelSender):
     _lock = threading.Lock()
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         path = settings.data_dir / "notificaciones.log"
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock, path.open("a", encoding="utf-8") as f:
@@ -75,7 +100,7 @@ class SimulatedSender(ChannelSender):
     _lock = threading.Lock()
     rng = random.Random()
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         if self.rng.random() < float(self.config.get("fail_rate", 0)):
             raise DeliveryError("fallo simulado del canal")
         with self._lock:
@@ -88,7 +113,7 @@ def _sign(body: bytes, secret: str) -> str:
 
 
 class WebhookSender(ChannelSender):
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         url = self.config.get("url", "")
         host = urlparse(url).hostname
         if urlparse(url).scheme not in ("http", "https") or not host:
@@ -97,49 +122,166 @@ class WebhookSender(ChannelSender):
             raise DeliveryError(f"host {host} no está en MONITOREO_WEBHOOK_HOSTS", permanent=True)
         body = json.dumps(alert_payload, ensure_ascii=False, default=str).encode()
         secret = self.config.get("secret") or settings.secret_key
+        ts = int(time.time())
         headers = {"Content-Type": "application/json", "X-Id-Alerta": str(alert_payload["dedup_key"]),
-                   "X-Firma-SHA256": _sign(body, secret)}
+                   # Clave estable por alerta y canal: el receptor puede descartar repetidos (al menos una vez).
+                   "Idempotency-Key": f"{alert_payload['dedup_key']}@{self.channel.id}",
+                   "X-Firma-SHA256": _sign(body, secret),          # v1.0–v1.3 (compatibilidad)
+                   # v1.4: firma con marca de tiempo; el receptor rechaza peticiones viejas (repetición)
+                   "X-Marca-Tiempo": str(ts), "X-Firma-V2": sign_v2(body, secret, ts)}
         try:
-            r = httpx.post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
+            r = http_client().post(url, content=body, headers=headers, timeout=float(self.config.get("timeout_s", 5)))
         except httpx.HTTPError as e:
             raise DeliveryError(f"error de red: {e.__class__.__name__}") from e
         if 200 <= r.status_code < 300:
             return f"HTTP {r.status_code}"
-        raise DeliveryError(f"HTTP {r.status_code}", permanent=400 <= r.status_code < 500 and r.status_code != 429)
+        retry_after = None
+        if r.status_code in (429, 503):
+            try:
+                retry_after = min(3600.0, float(r.headers.get("Retry-After", "")))
+            except ValueError:
+                retry_after = None  # formato de fecha HTTP: se usa el retroceso normal
+        raise DeliveryError(f"HTTP {r.status_code}", permanent=400 <= r.status_code < 500 and r.status_code != 429,
+                            retry_after=retry_after)
 
 
 class NotConfiguredSender(ChannelSender):
     """Telegram / correo: interfaz preparada, sin implementación en esta versión."""
 
-    def send(self, alert_payload: dict) -> str:
+    def send(self, alert_payload: dict, progress: dict | None = None) -> str:
         raise DeliveryError(f"canal '{self.channel.type}' preparado pero no implementado", permanent=True)
 
 
 SENDERS: dict[str, type[ChannelSender]] = {
     "panel": PanelSender, "registro": LogSender, "simulado": SimulatedSender, "webhook": WebhookSender,
-    "telegram": NotConfiguredSender, "correo": NotConfiguredSender,
+    "correo": NotConfiguredSender,
 }
 
 
+def _register_telegram() -> None:
+    # Si el módulo de Telegram se importó primero, aún está a medio cargar: él mismo se
+    # registrará al terminar (ver final de notifiers/telegram.py). Antes esto fallaba (v1.1).
+    try:
+        from ..notifiers.telegram import TelegramSender
+    except ImportError:
+        return
+    SENDERS["telegram"] = TelegramSender
+
+
+_register_telegram()
+
+
 # ---------------------------------------------------------------- creación
+# ---------------------------------------------------------------- v1.7: centro de notificaciones
+# Diez categorías con un nivel por defecto. CRITICA nunca se puede silenciar.
+CATEGORIAS = {
+    "NUEVA_DISPONIBILIDAD": ("Nueva disponibilidad", "MEDIA"),
+    "DISPONIBILIDAD_AGOTADA": ("Disponibilidad agotada", "BAJA"),
+    "EXPEDIENTE_ASIGNADO": ("Expediente asignado", "ALTA"),
+    "EXPEDIENTE_INCOMPLETO": ("Expediente incompleto", "MEDIA"),
+    "OPERACION_ABANDONADA": ("Operación abandonada", "ALTA"),
+    "CONFIRMACION_PENDIENTE": ("Confirmación pendiente", "ALTA"),
+    "RESERVACION_CONFIRMADA": ("Reservación confirmada", "BAJA"),
+    "ERROR_COMUNICACION": ("Error de comunicación", "ALTA"),
+    "PROBLEMA_MOTOR": ("Problema del motor", "CRITICA"),
+    "REQUIERE_INTERVENCION": ("Requiere intervención", "CRITICA"),
+}
+NIVELES = ("CRITICA", "ALTA", "MEDIA", "BAJA")
+SILENCIABLES = tuple(k for k, (_, n) in CATEGORIAS.items() if n != "CRITICA")
+# Solo se agrupan los avisos que se repiten por la misma causa (una fuente que falla una y otra vez);
+# cada disponibilidad o asignación es trabajo distinto y se notifica por separado.
+AGRUPABLES = ("ERROR_COMUNICACION", "PROBLEMA_MOTOR")
+_AGOTA = ("AGOTADO", "REDUCCION", "CANCELACION", "DESAPARECIDO")
+
+
+def enmascarar_nombre(nombre: str | None) -> str | None:
+    """v1.7: las alertas salen a canales externos (webhook, Telegram) y se guardan en el historial:
+    nunca llevan el nombre completo del titular. Se conserva la clave `titular` (compatibilidad con
+    receptores existentes) con solo las iniciales: "Ana López" -> "A. L."."""
+    if not nombre:
+        return nombre
+    return " ".join(p[0].upper() + "." for p in str(nombre).split() if p[:1].isalpha())[:16] or "—"
+
+
+def clasificar(kind: str, payload: dict | None) -> str:
+    """Categoría de una alerta a partir de su tipo y su contenido. Sirve también para las alertas
+    anteriores a la v1.7 (sin categoría guardada)."""
+    p = payload or {}
+    if kind == "DISPONIBILIDAD":
+        return "DISPONIBILIDAD_AGOTADA" if p.get("cambio") in _AGOTA else "NUEVA_DISPONIBILIDAD"
+    if kind == "ASIGNACION":
+        return "EXPEDIENTE_ASIGNADO"
+    if kind == "CAPTURA" and p.get("categoria") in CATEGORIAS:
+        return p["categoria"]
+    ev = p.get("evento_sistema")
+    if ev == "asignacion_inactiva":
+        return "OPERACION_ABANDONADA"
+    if ev in ("error", "circuito", "acceso", "calendario_desconectado"):
+        return "ERROR_COMUNICACION"
+    return "PROBLEMA_MOTOR"
+
+
+def nivel_de(categoria: str) -> str:
+    return CATEGORIAS.get(categoria, ("", "ALTA"))[1]
+
+
+def grupo_de(categoria: str, source_code: str, payload: dict | None) -> str | None:
+    ev = (payload or {}).get("evento_sistema")
+    if categoria not in AGRUPABLES or not ev:      # solo avisos del motor con causa identificada
+        return None
+    return f"{categoria}:{source_code}:{ev}"[:128]
+
+
 def create_alert(s: Session, *, dedup_key: str, kind: str, title: str, source_code: str, region: str,
                  resource: str, now: datetime, change_event_id: int | None = None, assignment_id: int | None = None,
                  request_id: int | None = None, priority: int | None = None, operator_name: str | None = None,
-                 payload: dict | None = None) -> Alert | None:
-    """Crea la alerta si no existe ya (deduplicación). Devuelve None si era duplicada."""
+                 payload: dict | None = None, categoria: str | None = None) -> Alert | None:
+    """Crea la alerta si no existe ya (deduplicación). Devuelve None si era duplicada o si se sumó a
+    un grupo abierto (v1.7: misma causa repetida dentro de `alertas_agrupar_s`).
+
+    v1.7: cada alerta lleva categoría y nivel. Si su categoría está silenciada (y no es CRITICA)
+    se guarda con estado SILENCIADA y SIN entregas: queda en el historial del panel pero no se
+    envía a ningún canal."""
     if s.scalar(select(Alert.id).where(Alert.dedup_key == dedup_key)) is not None:
         return None
+    from .params import get_params
+    params = get_params(s)
+    categoria = categoria if categoria in CATEGORIAS else clasificar(kind, payload)
+    nivel = nivel_de(categoria)
+    grupo = grupo_de(categoria, source_code, payload)
+    ventana = float(params.get("alertas_agrupar_s") or 0)
+    if grupo and ventana > 0:
+        abierto = s.scalar(select(Alert).where(Alert.grupo == grupo, Alert.acknowledged_at.is_(None),
+                                                func.coalesce(Alert.ultima_en, Alert.created_at)
+                                                >= now - timedelta(seconds=ventana)).order_by(Alert.id.desc()).limit(1))
+        if abierto is not None:
+            # UPDATE atómico: dos procesos que agrupan a la vez suman los dos
+            s.execute(update(Alert).where(Alert.id == abierto.id).values(
+                repeticiones=Alert.repeticiones + 1, ultima_en=now))
+            return None
+    silenciada = categoria in {c for c in (params.get("alertas_silenciadas") or []) if c in SILENCIABLES}
     alert = Alert(dedup_key=dedup_key, kind=kind, title=title, source_code=source_code, region=region,
                   resource=resource, change_event_id=change_event_id, assignment_id=assignment_id,
-                  request_id=request_id, priority=priority, operator_name=operator_name, status="PENDIENTE",
-                  payload=payload or {}, created_at=now)
+                  request_id=request_id, priority=priority, operator_name=operator_name,
+                  status="SILENCIADA" if silenciada else "PENDIENTE",
+                  payload=payload or {}, created_at=now, categoria=categoria, nivel=nivel, grupo=grupo,
+                  repeticiones=1, ultima_en=now)
     try:
         with s.begin_nested():  # savepoint: si otra transacción ganó la carrera, solo se descarta esta alerta
             s.add(alert)
             s.flush()
     except IntegrityError:
         return None
+    if silenciada:
+        return alert
     for ch in s.scalars(select(Channel).where(Channel.enabled.is_(True))):
+        cfg = ch.config or {}
+        kinds = cfg.get("tipos")  # v1.1: un canal puede limitarse a ciertos tipos de alerta
+        if kinds and kind not in kinds:
+            continue
+        cats = cfg.get("categorias")  # v1.7: o a ciertas categorías
+        if cats and categoria not in cats:
+            continue
         s.add(Delivery(alert_id=alert.id, channel_id=ch.id, status="PENDIENTE", next_attempt_at=now))
     return alert
 
@@ -148,14 +290,20 @@ def alert_payload(a: Alert) -> dict:
     return {"id": a.id, "dedup_key": a.dedup_key, "tipo": a.kind, "titulo": a.title, "fuente": a.source_code,
             "region": a.region, "recurso": a.resource, "fecha_hora": a.created_at.isoformat() + "Z",
             "solicitud_id": a.request_id, "prioridad": a.priority, "operador": a.operator_name,
-            "estado": a.status, **(a.payload or {})}
+            "estado": a.status, **(a.payload or {}),
+            "categoria": a.categoria or clasificar(a.kind, a.payload), "nivel": a.nivel or nivel_de(
+                a.categoria or clasificar(a.kind, a.payload)), "repeticiones": a.repeticiones or 1}
 
 
 # ---------------------------------------------------------------- despacho
-def recover_inflight(db: Database) -> int:
-    """Al arrancar: entregas que quedaron 'ENVIANDO' por un corte vuelven a la cola."""
+def recover_inflight(db: Database, now: datetime | None = None, stale_s: float = 0) -> int:
+    """Entregas que quedaron 'ENVIANDO' por un corte vuelven a la cola.
+    Con `stale_s` solo las reclamadas hace más de ese tiempo (al tomar el relevo de otro líder)."""
+    cond = [Delivery.status == "ENVIANDO"]
+    if now is not None and stale_s > 0:
+        cond.append((Delivery.claimed_at.is_(None)) | (Delivery.claimed_at < now - timedelta(seconds=stale_s)))
     with db.session() as s:
-        return s.execute(update(Delivery).where(Delivery.status == "ENVIANDO").values(status="PENDIENTE")).rowcount
+        return s.execute(update(Delivery).where(*cond).values(status="PENDIENTE", claim_token=None)).rowcount
 
 
 def _refresh_alert_status(s: Session, alert_id: int) -> None:
@@ -173,16 +321,64 @@ def _refresh_alert_status(s: Session, alert_id: int) -> None:
         a.status = "PENDIENTE"
 
 
+def requeue_stale_claims(db: Database, now: datetime, older_than_s: float) -> int:
+    """Entregas reclamadas hace demasiado (el despachador murió o se colgó) vuelven a la cola.
+    Independiente del liderazgo: así nunca quedan atascadas en ENVIANDO."""
+    with db.session() as s:
+        return s.execute(update(Delivery).where(
+            Delivery.status == "ENVIANDO", Delivery.claimed_at < now - timedelta(seconds=older_than_s))
+            .values(status="PENDIENTE", claim_token=None)).rowcount
+
+
+def _checkpoint(db: Database, did: int, token: str):
+    """Guarda el progreso parcial (p. ej. chats de Telegram ya servidos) en cuanto ocurre, para que
+    tras una caída no se reenvíe a quien ya lo recibió. Solo si el reclamo sigue siendo nuestro."""
+    def save(progress: dict) -> None:
+        with db.session() as s:
+            s.execute(update(Delivery).where(Delivery.id == did, Delivery.claim_token == token,
+                                             Delivery.status == "ENVIANDO").values(meta=dict(progress)))
+    return save
+
+
 def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200,
                      rng: random.Random | None = None) -> dict:
-    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0}
+    """Envía las entregas pendientes. Garantías (ver docs/NOTIFICACIONES.md):
+    - un reclamo atómico con testigo único impide que dos despachadores envíen la misma entrega a la vez;
+    - el resultado solo se registra si el testigo sigue vigente (un resultado tardío no pisa a otro);
+    - el progreso por destinatario se guarda en cuanto ocurre;
+    - entrega "al menos una vez": una caída entre el envío y su registro puede producir un repetido."""
+    stats = {"enviadas": 0, "fallos": 0, "definitivas": 0, "tardias": 0, "aplazadas_por_canal": 0,
+             "aplazadas_por_tiempo": 0, "aplazadas_por_lentitud": 0,
+             "reencoladas": requeue_stale_claims(db, now, float(params.get("entrega_reclamo_vence_s", 300)))}
+    # v1.4: un destino que no responde no debe retener a los demás ni al motor.
+    # - tras un fallo transitorio de un canal, sus demás entregas esperan a la siguiente pasada
+    #   (siguen PENDIENTES, sin gastar intentos);
+    # - cada pasada tiene un presupuesto de tiempo; lo que no cabe queda para la siguiente.
+    budget_end = time.monotonic() + float(params.get("despacho_presupuesto_s", 10))
+    down_channels: set[int] = set()
+    # v1.7: un canal LENTO que sí responde tampoco debe retener a los demás: cada canal tiene su propio
+    # presupuesto por pasada; al agotarlo, sus entregas restantes esperan a la siguiente (sin gastar intentos).
+    canal_presupuesto = float(params.get("despacho_canal_presupuesto_s", 3))
+    canal_gastado: dict[int, float] = {}
+    lentos: set[int] = set()
     with db.session() as s:
-        ids = list(s.scalars(select(Delivery.id).where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
-                             .order_by(Delivery.id).limit(limit)))
-    for did in ids:
+        rows = list(s.execute(select(Delivery.id, Delivery.channel_id)
+                              .where(Delivery.status == "PENDIENTE", Delivery.next_attempt_at <= now)
+                              .order_by(Delivery.id).limit(limit)))
+    for i, (did, channel_id) in enumerate(rows):
+        if time.monotonic() >= budget_end:
+            stats["aplazadas_por_tiempo"] = len(rows) - i
+            break
+        if channel_id in down_channels:
+            stats["aplazadas_por_canal"] += 1
+            continue
+        if channel_id in lentos:
+            stats["aplazadas_por_lentitud"] += 1
+            continue
+        token = uuid.uuid4().hex
         with db.session() as s:  # reclamar la entrega (evita doble envío si hubiera dos despachadores)
             if s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "PENDIENTE")
-                         .values(status="ENVIANDO")).rowcount != 1:
+                         .values(status="ENVIANDO", claimed_at=now, claim_token=token)).rowcount != 1:
                 continue
             d = s.get(Delivery, did)
             ch = s.get(Channel, d.channel_id)
@@ -190,36 +386,53 @@ def dispatch_pending(db: Database, now: datetime, params: dict, limit: int = 200
             payload = alert_payload(alert)
             sender = SENDERS.get(ch.type, NotConfiguredSender)(ch)
             ch_name = ch.name
-        ok, detail, permanent = True, "", False
+            progress = dict(d.meta or {})
+            alert_id, attempts = d.alert_id, d.attempts
+        sender.checkpoint = _checkpoint(db, did, token)
+        ok, detail, permanent, retry_after = True, "", False, None
+        t_envio = time.monotonic()
         try:
-            detail = sender.send(payload)
+            detail = sender.send(payload, progress)
         except DeliveryError as e:
-            ok, detail, permanent = False, str(e), e.permanent
+            ok, detail, permanent, retry_after = False, str(e), e.permanent, e.retry_after
         except Exception as e:  # un canal defectuoso nunca debe tumbar el motor
             ok, detail = False, f"error inesperado: {e.__class__.__name__}"
             log.exception("fallo en canal %s", ch_name)
+        canal_gastado[channel_id] = canal_gastado.get(channel_id, 0.0) + (time.monotonic() - t_envio)
+        if canal_gastado[channel_id] >= canal_presupuesto:
+            lentos.add(channel_id)
         with db.session() as s:
-            d = s.get(Delivery, did)
-            d.attempts += 1
+            attempts += 1
+            values = {"attempts": attempts, "meta": progress or None, "claim_token": None}
             if ok:
-                d.status, d.delivered_at, d.last_error = "ENVIADA", now, None
-                a = s.get(Alert, d.alert_id)
-                d.latency_ms = max(0.0, (now - a.created_at).total_seconds() * 1000)
-                stats["enviadas"] += 1
+                a = s.get(Alert, alert_id)
+                values.update(status="ENVIADA", delivered_at=now, last_error=None,
+                              latency_ms=max(0.0, (now - a.created_at).total_seconds() * 1000))
+            elif permanent or attempts >= int(params["reintentos_notificacion"]):
+                values.update(status="FALLIDA", last_error=detail)
             else:
-                stats["fallos"] += 1
-                d.last_error = detail
-                if permanent or d.attempts >= int(params["reintentos_notificacion"]):
-                    d.status = "FALLIDA"
-                    stats["definitivas"] += 1
+                down_channels.add(channel_id)
+                wait = backoff_delay(attempts, float(params["backoff_notificacion_s"]), 300, rng)
+                values.update(status="PENDIENTE", last_error=detail,
+                              next_attempt_at=now + timedelta(seconds=max(wait, retry_after or 0)))
+            # Registro del resultado SOLO si el reclamo sigue siendo nuestro (testigo vigente).
+            current = s.execute(update(Delivery).where(Delivery.id == did, Delivery.status == "ENVIANDO",
+                                                       Delivery.claim_token == token).values(**values)).rowcount == 1
+            if current:
+                if ok:
+                    stats["enviadas"] += 1
                 else:
-                    d.status = "PENDIENTE"
-                    d.next_attempt_at = now + timedelta(
-                        seconds=backoff_delay(d.attempts, float(params["backoff_notificacion_s"]), 300, rng))
-            s.add(NotificationLog(ts=now, alert_id=d.alert_id, channel=ch_name, outcome="OK" if ok else "FALLO",
+                    stats["fallos"] += 1
+                    stats["definitivas"] += values["status"] == "FALLIDA"
+            else:
+                stats["tardias"] += 1
+                detail = "[resultado tardío: la entrega ya se había reasignado; no se modifica su estado] " + detail
+                log.warning("resultado tardío de la entrega %s (%s)", did, ch_name)
+            # El registro refleja lo que ocurrió de verdad, también si fue tardío.
+            s.add(NotificationLog(ts=now, alert_id=alert_id, channel=ch_name, outcome="OK" if ok else "FALLO",
                                   detail=detail[:500]))
             s.flush()
-            _refresh_alert_status(s, d.alert_id)
+            _refresh_alert_status(s, alert_id)
     return stats
 
 

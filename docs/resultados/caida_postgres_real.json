@@ -1,0 +1,37 @@
+{
+  "aviso": "Medición real: servidor y PostgreSQL reales en esta máquina; las caídas son paradas reales de PostgreSQL.",
+  "caidas": [
+    {
+      "caida": 1,
+      "base_detenida_s": 10.3,
+      "estados_vistos_durante_la_caida": [
+        "SIN_CONEXION"
+      ],
+      "health_ok_tras_arrancar_la_base_s": 0.13
+    },
+    {
+      "caida": 2,
+      "base_detenida_s": 10.2,
+      "estados_vistos_durante_la_caida": [
+        "SIN_CONEXION"
+      ],
+      "health_ok_tras_arrancar_la_base_s": 0.0
+    },
+    {
+      "caida": 3,
+      "base_detenida_s": 10.2,
+      "estados_vistos_durante_la_caida": [
+        "SIN_CONEXION"
+      ],
+      "health_ok_tras_arrancar_la_base_s": 0.1
+    }
+  ],
+  "proceso_vivo_al_final": true,
+  "rol_final": "LIDER",
+  "ciclos_siguen_avanzando": true,
+  "errores_ciclo_seguidos_al_final": 0,
+  "peticiones_api_ok": 167,
+  "peticiones_api_fallidas": 95,
+  "integridad_final": [],
+  "memoria_proceso_mb": 128.8
+}

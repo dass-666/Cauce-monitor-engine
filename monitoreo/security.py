@@ -68,6 +68,17 @@ def resolve_token(s: Session, token: str) -> User | None:
     return user if user and user.active else None
 
 
+def revoke_other_tokens(s: Session, user_id: int, keep_token: str | None = None) -> int:
+    """v1.4: cierra todas las sesiones de un usuario salvo la actual (tras cambiar la contraseña)."""
+    keep = _token_hash(keep_token) if keep_token else None
+    n = 0
+    for row in s.scalars(select(ApiToken).where(ApiToken.user_id == user_id, ApiToken.revoked.is_(False))):
+        if row.token_hash != keep:
+            row.revoked = True
+            n += 1
+    return n
+
+
 def revoke_token(s: Session, token: str) -> None:
     row = s.scalar(select(ApiToken).where(ApiToken.token_hash == _token_hash(token)))
     if row:
@@ -78,7 +89,9 @@ def audit(s: Session, username: str, action: str, target: str = "", detail: dict
     s.add(AuditLog(username=username, action=action, target=str(target)[:128], detail=_redact(detail or {}), ip=ip))
 
 
-SENSITIVE = ("password", "secret", "token", "clave", "contrasena", "contraseña")
+SENSITIVE = ("password", "secret", "token", "clave", "contrasena", "contraseña",
+             # v1.5: datos personales de expedientes (defensa adicional: el código no los envía)
+             "telefono", "correo", "nacimiento")
 
 
 def _redact(d):

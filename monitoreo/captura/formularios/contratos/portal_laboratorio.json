@@ -1,0 +1,45 @@
+{
+  "nombre": "portal_laboratorio",
+  "version": 1,
+  "descripcion": "Portal de reservaciones de PRUEBA (portal_reservas). Datos ficticios.",
+  "pantallas": {
+    "datos": {
+      "url": "/reservar",
+      "marcador": "datos",
+      "formulario": "datos",
+      "envio": "/reservar/datos",
+      "campos": [
+        {"nombre": "operacion", "etiqueta": "Operación", "tipo": "opcion", "origen": "operacion", "obligatorio": true},
+        {"nombre": "tramite", "etiqueta": "Tipo de trámite", "tipo": "opcion", "origen": "tipo_tramite", "obligatorio": true},
+        {"nombre": "identificador", "etiqueta": "Identificador de registro previo", "tipo": "texto", "origen": "id_registro_previo", "obligatorio": true},
+        {"nombre": "fecha_nacimiento", "etiqueta": "Fecha de nacimiento", "tipo": "fecha", "origen": "fecha_nacimiento", "obligatorio": true},
+        {"nombre": "telefono", "etiqueta": "Teléfono", "tipo": "texto", "origen": "telefono", "obligatorio": true, "personal": true},
+        {"nombre": "telefono_confirmacion", "etiqueta": "Confirmación de teléfono", "tipo": "texto", "origen": "telefono", "obligatorio": true, "personal": true, "confirmacion_de": "telefono"},
+        {"nombre": "correo", "etiqueta": "Correo", "tipo": "texto", "origen": "correo", "obligatorio": true, "personal": true},
+        {"nombre": "correo_confirmacion", "etiqueta": "Confirmación de correo", "tipo": "texto", "origen": "correo", "obligatorio": true, "personal": true, "confirmacion_de": "correo"}
+      ],
+      "exito": {"redirige_a": "/reservar/disponibilidad"}
+    },
+    "disponibilidad": {
+      "url": "/reservar/disponibilidad",
+      "marcador": "disponibilidad",
+      "filtros": {"region": {"origen": "region", "transformar": "minusculas"}, "sucursal": {"origen": "sucursal"}},
+      "formulario": "horario",
+      "opcion_horario": "horario",
+      "envio": "/reservar/horario",
+      "exito": {"redirige_a": "/reservar/confirmacion"}
+    },
+    "confirmacion": {
+      "url": "/reservar/confirmacion",
+      "marcador": "confirmacion",
+      "formulario": "confirmacion",
+      "clave": "clave",
+      "resumen": ["tramite", "identificador", "sucursal", "fecha", "hora", "vence"],
+      "envio": "/reservar/confirmar",
+      "exito": {"redirige_prefijo": "/reservar/resultado/"}
+    },
+    "resultado": {"marcador": "resultado", "folio_atributo": "data-folio"}
+  },
+  "marcadores": {"error_campo": "data-error", "error_general": "data-error-general", "pantalla": "data-pantalla"},
+  "verificacion": {"por_folio": "/api/reservaciones/{folio}", "por_clave": "/api/reservaciones", "cancelar": "/api/reservaciones/{folio}/cancelar"}
+}

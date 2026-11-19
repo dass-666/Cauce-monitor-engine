@@ -1,0 +1,184 @@
+{
+  "version": "2.0.0-dev",
+  "momento": "2026-11-13 22:21:43",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 35.4,
+  "base_de_datos": "postgresql",
+  "etiqueta": "MEDIDO: procesos reales y PostgreSQL detenido de verdad; datos ficticios",
+  "metricas": {
+    "A_recuperacion_salud_s": 0.02,
+    "A_confirmacion_recuperada_s": 8.21,
+    "B_recuperacion_salud_s": 0.02,
+    "C_arranque_total_s": 3.2,
+    "C_confirmacion_en_curso_procesada_por_el_portal": false,
+    "C_confirmacion_en_curso_resuelta_s": 2.07
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "A · PostgreSQL detenido a mitad de la confirmación",
+      "ok": true,
+      "detalle": "waiting for server to shut down.... done\nserver stopped"
+    },
+    {
+      "comprobacion": "A · el operador recibe un error (no un éxito falso) mientras la base está caída",
+      "ok": true,
+      "detalle": 503
+    },
+    {
+      "comprobacion": "A · /api/health avisa de la base caída",
+      "ok": true,
+      "detalle": 503
+    },
+    {
+      "comprobacion": "A · el portal sí procesó la confirmación (una)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "A · PostgreSQL vuelve",
+      "ok": true,
+      "detalle": "waiting for server to start.... done\nserver started"
+    },
+    {
+      "comprobacion": "A · el motor sigue vivo y vuelve a OK sin reiniciarlo",
+      "ok": true,
+      "detalle": "0.02 s"
+    },
+    {
+      "comprobacion": "A · el reintento del operador NO vuelve a confirmar en el portal",
+      "ok": true,
+      "detalle": 409
+    },
+    {
+      "comprobacion": "A · la confirmación se recupera por su clave (CONFIRMADA con evidencia del portal)",
+      "ok": true,
+      "detalle": "DIA-20261119-00001X"
+    },
+    {
+      "comprobacion": "A · la atención termina CONFIRMADA con ese folio",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADA",
+        "DIA-20261119-00001X"
+      ]
+    },
+    {
+      "comprobacion": "B · PostgreSQL detenido con una atención a medias",
+      "ok": true,
+      "detalle": "waiting for server to shut down.... done\nserver stopped"
+    },
+    {
+      "comprobacion": "B · durante la caída las operaciones fallan (sin éxito falso)",
+      "ok": true,
+      "detalle": [
+        503,
+        503
+      ]
+    },
+    {
+      "comprobacion": "B · nada llegó al portal durante la caída",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "B · el motor sigue vivo y vuelve a OK",
+      "ok": true,
+      "detalle": "0.02 s"
+    },
+    {
+      "comprobacion": "B · la atención sigue en el paso exacto (confirmar)",
+      "ok": true,
+      "detalle": "confirmar"
+    },
+    {
+      "comprobacion": "B · llega a su folio",
+      "ok": true,
+      "detalle": [
+        200,
+        "DIA-20261119-00002A"
+      ]
+    },
+    {
+      "comprobacion": "C · corte simultáneo: motor y portal matados, PostgreSQL detenido de golpe",
+      "ok": true,
+      "detalle": "waiting for server to shut down.... done\nserver stopped"
+    },
+    {
+      "comprobacion": "C · todo vuelve a arrancar sobre los mismos datos",
+      "ok": true,
+      "detalle": "3.2 s"
+    },
+    {
+      "comprobacion": "C · los folios anteriores siguen CONFIRMADOS en el portal tras el corte",
+      "ok": true,
+      "detalle": [
+        "DIA-20261119-00001X",
+        "DIA-20261119-00002A",
+        "DIA-20261116-00003J",
+        "DIA-20261119-00004R"
+      ]
+    },
+    {
+      "comprobacion": "C · las dos atenciones siguen abiertas para retomarlas",
+      "ok": true,
+      "detalle": [
+        3,
+        4
+      ]
+    },
+    {
+      "comprobacion": "C · la confirmación que estaba en curso se resuelve sola (reabierta si el portal no la procesó, recuperada si sí)",
+      "ok": true,
+      "detalle": "FECHA_ELEGIDA"
+    },
+    {
+      "comprobacion": "C · la atención 3 se retoma hasta su folio",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADA",
+        "DIA-20261116-00003J"
+      ]
+    },
+    {
+      "comprobacion": "C · la atención 4 se retoma hasta su folio",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADA",
+        "DIA-20261119-00004R"
+      ]
+    },
+    {
+      "comprobacion": "FINAL · exactamente una cita por persona: 4 folios distintos, 4 confirmadas en el portal",
+      "ok": true,
+      "detalle": {
+        "folios": [
+          "DIA-20261119-00001X",
+          "DIA-20261119-00002A",
+          "DIA-20261116-00003J",
+          "DIA-20261119-00004R"
+        ],
+        "confirmadas_en_portal": 4
+      }
+    },
+    {
+      "comprobacion": "FINAL · coherencia del motor (sin estados contradictorios)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "FINAL · resumen del día: 4 con cita, ninguna abierta",
+      "ok": true,
+      "detalle": [
+        4,
+        0
+      ]
+    },
+    {
+      "comprobacion": "FINAL · sin datos personales en los registros del motor",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}
