@@ -115,6 +115,10 @@ def test_el_repositorio_real_esta_fijado_cuando_se_esta_en_la_rama_declarada():
     r = comun.relacion_con_fijado(RAIZ)
     if not r["rama_actual_coincide"]:
         pytest.skip(f"no se está en la rama declarada ({r['rama_declarada']})")
+    if r["relacion"] == "DESCONOCIDO" and comun.git(RAIZ, "rev-parse", "--is-shallow-repository")[1] == "true":
+        # Clon superficial (p. ej. actions/checkout sin fetch-depth: 0): el commit fijado no está en el
+        # clon y no se puede comparar. En un clon completo, DESCONOCIDO sí es un fallo.
+        pytest.skip("clon superficial: el commit fijado no está disponible")
     assert r["relacion"] in ("FIJADO", "POSTERIOR_SOLO_DOCUMENTOS"), r
 
 
