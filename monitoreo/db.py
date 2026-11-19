@@ -11,6 +11,8 @@ igual en ambos.
 """
 from __future__ import annotations
 
+import os
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator
@@ -54,8 +56,17 @@ def make_engine(url: str) -> Engine:
     return create_engine(url, pool_size=10, max_overflow=20, pool_pre_ping=True)
 
 
+class NestedSessionError(RuntimeError):
+    """Se abrió una sesión dentro de otra en el mismo hilo. En SQLite (BEGIN IMMEDIATE) la
+    interior espera el candado de la exterior hasta agotar el tiempo: es un bloqueo seguro."""
+
+
 class Database:
     def __init__(self, url: str):
+        # Detector de sesiones anidadas (activo en las pruebas con MONITOREO_DETECTAR_ANIDADAS=1).
+        self._depth = threading.local()
+        self._detect_nested = (os.environ.get("MONITOREO_DETECTAR_ANIDADAS") == "1"
+                               or os.environ.get("MONITOREO_ENTORNO", "").lower() == "pruebas")
         self.url = url
         self.engine = make_engine(url)
         self.SessionLocal = sessionmaker(self.engine, expire_on_commit=False)
@@ -64,16 +75,35 @@ class Database:
     def is_sqlite(self) -> bool:
         return self.url.startswith("sqlite")
 
-    def create_all(self) -> None:
-        from . import models  # noqa: F401  (registra tablas)
-        Base.metadata.create_all(self.engine)
+    def migrate(self, make_backup: bool = True):
+        """Crea o actualiza el esquema con Alembic (v1.1+). Ver monitoreo/migrate.py."""
+        from .migrate import upgrade
+        return upgrade(self.url, make_backup=make_backup)
 
-    def drop_all(self) -> None:
-        from . import models  # noqa: F401
-        Base.metadata.drop_all(self.engine)
+    def create_all(self) -> None:
+        """Compatibilidad: crea/actualiza el esquema mediante migraciones, sin respaldo
+        (pensado para bases nuevas y temporales: pruebas y simulación)."""
+        self.migrate(make_backup=False)
+
+    def reset_for_tests(self) -> None:
+        """SOLO para bases temporales de pruebas/simulación: borra todo el esquema."""
+        from sqlalchemy import text
+        if self.is_sqlite:
+            from . import models  # noqa: F401
+            Base.metadata.drop_all(self.engine)
+            with self.engine.begin() as c:
+                c.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+        else:
+            with self.engine.begin() as c:
+                c.execute(text("DROP SCHEMA public CASCADE"))
+                c.execute(text("CREATE SCHEMA public"))
 
     @contextmanager
     def session(self) -> Iterator[Session]:
+        depth = getattr(self._depth, "n", 0)
+        if self._detect_nested and depth and self.is_sqlite:
+            raise NestedSessionError("Sesión anidada en el mismo hilo (bloquearía SQLite)")
+        self._depth.n = depth + 1
         s = self.SessionLocal()
         try:
             yield s
@@ -83,3 +113,4 @@ class Database:
             raise
         finally:
             s.close()
+            self._depth.n = depth

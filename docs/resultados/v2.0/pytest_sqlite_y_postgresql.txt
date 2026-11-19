@@ -1,0 +1,16 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+.......................................s.s.s.s.......................... [ 48%]
+........................................................................ [ 61%]
+........................................................................ [ 73%]
+........................................................................ [ 85%]
+........................................................................ [ 97%]
+............                                                             [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_carreras_postgres.py:78: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+SKIPPED [1] tests/test_carreras_postgres.py:90: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+SKIPPED [1] tests/test_carreras_postgres.py:110: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+SKIPPED [1] tests/test_carreras_postgres.py:122: la carrera solo existe con PostgreSQL (SQLite serializa las escrituras)
+584 passed, 4 skipped in 530.09s (0:08:50)
+EXIT 0

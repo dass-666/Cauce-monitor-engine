@@ -1,0 +1,321 @@
+{
+  "version": "2.3",
+  "plataforma": "Linux-6.18.44-fc-v653-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-19T12:30:29",
+  "confirmacion_humana": "SIMULADA por el script",
+  "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
+  "navegador": {
+    "pasos": [
+      {
+        "paso": "1_abrir_cauce",
+        "ok": true,
+        "detalle": "Ventanilla del operador cargada"
+      },
+      {
+        "paso": "2_plan_diario_visible",
+        "ok": true,
+        "detalle": {
+          "plan": "1",
+          "observador": "ACTIVA"
+        }
+      },
+      {
+        "paso": "3_expediente_ficticio_creado",
+        "ok": true,
+        "detalle": {
+          "siguiente": "preparar"
+        }
+      },
+      {
+        "paso": "4_consentimiento_registrado_y_consultado",
+        "ok": true,
+        "detalle": {
+          "consentimiento": "CON-000001",
+          "huella_calculada_en_navegador": true
+        }
+      },
+      {
+        "paso": "5_validacion_y_duplicados",
+        "ok": true,
+        "detalle": {
+          "exacto": "bloqueado (409) con opción de atender el existente",
+          "parecido": "en revisión; el admin lo canceló"
+        }
+      },
+      {
+        "paso": "6_incorporado_al_plan",
+        "ok": true,
+        "detalle": {
+          "resultado": "EN_PLAN_DEL_DIA"
+        }
+      },
+      {
+        "paso": "7_estado_y_pendientes",
+        "ok": true,
+        "detalle": {
+          "estado_plan": "EN_ESPERA"
+        }
+      },
+      {
+        "paso": "8a_plan_asigna_el_dia",
+        "ok": true,
+        "detalle": {
+          "fecha_asignada": "2027-01-15"
+        }
+      },
+      {
+        "paso": "8b_calendario_del_portal_muestra_el_dia",
+        "ok": true,
+        "detalle": {
+          "fecha": "2027-01-15"
+        }
+      },
+      {
+        "paso": "9_resultado_y_folio",
+        "ok": true,
+        "detalle": {
+          "folio": "DIA-20270115-00001P"
+        }
+      },
+      {
+        "paso": "10_cierre_e_historial",
+        "ok": true,
+        "detalle": {
+          "folio_historial": "DIA-20270115-00001P",
+          "eventos": 38,
+          "cadena_consentimiento": "si",
+          "tipos": [
+            "SOLICITUD_COMPLETADO",
+            "ATENCION_CERRADA",
+            "ESTADO",
+            "RESERVACION_CONFIRMADA",
+            "RESERVACION_PENDIENTE",
+            "RECURSO_SELECCIONADO",
+            "DATOS_ENVIADOS",
+            "FORMULARIO_PREPARADO",
+            "ATENCION_INICIADA",
+            "SOLICITUD_EN_VENTANILLA",
+            "PLAN_OPERACION_PREPARADA",
+            "TOMADO_EN_VENTANILLA",
+            "PLAN_COINCIDENCIA",
+            "SOLICITUD_EN_PLAN",
+            "SOLICITUD_ELEGIBLE",
+            "PLAN_AGREGADO",
+            "RESERVACION_DESCARTADA",
+            "CONSENTIMIENTO_OTORGADO",
+            "SOLICITUD_CREADA",
+            "CONSENTIMIENTO_REGISTRADO",
+            "CREADO"
+          ]
+        }
+      }
+    ],
+    "errores_js": [],
+    "http_errores": [
+      "operador 409 POST /api/ventanilla/atenciones/2/expediente"
+    ],
+    "revision_tras_decision": "EN_PROCESO",
+    "folio": "DIA-20270115-00001P",
+    "fecha": "2027-01-15",
+    "dia_tras_cita": "AGOTADO"
+  },
+  "expediente": "EXP-000001",
+  "folio": "DIA-20270115-00001P",
+  "fecha": "2027-01-15",
+  "comprobaciones": [
+    {
+      "comprobacion": "interfaz · 1_abrir_cauce",
+      "ok": true,
+      "detalle": "Ventanilla del operador cargada"
+    },
+    {
+      "comprobacion": "interfaz · 2_plan_diario_visible",
+      "ok": true,
+      "detalle": {
+        "plan": "1",
+        "observador": "ACTIVA"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 3_expediente_ficticio_creado",
+      "ok": true,
+      "detalle": {
+        "siguiente": "preparar"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 4_consentimiento_registrado_y_consultado",
+      "ok": true,
+      "detalle": {
+        "consentimiento": "CON-000001",
+        "huella_calculada_en_navegador": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · 5_validacion_y_duplicados",
+      "ok": true,
+      "detalle": {
+        "exacto": "bloqueado (409) con opción de atender el existente",
+        "parecido": "en revisión; el admin lo canceló"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 6_incorporado_al_plan",
+      "ok": true,
+      "detalle": {
+        "resultado": "EN_PLAN_DEL_DIA"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 7_estado_y_pendientes",
+      "ok": true,
+      "detalle": {
+        "estado_plan": "EN_ESPERA"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 8a_plan_asigna_el_dia",
+      "ok": true,
+      "detalle": {
+        "fecha_asignada": "2027-01-15"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 8b_calendario_del_portal_muestra_el_dia",
+      "ok": true,
+      "detalle": {
+        "fecha": "2027-01-15"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 9_resultado_y_folio",
+      "ok": true,
+      "detalle": {
+        "folio": "DIA-20270115-00001P"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 10_cierre_e_historial",
+      "ok": true,
+      "detalle": {
+        "folio_historial": "DIA-20270115-00001P",
+        "eventos": 38,
+        "cadena_consentimiento": "si",
+        "tipos": [
+          "SOLICITUD_COMPLETADO",
+          "ATENCION_CERRADA",
+          "ESTADO",
+          "RESERVACION_CONFIRMADA",
+          "RESERVACION_PENDIENTE",
+          "RECURSO_SELECCIONADO",
+          "DATOS_ENVIADOS",
+          "FORMULARIO_PREPARADO",
+          "ATENCION_INICIADA",
+          "SOLICITUD_EN_VENTANILLA",
+          "PLAN_OPERACION_PREPARADA",
+          "TOMADO_EN_VENTANILLA",
+          "PLAN_COINCIDENCIA",
+          "SOLICITUD_EN_PLAN",
+          "SOLICITUD_ELEGIBLE",
+          "PLAN_AGREGADO",
+          "RESERVACION_DESCARTADA",
+          "CONSENTIMIENTO_OTORGADO",
+          "SOLICITUD_CREADA",
+          "CONSENTIMIENTO_REGISTRADO",
+          "CREADO"
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · recorrido completo sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · sin errores de JavaScript",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · sin respuestas HTTP de error inesperadas (solo el 409 del duplicado)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "portal · el folio existe y está CONFIRMADO",
+      "ok": true,
+      "detalle": "{\"folio\":\"DIA-20270115-00001P\",\"estado\":\"CONFIRMADA\",\"clave\":\"631460c3b7122c9408fcdbd8\",\"identificador\":\"REG000002\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Aur"
+    },
+    {
+      "comprobacion": "portal · la cita es del día abierto por el administrador",
+      "ok": true,
+      "detalle": "2027-01-15"
+    },
+    {
+      "comprobacion": "historial · folio, consentimiento, plan y atenciones en una sola línea de tiempo",
+      "ok": true,
+      "detalle": {
+        "tipos_faltantes": [],
+        "atenciones": [
+          "EN_PLAN_DEL_DIA",
+          "CITA_CONFIRMADA"
+        ]
+      }
+    },
+    {
+      "comprobacion": "plan · el elemento del plan pasa a CONFIRMADO tras el folio y el historial lo refleja",
+      "ok": true,
+      "detalle": {
+        "planes": [
+          "CONFIRMADO"
+        ]
+      }
+    },
+    {
+      "comprobacion": "historial · cadena de sellos del consentimiento íntegra",
+      "ok": true,
+      "detalle": {
+        "ok": true,
+        "consentimientos": 1,
+        "problemas": []
+      }
+    },
+    {
+      "comprobacion": "duplicados · el expediente parecido quedó cerrado (cancelado) por el administrador",
+      "ok": true,
+      "detalle": [
+        "CANCELADO"
+      ]
+    },
+    {
+      "comprobacion": "registros del motor y del portal sin los datos personales tecleados",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "aprobadas": 21,
+  "total": 21,
+  "capturas": [
+    "01_operador_ventanilla_inicio.png",
+    "02_admin_plan_del_dia_y_observador.png",
+    "03_admin_calendario_laboratorio_y_registros_ficticios.png",
+    "04_operador_expediente_creado_con_consentimiento.png",
+    "05_operador_duplicado_exacto_detectado.png",
+    "06_operador_posible_duplicado_en_revision.png",
+    "07_admin_revision_de_posibles_duplicados.png",
+    "08_operador_atencion_tras_decision_del_admin.png",
+    "09_operador_dejar_en_plan_del_dia.png",
+    "10_operador_atencion_cerrada_queda_en_plan.png",
+    "11_operador_estado_en_plan_y_detalle.png",
+    "12_admin_dia_abierto_en_calendario_laboratorio.png",
+    "13_operador_coincidencia_en_plan.png",
+    "14_operador_revision_de_datos_y_campos_manuales.png",
+    "15_operador_calendario_del_portal_de_laboratorio.png",
+    "16_operador_confirmacion_simulada.png",
+    "17_operador_cita_confirmada_folio.png",
+    "18_operador_atencion_cerrada_historial_completo.png",
+    "19_admin_calendario_tras_la_cita.png",
+    "20_operador_ventanilla_final.png"
+  ]
+}

@@ -1,0 +1,334 @@
+{
+  "formato": "cauce.jarvis.report/1",
+  "proyecto": {
+    "id": "cauce-monitor-engine",
+    "nombre": "Cauce Monitor Engine"
+  },
+  "version": "2.2.2-dev",
+  "generado_en": "2026-11-15T03:27:46Z",
+  "generado_por": "python -m monitoreo.interop informe",
+  "git": {
+    "rama": "claude/estabilizacion-v2.2.2",
+    "commit": "7bef85000d0aa07a3222f6f2dafd4bf33b11c6a2",
+    "commit_corto": "7bef850",
+    "estado": "LIMPIO",
+    "limpio": true,
+    "cambios": {
+      "modificados": 0,
+      "sin_seguimiento": 0
+    }
+  },
+  "integracion": {
+    "rama_declarada": "claude/estabilizacion-v2.2.2",
+    "commit_fijado": "b516869861fc96581345c749f3145b79eb989c10",
+    "rama_actual_coincide": true,
+    "relacion": "POSTERIOR_SOLO_DOCUMENTOS",
+    "commits_desde_fijado": 1,
+    "archivos_de_codigo_cambiados": 0
+  },
+  "entorno": {
+    "sistema": "Linux",
+    "version_sistema": "6.18.44-fc-v470",
+    "arquitectura": "x86_64",
+    "python": "3.13.18",
+    "implementacion": "CPython",
+    "bases_de_datos": [
+      "postgresql",
+      "sqlite"
+    ],
+    "ci": false,
+    "nombre_ci": null
+  },
+  "pruebas": [
+    {
+      "suite": "completa",
+      "estado": "VERIFICADO",
+      "motivos_no_verificado": [],
+      "ejecucion_id": "20261115T031606348194Z-completa",
+      "resultado": "APROBADA",
+      "codigo_salida": 0,
+      "inicio": "2026-11-15T03:16:06Z",
+      "fin": "2026-11-15T03:27:46Z",
+      "duracion_s": 700.358,
+      "antiguedad_h": 0.0,
+      "commit": "7bef85000d0aa07a3222f6f2dafd4bf33b11c6a2",
+      "comando": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "tests"
+      ],
+      "limites": {
+        "tiempo_s": 5400,
+        "salida_bytes": 10000000
+      },
+      "conteo": {
+        "total": 805,
+        "aprobadas": 799,
+        "fallidas": 0,
+        "errores": 0,
+        "omitidas": 6
+      },
+      "bases_de_datos": [
+        "sqlite",
+        "postgresql"
+      ],
+      "salida_truncada": false,
+      "resumen_final": "799 passed, 4 skipped, 2 xfailed, 1 warning in 694.07s (0:11:34)",
+      "avisos": []
+    },
+    {
+      "suite": "humo",
+      "estado": "VERIFICADO",
+      "motivos_no_verificado": [],
+      "ejecucion_id": "20261115T031514547943Z-humo",
+      "resultado": "APROBADA",
+      "codigo_salida": 0,
+      "inicio": "2026-11-15T03:15:14Z",
+      "fin": "2026-11-15T03:16:06Z",
+      "duracion_s": 51.484,
+      "antiguedad_h": 0.19,
+      "commit": "7bef85000d0aa07a3222f6f2dafd4bf33b11c6a2",
+      "comando": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "tests/test_migrations.py",
+        "tests/test_detector.py",
+        "tests/test_consentimiento_v22.py"
+      ],
+      "limites": {
+        "tiempo_s": 900,
+        "salida_bytes": 2000000
+      },
+      "conteo": {
+        "total": 63,
+        "aprobadas": 63,
+        "fallidas": 0,
+        "errores": 0,
+        "omitidas": 0
+      },
+      "bases_de_datos": [
+        "sqlite",
+        "postgresql"
+      ],
+      "salida_truncada": false,
+      "resumen_final": "63 passed, 1 warning in 50.04s",
+      "avisos": []
+    }
+  ],
+  "resultados_historicos": [
+    {
+      "id": "v2.2-suite-completa",
+      "estado": "REPORTADO",
+      "naturaleza": "pruebas_automatizadas",
+      "descripcion": "Suite completa de la v2.2 en SQLite y PostgreSQL 16 (contenedor Linux), registrada al cerrar la v2.2.",
+      "fuente": "docs/resultados/v2.2/pytest_sqlite_y_postgresql.txt",
+      "fuente_existe": true,
+      "commit_fuente": "40e135898ba091564667e02f3b38b783af264ad9",
+      "resumen": "701 passed, 4 skipped in 785.96s (0:13:05)",
+      "ejecutado_por_este_informe": false
+    },
+    {
+      "id": "v2.2-demo-sqlite",
+      "estado": "SIMULADO",
+      "naturaleza": "laboratorio",
+      "descripcion": "Demostración de consentimiento y revocación contra el portal de laboratorio propio, SQLite.",
+      "fuente": "docs/resultados/v2.2/demo_v22_sqlite.json",
+      "fuente_existe": true,
+      "commit_fuente": "b5fb73f3f858548433d3a3310771a2befa01a9fe",
+      "resumen": "36/36 comprobaciones según INFORME_v2.2.md",
+      "ejecutado_por_este_informe": false
+    },
+    {
+      "id": "v2.2-demo-postgresql",
+      "estado": "SIMULADO",
+      "naturaleza": "laboratorio",
+      "descripcion": "La misma demostración con PostgreSQL 16.",
+      "fuente": "docs/resultados/v2.2/demo_v22_postgresql.json",
+      "fuente_existe": true,
+      "commit_fuente": "40e135898ba091564667e02f3b38b783af264ad9",
+      "resumen": "38/38 comprobaciones según INFORME_v2.2.md",
+      "ejecutado_por_este_informe": false
+    },
+    {
+      "id": "v2.2-ci",
+      "estado": "REPORTADO",
+      "naturaleza": "ci",
+      "descripcion": "GitHub Actions de la rama fase-2.2 (Linux, Windows Server, PowerShell 5.1 y 7, instalación).",
+      "fuente": "docs/INFORME_v2.2.md",
+      "fuente_existe": true,
+      "commit_fuente": "4d6d8c3a4c85d87c06e5d31b6ee00082d95c9c40",
+      "resumen": "22/22 trabajos correctos según el informe v2.2",
+      "ejecutado_por_este_informe": false
+    }
+  ],
+  "simulaciones": [
+    {
+      "id": "consulta-jarvis",
+      "estado": "SIMULADO",
+      "descripcion": "La consulta de Jarvis de scripts/demo_jarvis_v221.py es una simulación escrita en Cauce, no código de Jarvis.",
+      "fuente": "scripts/demo_jarvis_v221.py"
+    }
+  ],
+  "pendientes": [
+    {
+      "id": "windows-fisico",
+      "estado": "PENDIENTE",
+      "descripcion": "Nada se ha probado en el equipo Windows físico de la oficina; Windows solo está validado en GitHub Actions (Windows Server).",
+      "como_verificar": "Seguir docs/JARVIS_REGISTRO.md sección 5 en el equipo y adjuntar el informe JSON generado allí."
+    },
+    {
+      "id": "jarvis-real",
+      "estado": "PENDIENTE",
+      "descripcion": "Ningún Jarvis real ha consumido estos contratos; la consulta de Jarvis solo está simulada.",
+      "como_verificar": "Registrar el proyecto en Jarvis E9.1.2 y comprobar que lee project.yaml, ejecuta la suite humo y valida el informe."
+    },
+    {
+      "id": "autonomous-worker",
+      "estado": "PENDIENTE",
+      "descripcion": "Autonomous Worker no está integrado; el ejecutor está listo para que lo llame, sin probarlo con él.",
+      "como_verificar": "Desde Autonomous Worker, llamar solo a `ejecutar --suite <id>` y comprobar códigos de salida y cancelación."
+    },
+    {
+      "id": "telegram-real",
+      "estado": "PENDIENTE",
+      "descripcion": "Telegram real nunca probado (solo el emulador local).",
+      "como_verificar": "docs/TELEGRAM.md"
+    },
+    {
+      "id": "red-aislada",
+      "estado": "PENDIENTE",
+      "descripcion": "El ejecutor no aísla la red a nivel del sistema operativo; las pruebas solo usan 127.0.0.1, pero no se impide por diseño.",
+      "como_verificar": "Ejecutar en Windows con el firewall bloqueando salidas de python.exe y comprobar que la suite pasa."
+    }
+  ],
+  "bloqueos": [
+    {
+      "id": "autorizacion-proveedor",
+      "estado": "PENDIENTE",
+      "descripcion": "Operar con el portal externo requiere autorización expresa del proveedor. Fuera de alcance: no hay ni habrá integración desde estos contratos.",
+      "fuente": "docs/ALCANCE_Y_AUTORIZACIONES_v2.2.md"
+    },
+    {
+      "id": "fusion-pendiente",
+      "estado": "PENDIENTE",
+      "descripcion": "Las ramas fase-1.1 a fase-2.2 y esta no están fusionadas en master; master sigue en la v1.0. Fusionar requiere la decisión de Diego.",
+      "como_verificar": "git log origin/master -1"
+    }
+  ],
+  "proximos_pasos": [
+    {
+      "id": "validar-msi",
+      "descripcion": "Ejecutar `python -m monitoreo.interop ciclo --suite humo` en el equipo Windows físico.",
+      "prioridad": "alta"
+    },
+    {
+      "id": "registrar-en-jarvis",
+      "descripcion": "Registrar el proyecto en Jarvis E9.1.2 con jarvis/project.yaml (guía en docs/JARVIS_REGISTRO.md).",
+      "prioridad": "alta"
+    },
+    {
+      "id": "decidir-fusion",
+      "descripcion": "Decidir si fase-2.2 (o esta rama) pasa a ser la rama principal, para que Jarvis no supervise master v1.0.",
+      "prioridad": "media"
+    },
+    {
+      "id": "worker-solo-ejecutor",
+      "descripcion": "Integrar Autonomous Worker usando únicamente el ejecutor y el exportador; nunca pytest ni git directamente.",
+      "prioridad": "media"
+    }
+  ],
+  "evidencia": [
+    {
+      "tipo": "resultado_ejecucion",
+      "ruta": "resultados/jarvis/20261115T031606348194Z-completa/resultado.json",
+      "sha256": "98aaf667c261cb4ab1d70e5ed80be8170a73e860f917c562df60dab6dc9ba8b9",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "salida_pruebas",
+      "ruta": "resultados/jarvis/20261115T031606348194Z-completa/salida.txt",
+      "sha256": "4a84ab2900fdf1dbfee4d22e4b5477258492ac2025b5435cd8139edee454f746",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "junit",
+      "ruta": "resultados/jarvis/20261115T031606348194Z-completa/junit.xml",
+      "sha256": "b983193bdfaa2ad1c03f9e449d623b75600397fa8637490f4ac86f15863d1094",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "resultado_ejecucion",
+      "ruta": "resultados/jarvis/20261115T031514547943Z-humo/resultado.json",
+      "sha256": "dae9ecf558de984fe87eca8595b0c841da47d3b002050d187b00a3762548b609",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "salida_pruebas",
+      "ruta": "resultados/jarvis/20261115T031514547943Z-humo/salida.txt",
+      "sha256": "9865d386768af32d70a93b4f96ccfe47467e710a0dc3e858a8316c540ec5c7f4",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "junit",
+      "ruta": "resultados/jarvis/20261115T031514547943Z-humo/junit.xml",
+      "sha256": "d422ee9bbd8ed041e8ee0c18bd8fbd4f130014189ae25a681ec116e5566b52a7",
+      "estado": "VERIFICADO"
+    },
+    {
+      "tipo": "historico",
+      "ruta": "docs/resultados/v2.2/pytest_sqlite_y_postgresql.txt",
+      "sha256": "aaa6147c707296c5df05aa693a232602e6c2613081a03bc80b259255c4720cae",
+      "estado": "REPORTADO"
+    },
+    {
+      "tipo": "historico",
+      "ruta": "docs/resultados/v2.2/demo_v22_sqlite.json",
+      "sha256": "656e72b4276ef41eefd3f002b4a38283e4e501658d08c0e4ef98a6055fab7f62",
+      "estado": "SIMULADO"
+    },
+    {
+      "tipo": "historico",
+      "ruta": "docs/resultados/v2.2/demo_v22_postgresql.json",
+      "sha256": "e454eea46c73ab691ea86fac1fd4ce451b9e0e317be491cb454bff7b039a96d5",
+      "estado": "SIMULADO"
+    },
+    {
+      "tipo": "historico",
+      "ruta": "docs/INFORME_v2.2.md",
+      "sha256": "fde84039b7f58d7a536c2c2486f7b9a9bdcb08c7c7fd510683fac97f9f4a42b7",
+      "estado": "REPORTADO"
+    }
+  ],
+  "resumen": {
+    "estado_global": "APROBADO",
+    "suites_verificadas": 2,
+    "suites_aprobadas": 2,
+    "conteo_estados": {
+      "VERIFICADO": 2,
+      "REPORTADO": 2,
+      "SIMULADO": 3,
+      "PENDIENTE": 7
+    },
+    "alcance": "APROBADO indica solo que las suites listadas pasaron en este commit y entorno. No es integración con Jarvis, ni validación en Windows físico, ni autorización de uso real."
+  },
+  "huella_excluye": [
+    "generado_en",
+    "inicio",
+    "fin",
+    "duracion_s",
+    "antiguedad_h",
+    "ejecucion_id",
+    "resumen_final",
+    "sha256",
+    "bytes",
+    "ruta",
+    "huella_contenido"
+  ],
+  "huella_contenido": "619fb2f482b38d72b3e1b4d7403052bb5a6f148b4f5a1e6e206e651ede624d2c"
+}

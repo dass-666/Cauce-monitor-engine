@@ -1,0 +1,721 @@
+{
+  "version": "1.3",
+  "fecha": "2026-11-12T23:28:44.656240Z",
+  "rapido": false,
+  "naturaleza": "MEDIDO con HTTP real entre procesos independientes en 127.0.0.1. Datos ficticios. No es una prueba contra ningún proveedor externo.",
+  "maquina": {
+    "sistema": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+    "python": "3.13.18",
+    "cpus": 4
+  },
+  "base_de_datos": "SQLite",
+  "parametros": {
+    "solicitudes": 1000,
+    "regiones": 5,
+    "operadores": 12,
+    "recursos_por_region": 40,
+    "intervalo_consulta_s": 1.0,
+    "duracion_controlada_s": 60,
+    "duracion_carga_s": 120,
+    "duracion_por_fallo_s": 12,
+    "semilla": 13,
+    "parametros_motor_cambiados": {
+      "ttl_asignacion_s": 20,
+      "concurrencia_maxima": 5,
+      "enfriamiento_modo": "fijo",
+      "enfriamiento_circuito_s": 60.0
+    }
+  },
+  "fases": [
+    {
+      "fase": "linea_base",
+      "inicio": "2026-11-12T23:28:44.656510Z"
+    },
+    {
+      "fase": "liberaciones_controladas",
+      "inicio": "2026-11-12T23:28:48.656675Z"
+    },
+    {
+      "fase": "carga",
+      "inicio": "2026-11-12T23:29:49.061016Z"
+    },
+    {
+      "fase": "fallos",
+      "inicio": "2026-11-12T23:31:49.067615Z"
+    },
+    {
+      "fase": "reinicio_motor",
+      "inicio": "2026-11-12T23:32:49.099675Z"
+    },
+    {
+      "fase": "reinicio_proveedor",
+      "inicio": "2026-11-12T23:32:54.733338Z"
+    },
+    {
+      "fase": "drenaje",
+      "inicio": "2026-11-12T23:33:10.469689Z"
+    }
+  ],
+  "ventanas_de_fallo": [
+    {
+      "fallo": "429",
+      "inicio": "2026-11-12T23:31:49.067696Z",
+      "fin": "2026-11-12T23:32:01.072745Z",
+      "regiones": [
+        "sur"
+      ]
+    },
+    {
+      "fallo": "conexion_cortada",
+      "inicio": "2026-11-12T23:32:01.072755Z",
+      "fin": "2026-11-12T23:32:13.080609Z",
+      "regiones": null
+    },
+    {
+      "fallo": "proveedor_no_responde",
+      "inicio": "2026-11-12T23:32:13.080622Z",
+      "fin": "2026-11-12T23:32:25.085331Z",
+      "regiones": [
+        "este"
+      ]
+    },
+    {
+      "fallo": "respuestas_antiguas",
+      "inicio": "2026-11-12T23:32:25.085343Z",
+      "fin": "2026-11-12T23:32:37.090666Z",
+      "regiones": null
+    },
+    {
+      "fallo": "cambios_entre_paginas",
+      "inicio": "2026-11-12T23:32:37.090678Z",
+      "fin": "2026-11-12T23:32:49.095210Z",
+      "regiones": null
+    },
+    {
+      "fallo": "motor_caido",
+      "inicio": "2026-11-12T23:32:49.099713Z",
+      "fin": "2026-11-12T23:32:54.733332Z"
+    },
+    {
+      "fallo": "proveedor_caido",
+      "inicio": "2026-11-12T23:32:54.778256Z",
+      "fin": "2026-11-12T23:32:58.469560Z"
+    }
+  ],
+  "reinicios": {
+    "motor": {
+      "corte": "2026-11-12T23:32:49.099713Z",
+      "listo_tras_arrancar_s": 1.09,
+      "primera_consulta_ok_s": 0.53
+    },
+    "proveedor": {
+      "corte": "2026-11-12T23:32:54.778256Z",
+      "primera_consulta_ok_s": 0.26
+    }
+  },
+  "comprobaciones": [
+    {
+      "comprobacion": "el motor arranca como proceso independiente",
+      "ok": true,
+      "critica": true,
+      "detalle": "1.62 s"
+    },
+    {
+      "comprobacion": "1000 solicitudes creadas por la API",
+      "ok": true,
+      "critica": true,
+      "detalle": "8.3 s"
+    },
+    {
+      "comprobacion": "el motor se recupera tras un corte brusco (kill)",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "corte": "2026-11-12T23:32:49.099713Z",
+        "listo_tras_arrancar_s": 1.09,
+        "primera_consulta_ok_s": 0.53
+      }
+    },
+    {
+      "comprobacion": "el motor se recupera tras un corte brusco del proveedor",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "corte": "2026-11-12T23:32:54.778256Z",
+        "primera_consulta_ok_s": 0.26
+      }
+    },
+    {
+      "comprobacion": "todas las fuentes vuelven a estar al día tras los fallos",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "segundos": 48.3,
+        "limite_s": 90.0,
+        "circuito_modo": "fijo",
+        "circuito_enfriamiento_s": 60.0
+      }
+    },
+    {
+      "comprobacion": "la API devuelve el recorrido de un evento",
+      "ok": true,
+      "critica": true,
+      "detalle": 13
+    },
+    {
+      "comprobacion": "convergencia: el motor ve exactamente lo que publica el proveedor",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "distintos": 0,
+        "ejemplos": []
+      }
+    },
+    {
+      "comprobacion": "integridad de la base del motor (sin asignaciones incompatibles)",
+      "ok": true,
+      "critica": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "ninguna solicitud con dos asignaciones vivas",
+      "ok": true,
+      "critica": true,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "ningún recurso con más unidades retenidas (sin tomar) que disponibles",
+      "ok": true,
+      "critica": true,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "ninguna asignación quedó a medias (EN_PROCESO) al terminar",
+      "ok": true,
+      "critica": false,
+      "detalle": 0
+    },
+    {
+      "comprobacion": "dos operadores nunca toman la misma asignación",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "competencias": 196,
+        "resultados": {
+          "[200, 409]": 194,
+          "[409, 409]": 2
+        }
+      }
+    },
+    {
+      "comprobacion": "Telegram (emulador): cada entrega ENVIADA llegó a los 2 chats",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "entregas_enviadas": 1413,
+        "entregas_totales": 1413,
+        "mensajes_en_emulador": 2826
+      }
+    },
+    {
+      "comprobacion": "cambios duraderos del proveedor no detectados FUERA de ventanas de fallo",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "total_cambios": 2672,
+        "detectados": 1423,
+        "coalescidos": 610,
+        "no_detectados_fuera_de_fallos": 0,
+        "no_detectados_en_fallos": 9,
+        "no_detectados_fuente_sin_datos": 1,
+        "anticipados_por_el_motor": 477,
+        "coincide_con_descuento_local": 0,
+        "sin_cambio_neto": 152,
+        "motor_tenia_el_valor": 0,
+        "ejemplos_no_detectados": []
+      }
+    },
+    {
+      "comprobacion": "todas las liberaciones controladas se detectaron (salvo las tapadas por otro cambio del recurso antes de la siguiente consulta, que se cuentan aparte)",
+      "ok": true,
+      "critica": true,
+      "detalle": {
+        "total": 49,
+        "detectadas": 49,
+        "mezcladas_con_otro_cambio": 0,
+        "deteccion_ms": {
+          "n": 49,
+          "p50": 614.0,
+          "p95": 1244.7,
+          "p99": 1488.2,
+          "max": 1488.2
+        },
+        "hasta_asignacion_ms": {
+          "n": 44,
+          "p50": 1030.3,
+          "p95": 1540.1,
+          "p99": 2080.6,
+          "max": 2080.6
+        },
+        "hasta_telegram_ms": {
+          "n": 44,
+          "p50": 1049.2,
+          "p95": 1574.6,
+          "p99": 2102.3,
+          "max": 2102.3
+        }
+      }
+    }
+  ],
+  "metricas_servicio": {
+    "desde": "2026-11-12T23:28:44.656240Z",
+    "hasta": "2026-11-12T23:34:04.653288Z",
+    "origen": "medido (marcas de tiempo del motor)",
+    "tiempos_ms": {
+      "deteccion": {
+        "n": 1415,
+        "p50": 763.0,
+        "p95": 1794.7,
+        "p99": 5035.9,
+        "max": 69090.5
+      },
+      "procesamiento": {
+        "n": 1415,
+        "p50": 508.9,
+        "p95": 881.5,
+        "p99": 1161.8,
+        "max": 6290.2
+      },
+      "hasta_asignacion": {
+        "n": 1223,
+        "p50": 1217.5,
+        "p95": 2434.6,
+        "p99": 5520.1,
+        "max": 49690.3
+      },
+      "hasta_alerta": {
+        "n": 1227,
+        "p50": 1212.2,
+        "p95": 2434.6,
+        "p99": 5520.1,
+        "max": 49690.3
+      },
+      "hasta_notificacion": {
+        "panel": {
+          "n": 1227,
+          "p50": 1287.7,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        },
+        "registro": {
+          "n": 1227,
+          "p50": 1287.7,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        },
+        "telegram": {
+          "n": 1222,
+          "p50": 1291.1,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        }
+      }
+    },
+    "consultas": {
+      "total": 1031,
+      "ok": 1001,
+      "exito_pct": 97.09,
+      "por_resultado": {
+        "ERROR_TEMPORAL": 26,
+        "OK": 1001,
+        "LIMITADO": 4
+      },
+      "por_region": {
+        "NORTE": {
+          "consultas": 227,
+          "ok": 223,
+          "exito_pct": 98.24
+        },
+        "SUR": {
+          "consultas": 221,
+          "ok": 210,
+          "exito_pct": 95.02
+        },
+        "ESTE": {
+          "consultas": 221,
+          "ok": 216,
+          "exito_pct": 97.74
+        },
+        "OESTE": {
+          "consultas": 181,
+          "ok": 176,
+          "exito_pct": 97.24
+        },
+        "CENTRO": {
+          "consultas": 181,
+          "ok": 176,
+          "exito_pct": 97.24
+        }
+      }
+    },
+    "cambios": {
+      "detectados": 1415,
+      "de_oferta": 962,
+      "con_asignacion": 941,
+      "ofertas_desaparecidas_antes_de_usarse": 19,
+      "asignaciones_anuladas_por_la_fuente": 35
+    },
+    "retrasos": {
+      "eventos_sin_procesar": 0,
+      "evento_mas_antiguo_sin_procesar_s": 0,
+      "entrega_pendiente_mas_antigua_s": 0
+    }
+  },
+  "metricas_api_durante_la_prueba": {
+    "desde": "2026-11-12T21:34:03.783908Z",
+    "hasta": "2026-11-12T23:34:03.783908Z",
+    "origen": "medido (marcas de tiempo del motor)",
+    "tiempos_ms": {
+      "deteccion": {
+        "n": 1615,
+        "p50": 864.5,
+        "p95": 2831.4,
+        "p99": 3715.9,
+        "max": 69090.5
+      },
+      "procesamiento": {
+        "n": 1615,
+        "p50": 536.2,
+        "p95": 1404.2,
+        "p99": 1577.8,
+        "max": 6290.2
+      },
+      "hasta_asignacion": {
+        "n": 1223,
+        "p50": 1217.5,
+        "p95": 2434.6,
+        "p99": 5520.1,
+        "max": 49690.3
+      },
+      "hasta_alerta": {
+        "n": 1227,
+        "p50": 1212.2,
+        "p95": 2434.6,
+        "p99": 5520.1,
+        "max": 49690.3
+      },
+      "hasta_notificacion": {
+        "panel": {
+          "n": 1227,
+          "p50": 1287.7,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        },
+        "registro": {
+          "n": 1227,
+          "p50": 1287.7,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        },
+        "telegram": {
+          "n": 1222,
+          "p50": 1291.1,
+          "p95": 2494.9,
+          "p99": 5702.0,
+          "max": 49708.6
+        }
+      }
+    },
+    "consultas": {
+      "total": 1058,
+      "ok": 1028,
+      "exito_pct": 97.16,
+      "por_resultado": {
+        "ERROR_TEMPORAL": 26,
+        "OK": 1028,
+        "LIMITADO": 4
+      },
+      "por_region": {
+        "NORTE": {
+          "consultas": 233,
+          "ok": 229,
+          "exito_pct": 98.28
+        },
+        "SUR": {
+          "consultas": 226,
+          "ok": 215,
+          "exito_pct": 95.13
+        },
+        "ESTE": {
+          "consultas": 227,
+          "ok": 222,
+          "exito_pct": 97.8
+        },
+        "OESTE": {
+          "consultas": 186,
+          "ok": 181,
+          "exito_pct": 97.31
+        },
+        "CENTRO": {
+          "consultas": 186,
+          "ok": 181,
+          "exito_pct": 97.31
+        }
+      }
+    },
+    "cambios": {
+      "detectados": 1615,
+      "de_oferta": 962,
+      "con_asignacion": 941,
+      "ofertas_desaparecidas_antes_de_usarse": 19,
+      "asignaciones_anuladas_por_la_fuente": 35
+    },
+    "retrasos": {
+      "eventos_sin_procesar": 0,
+      "evento_mas_antiguo_sin_procesar_s": 0,
+      "entrega_pendiente_mas_antigua_s": 0
+    },
+    "proceso": {
+      "cpu_pct": 0.0,
+      "memoria_mb": 134.0
+    }
+  },
+  "auditoria_cambios": {
+    "total_cambios": 2672,
+    "detectados": 1423,
+    "coalescidos": 610,
+    "no_detectados_fuera_de_fallos": 0,
+    "no_detectados_en_fallos": 9,
+    "no_detectados_fuente_sin_datos": 1,
+    "anticipados_por_el_motor": 477,
+    "coincide_con_descuento_local": 0,
+    "sin_cambio_neto": 152,
+    "motor_tenia_el_valor": 0,
+    "vencimientos_detectados_por_el_conector": 17,
+    "ejemplos_no_detectados": [],
+    "tiempo_a_ciegas_s": {
+      "sur": 36.5,
+      "oeste": 76.7,
+      "este": 28.6,
+      "centro": 75.6,
+      "norte": 15.7
+    },
+    "controladas": {
+      "total": 49,
+      "detectadas": 49,
+      "mezcladas_con_otro_cambio": 0,
+      "deteccion_ms": {
+        "n": 49,
+        "p50": 614.0,
+        "p95": 1244.7,
+        "p99": 1488.2,
+        "max": 1488.2
+      },
+      "hasta_asignacion_ms": {
+        "n": 44,
+        "p50": 1030.3,
+        "p95": 1540.1,
+        "p99": 2080.6,
+        "max": 2080.6
+      },
+      "hasta_telegram_ms": {
+        "n": 44,
+        "p50": 1049.2,
+        "p95": 1574.6,
+        "p99": 2102.3,
+        "max": 2102.3
+      }
+    }
+  },
+  "operadores": {
+    "competencias": 196,
+    "competencias_resultado": {
+      "[200, 409]": 194,
+      "[409, 409]": 2
+    },
+    "dobles_tomas": 0,
+    "tomas_fallidas": 32,
+    "reservas_ok": 792,
+    "reservas_rechazadas": 585,
+    "completadas": 726,
+    "errores_api": 40,
+    "reintentos_operador": 0,
+    "reintentos_con_clave": 30
+  },
+  "totales": {
+    "consultas": 1031,
+    "asignaciones": 1412,
+    "solicitudes_completadas": 792,
+    "filas_historial_solicitudes": 6201
+  },
+  "telegram_emulador": {
+    "entregas_enviadas": 1413,
+    "mensajes_recibidos": 2826
+  },
+  "proveedor": {
+    "arranques": 2,
+    "metricas": {
+      "peticiones": 296,
+      "por_codigo": {
+        "409": 71,
+        "200": 58,
+        "201": 29,
+        "304": 138
+      },
+      "por_region": {
+        "norte": 66,
+        "sur": 56,
+        "este": 60,
+        "oeste": 8,
+        "centro": 7
+      }
+    },
+    "fallos_aplicados": {}
+  },
+  "recursos_sistema": {
+    "proveedor": {
+      "muestras": 327,
+      "cpu_pct_media": 2.9,
+      "cpu_pct_max": 7.0,
+      "memoria_mb_media": 50.3,
+      "memoria_mb_max": 52.7
+    },
+    "motor": {
+      "muestras": 323,
+      "cpu_pct_media": 30.3,
+      "cpu_pct_max": 104.0,
+      "memoria_mb_media": 127.6,
+      "memoria_mb_max": 139.1
+    }
+  },
+  "almacenamiento": {
+    "bytes_antes": 1359872,
+    "bytes_despues": 6115328,
+    "crecimiento_bytes": 4755456,
+    "duracion_s": 320.0,
+    "bytes_por_consulta": 4612.5
+  },
+  "recorrido_ejemplo": {
+    "evento": 1615,
+    "recurso": "Mesa Jardín Oeste · 37",
+    "region": "OESTE",
+    "pasos": [
+      {
+        "paso": "cambio en la fuente",
+        "en": "2026-11-12T23:33:09.285839Z",
+        "desde_el_cambio_ms": 0.0,
+        "fuente": "http-oeste",
+        "conector": "proveedor_prueba"
+      },
+      {
+        "paso": "detectado por el motor",
+        "en": "2026-11-12T23:33:58.456915Z",
+        "desde_el_cambio_ms": 49171.1,
+        "tipo": "REAPARICION",
+        "antes": 0,
+        "despues": 2
+      },
+      {
+        "paso": "procesado",
+        "en": "2026-11-12T23:33:58.993804Z",
+        "desde_el_cambio_ms": 49708.0,
+        "pendiente": false
+      },
+      {
+        "paso": "asignación",
+        "en": "2026-11-12T23:33:58.976170Z",
+        "desde_el_cambio_ms": 49690.3,
+        "asignacion": 1411,
+        "solicitud": 950,
+        "operador": 12,
+        "estado": "COMPLETADA",
+        "motivo": "completada"
+      },
+      {
+        "paso": "asignación",
+        "en": "2026-11-12T23:33:58.976170Z",
+        "desde_el_cambio_ms": 49690.3,
+        "asignacion": 1412,
+        "solicitud": 964,
+        "operador": 4,
+        "estado": "COMPLETADA",
+        "motivo": "completada"
+      },
+      {
+        "paso": "alerta",
+        "en": "2026-11-12T23:33:58.976170Z",
+        "desde_el_cambio_ms": 49690.3,
+        "alerta": 1417,
+        "tipo": "ASIGNACION",
+        "titulo": "SOL-00956 asignada a Operador Ficticio 12: Mesa Jardín Oeste · 37"
+      },
+      {
+        "paso": "entrega por Panel",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "panel",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Registro",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "registro",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Telegram",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "telegram",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "alerta",
+        "en": "2026-11-12T23:33:58.976170Z",
+        "desde_el_cambio_ms": 49690.3,
+        "alerta": 1418,
+        "tipo": "ASIGNACION",
+        "titulo": "SOL-00961 asignada a Operador Ficticio 04: Mesa Jardín Oeste · 37"
+      },
+      {
+        "paso": "entrega por Panel",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "panel",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Registro",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "registro",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      },
+      {
+        "paso": "entrega por Telegram",
+        "en": "2026-11-12T23:33:58.994444Z",
+        "desde_el_cambio_ms": 49708.6,
+        "canal": "telegram",
+        "estado": "ENVIADA",
+        "intentos": 1,
+        "error": null
+      }
+    ]
+  }
+}

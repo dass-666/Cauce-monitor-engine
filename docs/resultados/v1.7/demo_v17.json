@@ -1,0 +1,205 @@
+{
+  "version": "1.7.0",
+  "momento": "2026-11-13 07:31:33",
+  "plataforma": "Linux-6.18.44-fc-v445-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 36.1,
+  "base_de_datos": "sqlite",
+  "vistas": {
+    "fase": "vistas",
+    "kpis_centro": [
+      "Conectores activos",
+      "Fuentes con error de comunicación",
+      "Última actualización verificada",
+      "Operadores conectados",
+      "Solicitudes pendientes",
+      "Alertas importantes",
+      "Disponibilidades nuevas",
+      "Asignaciones activas",
+      "Operaciones abandonadas",
+      "Tasa de errores",
+      "Tiempo de detección",
+      "Tiempo hasta asignación",
+      "Expedientes preparados",
+      "Expedientes incompletos",
+      "Reservaciones confirmadas",
+      "En verificación",
+      "Tiempo hasta confirmación"
+    ],
+    "filtro_region_aplicado": "NORTE",
+    "presencias": [
+      "SIN_USUARIO",
+      "SIN_USUARIO",
+      "SIN_USUARIO",
+      "SIN_USUARIO",
+      "SIN_USUARIO",
+      "SIN_USUARIO",
+      "DESCONECTADO"
+    ],
+    "redistribuir_bloqueado_sin_confirmar": true,
+    "categorias": 10,
+    "filtradas": 2,
+    "explicacion": "¿Por qué este operador? · #2Se eligió a Operador Ficticio Norte para EXP-000002 (prioridad 3, en cola hace 0 min) en NORTE / NOR-1. Criterio: menor carga actual, luego quien lleva más tiempo sin recibir. Descartados: Operador 01 — no tiene permitida la sucursal NOR-1; Operador 02 — no atiende la reg",
+    "desborde_pequena_inicio": false,
+    "desborde_pequena_supervision": false,
+    "desborde_movil_centro": false,
+    "desborde_movil_notificaciones": false,
+    "desborde_movil_supervision": false,
+    "mi_trabajo_items": 2,
+    "desborde_movil_mi_trabajo": false,
+    "operador_supervision_redirige": true,
+    "nav_operador": [
+      "Inicio",
+      "Monitor",
+      "Salud",
+      "Solicitudes",
+      "Captura",
+      "Notificaciones"
+    ],
+    "errores_js": []
+  },
+  "interrumpir": {
+    "fase": "interrumpir",
+    "codigo": "EXP-000001",
+    "errores_js": []
+  },
+  "retomar": {
+    "fase": "retomar",
+    "paso_tras_reinicio": "disponibilidad",
+    "boton": "Retomar",
+    "folio": "DIA-20261116-00001R",
+    "errores_js": []
+  },
+  "sin_conexion": {
+    "fase": "sin_conexion",
+    "aviso": "Sin conexión con el servidor. Lo que ves puede estar desactualizado; se reintenta solo. No repitas operaciones: al volver la conexión se comprueba qué se guardó.",
+    "datos_siguen_visibles": true,
+    "aviso_desaparece_al_volver": true,
+    "errores_js": []
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "motor y portal arrancan como procesos independientes",
+      "ok": true,
+      "detalle": "1.7 s"
+    },
+    {
+      "comprobacion": "fuente del calendario registrada (o ya incluida en los datos de demostración)",
+      "ok": true,
+      "detalle": 409
+    },
+    {
+      "comprobacion": "operador con usuario creado",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "el MOTOR asigna los dos expedientes al operador",
+      "ok": true,
+      "detalle": "1.04 s"
+    },
+    {
+      "comprobacion": "navegador real: centro, supervisión, notificaciones, explicación y formularios",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el centro muestra indicadores y aplica el filtro de región",
+      "ok": true,
+      "detalle": 17
+    },
+    {
+      "comprobacion": "supervisión distingue estados de presencia",
+      "ok": true,
+      "detalle": [
+        "DESCONECTADO",
+        "SIN_USUARIO"
+      ]
+    },
+    {
+      "comprobacion": "redistribuir no se envía sin la confirmación",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "notificaciones: 10 categorías y filtro",
+      "ok": true,
+      "detalle": [
+        10,
+        2
+      ]
+    },
+    {
+      "comprobacion": "la explicación de la asignación es legible",
+      "ok": true,
+      "detalle": "¿Por qué este operador? · #2Se eligió a Operador Ficticio Norte para EXP-000002 (prioridad 3, en cola hace 0 min) en NOR"
+    },
+    {
+      "comprobacion": "sin desborde horizontal en pantalla pequeña y teléfono",
+      "ok": true,
+      "detalle": {
+        "desborde_pequena_inicio": false,
+        "desborde_pequena_supervision": false,
+        "desborde_movil_centro": false,
+        "desborde_movil_notificaciones": false,
+        "desborde_movil_supervision": false,
+        "desborde_movil_mi_trabajo": false
+      }
+    },
+    {
+      "comprobacion": "el operador ve Mi trabajo y no puede abrir Supervisión",
+      "ok": true,
+      "detalle": [
+        2,
+        [
+          "Inicio",
+          "Monitor",
+          "Salud",
+          "Solicitudes",
+          "Captura",
+          "Notificaciones"
+        ]
+      ]
+    },
+    {
+      "comprobacion": "el operador deja una reservación a medias (calendario en pantalla)",
+      "ok": true,
+      "detalle": "EXP-000001"
+    },
+    {
+      "comprobacion": "el motor se detiene de golpe (kill) con la operación a medias",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el motor vuelve a arrancar sobre los mismos datos",
+      "ok": true,
+      "detalle": "1.09 s"
+    },
+    {
+      "comprobacion": "Mi trabajo muestra la operación a medias en su paso y se retoma hasta el folio",
+      "ok": true,
+      "detalle": [
+        "disponibilidad",
+        "Retomar",
+        "DIA-20261116-00001R"
+      ]
+    },
+    {
+      "comprobacion": "evidencia independiente: el PORTAL tiene el folio CONFIRMADO",
+      "ok": true,
+      "detalle": "CONFIRMADA"
+    },
+    {
+      "comprobacion": "conexión perdida: aviso visible y los datos siguen en pantalla; al volver desaparece",
+      "ok": true,
+      "detalle": "Sin conexión con el servidor. Lo que ves puede estar desactualizado; se reintent"
+    },
+    {
+      "comprobacion": "sin errores de JavaScript en el panel",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}

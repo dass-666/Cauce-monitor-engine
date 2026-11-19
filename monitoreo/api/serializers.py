@@ -26,8 +26,10 @@ def source(s) -> dict:
             "status": s.status, "interval_s": s.interval_s, "jitter_pct": s.jitter_pct,
             "rate_limit_per_min": s.rate_limit_per_min, "max_retries": s.max_retries,
             "circuit_state": s.circuit_state, "consecutive_failures": s.consecutive_failures,
+            "circuit_open_count": s.circuit_open_count, "circuit_opened_at": iso(s.circuit_opened_at),  # v1.4
             "next_poll_at": iso(s.next_poll_at), "last_polled_at": iso(s.last_polled_at),
             "last_success_at": iso(s.last_success_at), "last_result": s.last_result, "last_error": s.last_error,
+            "status_reason": s.status_reason, "last_outcome": s.last_outcome,
             "metrics": {"consultas": s.total_polls, "errores": s.total_errors, "cambios": s.total_changes,
                         "latencia_media_ms": round(s.avg_latency_ms, 2),
                         "tasa_error": round(s.total_errors / s.total_polls, 4) if s.total_polls else 0}}
@@ -59,18 +61,29 @@ def assignment(a, slot=None, req=None, op=None) -> dict:
             "slot_id": a.slot_id, "resource": slot.name if slot else None, "region": slot.region if slot else None,
             "operator_id": a.operator_id, "operator_name": op.name if op else None, "quantity": a.quantity,
             "status": a.status, "created_at": iso(a.created_at), "expires_at": iso(a.expires_at),
-            "closed_at": iso(a.closed_at), "reason": a.reason}
+            "closed_at": iso(a.closed_at), "reason": a.reason,
+            # v1.4
+            "taken_at": iso(a.taken_at), "taken_by": a.taken_by, "last_activity_at": iso(a.last_activity_at),
+            "inactiva": a.status == "EN_PROCESO" and a.inactive_alerted_at is not None}
 
 
 def alert(a) -> dict:
+    from ..engine.alerts import CATEGORIAS, clasificar, nivel_de
+    cat = a.categoria or clasificar(a.kind, a.payload)
     return {"id": a.id, "kind": a.kind, "title": a.title, "source_code": a.source_code, "region": a.region,
             "resource": a.resource, "priority": a.priority, "operator_name": a.operator_name,
-            "request_id": a.request_id, "status": a.status, "payload": a.payload, "created_at": iso(a.created_at),
-            "acknowledged_at": iso(a.acknowledged_at), "acknowledged_by": a.acknowledged_by}
+            "request_id": a.request_id, "change_event_id": a.change_event_id, "status": a.status,
+            "payload": a.payload, "created_at": iso(a.created_at),
+            "acknowledged_at": iso(a.acknowledged_at), "acknowledged_by": a.acknowledged_by,
+            # v1.7 (alertas anteriores sin categoría: se clasifican al leerlas, sin modificar la fila)
+            "assignment_id": a.assignment_id, "categoria": cat, "nivel": a.nivel or nivel_de(cat),
+            "categoria_nombre": CATEGORIAS.get(cat, (cat, ""))[0],
+            "repeticiones": a.repeticiones or 1, "ultima_en": iso(a.ultima_en or a.created_at)}
 
 
 def operator(o) -> dict:
-    return {"id": o.id, "name": o.name, "user_id": o.user_id, "regions": o.regions, "active": o.active,
+    return {"id": o.id, "name": o.name, "user_id": o.user_id, "regions": o.regions,
+            "sucursales": list(o.sucursales or []), "active": o.active,
             "max_concurrent": o.max_concurrent, "current_load": o.current_load,
             "last_assigned_at": iso(o.last_assigned_at)}
 

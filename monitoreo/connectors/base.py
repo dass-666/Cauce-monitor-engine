@@ -26,8 +26,21 @@ class RateLimited(ConnectorError):
         self.retry_after = retry_after
 
 
+class StaleResponse(ConnectorError):
+    """La fuente devolvió datos MÁS ANTIGUOS que los ya procesados (p. ej. una caché intermedia).
+
+    v1.3: el motor descarta la respuesta sin compararla (no genera falsos cambios) y no la
+    cuenta como fallo de la fuente; queda registrada con resultado OBSOLETA.
+    """
+
+
 class Connector(ABC):
     """Contrato de un conector.
+
+    Contexto que el motor pasa en `context` (v1.3):
+    - "state":   lo que el conector devolvió en `Snapshot.state` la vez anterior (persistido en la BD).
+    - "refresh": True si el conector NO debe usar peticiones condicionales (ETag/304) esta vez,
+                 porque el motor necesita la lista completa para corregir un valor local.
 
     Un conector solo tiene una responsabilidad: leer la fuente y traducir su
     formato al `Snapshot` interno. No decide alertas, ni asignaciones, ni ritmo
@@ -35,6 +48,9 @@ class Connector(ABC):
     """
 
     type_name: str = "base"
+    # v1.3: un conector de red recibe la lista de hosts permitidos y la credencial resuelta
+    # desde la variable de entorno indicada en `token_env` (nunca se guarda en la BD).
+    uses_network: bool = False
 
     def __init__(self, config: dict[str, Any], context: dict[str, Any] | None = None):
         self.config = config or {}

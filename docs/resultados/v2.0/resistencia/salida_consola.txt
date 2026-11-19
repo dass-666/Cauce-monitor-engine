@@ -1,0 +1,31 @@
+[OK] A · PostgreSQL detenido a mitad de la confirmación - waiting for server to shut down.... done
+server stopped
+[OK] A · el operador recibe un error (no un éxito falso) mientras la base está caída - 503
+[OK] A · /api/health avisa de la base caída - 503
+[OK] A · el portal sí procesó la confirmación (una)
+[OK] A · PostgreSQL vuelve - waiting for server to start.... done
+server started
+[OK] A · el motor sigue vivo y vuelve a OK sin reiniciarlo - 0.02 s
+[OK] A · el reintento del operador NO vuelve a confirmar en el portal - 409
+[OK] A · la confirmación se recupera por su clave (CONFIRMADA con evidencia del portal) - DIA-20261119-00001X
+[OK] A · la atención termina CONFIRMADA con ese folio - ('CONFIRMADA', 'DIA-20261119-00001X')
+[OK] B · PostgreSQL detenido con una atención a medias - waiting for server to shut down.... done
+server stopped
+[OK] B · durante la caída las operaciones fallan (sin éxito falso) - [503, 503]
+[OK] B · nada llegó al portal durante la caída
+[OK] B · el motor sigue vivo y vuelve a OK - 0.02 s
+[OK] B · la atención sigue en el paso exacto (confirmar) - confirmar
+[OK] B · llega a su folio - (200, 'DIA-20261119-00002A')
+[OK] C · corte simultáneo: motor y portal matados, PostgreSQL detenido de golpe - waiting for server to shut down.... done
+server stopped
+[OK] C · todo vuelve a arrancar sobre los mismos datos - 3.2 s
+[OK] C · los folios anteriores siguen CONFIRMADOS en el portal tras el corte - ['DIA-20261119-00001X', 'DIA-20261119-00002A']
+[OK] C · las dos atenciones siguen abiertas para retomarlas - [3, 4]
+[OK] C · la confirmación que estaba en curso se resuelve sola (reabierta si el portal no la procesó, recuperada si sí) - FECHA_ELEGIDA
+[OK] C · la atención 3 se retoma hasta su folio - ('CONFIRMADA', 'DIA-20261116-00003J')
+[OK] C · la atención 4 se retoma hasta su folio - ('CONFIRMADA', 'DIA-20261119-00004R')
+[OK] FINAL · exactamente una cita por persona: 4 folios distintos, 4 confirmadas en el portal - {'folios': ['DIA-20261119-00001X', 'DIA-20261119-00002A', 'DIA-20261116-00003J', 'DIA-20261119-00004R'], 'confirmadas_en_portal': 4}
+[OK] FINAL · coherencia del motor (sin estados contradictorios)
+[OK] FINAL · resumen del día: 4 con cita, ninguna abierta - (4, 0)
+[OK] FINAL · sin datos personales en los registros del motor
+TODO OK (26/26)

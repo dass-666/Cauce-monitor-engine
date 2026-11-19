@@ -1,0 +1,4 @@
+# Solo si se usa PostgreSQL (MONITOREO_DB_URL=postgresql+psycopg://...).
+# psycopg-binary no tiene ruedas para Windows ARM64: allí usa SQLite o instala psycopg sin binario.
+-r requirements.txt
+psycopg[binary]==3.3.9

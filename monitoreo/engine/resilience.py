@@ -60,10 +60,32 @@ class CircuitDecision:
     wait_s: float = 0.0
 
 
+def circuit_cooldown(open_count: int, interval_s: float, params: dict) -> float:
+    """Enfriamiento del circuito para la apertura número `open_count` (1 = primera).
+
+    v1.4, modo "adaptable" (por defecto): parte de `enfriamiento_intervalos` × intervalo de la
+    fuente (con un mínimo), y se DUPLICA en cada apertura seguida hasta `enfriamiento_max_s`.
+    Así un fallo breve en una fuente rápida deja de costar un minuto entero a ciegas, pero una
+    fuente que sigue fallando se consulta cada vez menos (sin reintentos agresivos).
+    Modo "fijo": el comportamiento de v1.0–v1.3 (`enfriamiento_circuito_s`, siempre igual).
+    """
+    if params.get("enfriamiento_modo", "adaptable") == "fijo":
+        return float(params.get("enfriamiento_circuito_s", 60))
+    top = float(params.get("enfriamiento_max_s", 300))
+    base = max(float(params.get("enfriamiento_min_s", 5)),
+               float(interval_s) * float(params.get("enfriamiento_intervalos", 5)))
+    return min(top, base * (2 ** max(0, int(open_count) - 1)))
+
+
 def circuit_check(state: str, opened_at: datetime | None, cooldown_s: float, now: datetime) -> CircuitDecision:
-    if state == "ABIERTO":
+    """ABIERTO: espera el enfriamiento y luego deja pasar UNA consulta de prueba (SEMIABIERTO).
+    SEMIABIERTO: `opened_at` marca cuándo empezó la prueba; mientras no termine (o no venza el
+    enfriamiento, si el proceso murió a mitad) no se permite una segunda consulta."""
+    if state in ("ABIERTO", "SEMIABIERTO"):
         if opened_at and now >= opened_at + timedelta(seconds=cooldown_s):
             return CircuitDecision(True, "SEMIABIERTO")
+        if opened_at is None and state == "SEMIABIERTO":
+            return CircuitDecision(True, "SEMIABIERTO")
         wait = (opened_at + timedelta(seconds=cooldown_s) - now).total_seconds() if opened_at else cooldown_s
-        return CircuitDecision(False, "ABIERTO", max(wait, 0))
+        return CircuitDecision(False, state, max(wait, 0))
     return CircuitDecision(True, state)

@@ -12,6 +12,12 @@ LIVE = ("ACTIVA", "EN_PROCESO")
 
 
 def check(session: Session) -> list[str]:
+    # v1.2: en PostgreSQL (READ COMMITTED) cada consulta veía un instante distinto y, con el
+    # motor escribiendo, se informaban incoherencias inexistentes. Con REPEATABLE READ todas
+    # las consultas ven la misma foto. Solo es posible si la sesión aún no ha consultado nada;
+    # si ya lo hizo, se sigue con su nivel (el resultado puede incluir falsos positivos).
+    if session.get_bind().dialect.name == "postgresql" and not session.in_transaction():
+        session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
     problems: list[str] = []
     live = list(session.scalars(select(Assignment).where(Assignment.status.in_(LIVE))))
     held_by_slot: Counter = Counter()

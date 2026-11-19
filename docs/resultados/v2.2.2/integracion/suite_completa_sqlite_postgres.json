@@ -1,0 +1,58 @@
+{
+  "formato": "cauce.jarvis.run-result/1",
+  "id": "20261119T052057787262Z-completa",
+  "proyecto": "cauce-monitor-engine",
+  "version": "2.2.2-dev",
+  "suite": "completa",
+  "descripcion": "Suite completa del motor (la misma que ejecuta CI). Puede tardar más de 15 minutos con PostgreSQL.",
+  "comando": [
+    "{python}",
+    "-m",
+    "pytest",
+    "-q",
+    "-rs",
+    "tests"
+  ],
+  "limites": {
+    "tiempo_s": 5400,
+    "salida_bytes": 10000000
+  },
+  "git": {
+    "rama": "claude/integracion-v2.2.2",
+    "commit": "a57b7b04032f6c2d782ec0938735eb0200c1ad29",
+    "limpio": true
+  },
+  "inicio": "2026-11-19T05:20:57Z",
+  "fin": "2026-11-19T05:35:50Z",
+  "duracion_s": 893.014,
+  "codigo_salida": 0,
+  "codigo_pytest": 0,
+  "resultado": "APROBADA",
+  "conteo": {
+    "total": 876,
+    "aprobadas": 870,
+    "fallidas": 0,
+    "errores": 0,
+    "omitidas": 6
+  },
+  "bases_de_datos": [
+    "sqlite",
+    "postgresql"
+  ],
+  "salida": {
+    "archivo": "salida.txt",
+    "bytes": 2346,
+    "truncada": false,
+    "sha256": "ed2bbb51b74f9862367e129c1fd3e09cd4f675a2a253f5975fe26cd541a2c72c",
+    "resumen_final": "870 passed, 6 skipped, 1 warning in 885.82s (0:14:45)"
+  },
+  "junit": {
+    "archivo": "junit.xml",
+    "sha256": "1f3a923228acae7be07dfa9a2474d653e9fe6eea9476696a9910b2cc0e1e24a6"
+  },
+  "integridad": {
+    "git_sin_cambios": true,
+    "data_sin_cambios": true
+  },
+  "avisos": []
+}

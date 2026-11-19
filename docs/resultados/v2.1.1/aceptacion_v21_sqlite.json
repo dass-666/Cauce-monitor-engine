@@ -1,0 +1,360 @@
+{
+  "version": "2.1.0-dev",
+  "momento": "2026-11-14 11:17:36",
+  "plataforma": "Linux-6.18.44-fc-v470-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "duracion_s": 50.2,
+  "base_de_datos": "sqlite",
+  "nota": "La confirmación humana la hace el script (SIMULADA). Portal de laboratorio propio; datos ficticios.",
+  "metricas": {
+    "latencia_hasta_asignar_ms": {
+      "2026-12-05": 226,
+      "2026-12-06": 554,
+      "2026-12-07": 443
+    },
+    "reinicio_motor_s": 1.2,
+    "observador_restaurado_s": 16.9
+  },
+  "ok": true,
+  "comprobaciones": [
+    {
+      "comprobacion": "motor y portal arrancan como procesos independientes",
+      "ok": true,
+      "detalle": "1.07 s"
+    },
+    {
+      "comprobacion": "operador1 con usuario",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "operador2 con usuario",
+      "ok": true,
+      "detalle": 201
+    },
+    {
+      "comprobacion": "hay al menos 5 fechas nuevas posibles en el mes observado",
+      "ok": true,
+      "detalle": {
+        "mes": "2026-12",
+        "n": 9
+      }
+    },
+    {
+      "comprobacion": "8 expedientes ficticios LISTOS",
+      "ok": true,
+      "detalle": 8
+    },
+    {
+      "comprobacion": "Ventanilla: el administrador crea el plan y entran 6 por prioridad",
+      "ok": true,
+      "detalle": {
+        "error": null,
+        "vivos_inicial": "6 de 6",
+        "codigos_inicial": [
+          "EXP-000002",
+          "EXP-000005",
+          "EXP-000003",
+          "EXP-000007",
+          "EXP-000001",
+          "EXP-000008"
+        ]
+      }
+    },
+    {
+      "comprobacion": "Ventanilla: capacidad ampliada a 8 y completada",
+      "ok": true,
+      "detalle": "8 de 8"
+    },
+    {
+      "comprobacion": "Ventanilla: el detalle muestra sucursales y fechas aceptables",
+      "ok": true,
+      "detalle": {
+        "sucursales": "NOR-1, NOR-2",
+        "fechas": 31
+      }
+    },
+    {
+      "comprobacion": "sin errores de JavaScript en la sección",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "propiedad: las 8 solicitudes del motor quedaron EN_PLAN",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "observador configurado (persistente) y lanzado",
+      "ok": true,
+      "detalle": "{\"nombre\":\"obs-NOR-1-alta\",\"url\":\"http://127.0.0.1:52571/observar/calendario?sucursal=NOR-1&tramite=alta&mes=2026-12\",\"estrategia\":\"ambas\",\"vivo\":false,\"pendientes\":0,\"fallo\":null,\"ultimo_error\":null,"
+    },
+    {
+      "comprobacion": "calendario abierto y ACTIVO",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "sin disponibilidad: nada asignado",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "día con 3 unidad(es): 3 coincidencia(s), las de mayor prioridad",
+      "ok": true,
+      "detalle": {
+        "esperados": [
+          1,
+          2,
+          3
+        ],
+        "obtenidos": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "comprobacion": "día con 2 unidad(es): 2 coincidencia(s), las de mayor prioridad",
+      "ok": true,
+      "detalle": {
+        "esperados": [
+          4,
+          5
+        ],
+        "obtenidos": [
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "comprobacion": "día con 1 unidad(es): 1 coincidencia(s), las de mayor prioridad",
+      "ok": true,
+      "detalle": {
+        "esperados": [
+          6
+        ],
+        "obtenidos": [
+          6
+        ]
+      }
+    },
+    {
+      "comprobacion": "un evento por día (las dos estrategias lo ven; no se duplica)",
+      "ok": true,
+      "detalle": {
+        "2026-12-05": [
+          [
+            3,
+            [
+              "dom",
+              "visual"
+            ]
+          ]
+        ],
+        "2026-12-06": [
+          [
+            2,
+            [
+              "dom",
+              "visual"
+            ]
+          ]
+        ],
+        "2026-12-07": [
+          [
+            1,
+            [
+              "dom",
+              "visual"
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "comprobacion": "las unidades vistas son las del portal (3, 2, 1)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "6 coincidencias y 2 pendientes",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "día D con 2 unidades -> las 2 pendientes",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "baja inesperada (D se agota): las 2 vuelven a la espera",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "D vuelve con 1 unidad: la de mayor prioridad de las dos",
+      "ok": true,
+      "detalle": [
+        7
+      ]
+    },
+    {
+      "comprobacion": "operador 1: 2 operaciones desde «Plan del día» hasta el folio (Ventanilla)",
+      "ok": true,
+      "detalle": {
+        "error": null,
+        "ops": [
+          {
+            "elemento": "1",
+            "fecha": "2026-12-05",
+            "folio": "DIA-20261205-00001D",
+            "folio_atencion": "DIA-20261205-00001D",
+            "segundos": 1.626
+          },
+          {
+            "elemento": "2",
+            "fecha": "2026-12-05",
+            "folio": "DIA-20261205-00002Z",
+            "folio_atencion": "DIA-20261205-00002Z",
+            "segundos": 1.417
+          }
+        ]
+      }
+    },
+    {
+      "comprobacion": "operación sin cita: la atención termina SIN_DISPONIBILIDAD",
+      "ok": true,
+      "detalle": {
+        "elemento": "3",
+        "fecha": "2026-12-05",
+        "estado": "SIN_DISPONIBILIDAD"
+      }
+    },
+    {
+      "comprobacion": "…y el expediente vuelve AL PLAN (solicitud EN_PLAN), no a la cola general",
+      "ok": true,
+      "detalle": [
+        "EN_PLAN",
+        "LISTO"
+      ]
+    },
+    {
+      "comprobacion": "…y su unidad (que sigue libre en el portal) se le vuelve a ofrecer (REEVALUACION)",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "operación a medias (datos enviados) antes de matar el motor",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":4,\"expediente_id\":3,\"estado\":\"DATOS_ENVIADOS\",\"grupo\":\"en_proceso\",\"asignacion\":null,\"operator_id\":2,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":null,\"hora\":null,\"folio\":null,\"vence"
+    },
+    {
+      "comprobacion": "tras matar y reiniciar el motor, el plan está intacto",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "el observador se RESTAURA solo tras el reinicio (sin volver a pedirlo)",
+      "ok": true,
+      "detalle": 16.9
+    },
+    {
+      "comprobacion": "no hay dos observadores para lo mismo",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "la operación a medias se termina tras el reinicio (folio)",
+      "ok": true,
+      "detalle": "{\"reservacion\":{\"id\":4,\"expediente_id\":3,\"estado\":\"CONFIRMADA\",\"grupo\":\"confirmado\",\"asignacion\":null,\"operator_id\":2,\"horario\":null,\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-05\",\"hora\":null,\"folio\":\"DIA-20"
+    },
+    {
+      "comprobacion": "el supervisor relanza el navegador del observador",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "comprobacion": "tras relanzarlo se sigue detectando: día E -> la pendiente",
+      "ok": true,
+      "detalle": [
+        8
+      ]
+    },
+    {
+      "comprobacion": "operador 1: las 5 restantes hasta el folio (Ventanilla)",
+      "ok": true,
+      "detalle": {
+        "error": null
+      }
+    },
+    {
+      "comprobacion": "el plan refleja 8 CONFIRMADOS (mantenimiento del motor)",
+      "ok": true,
+      "detalle": [
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO",
+        "CONFIRMADO"
+      ]
+    },
+    {
+      "comprobacion": "la sección en un teléfono no desborda",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "8 folios distintos",
+      "ok": true,
+      "detalle": [
+        "DIA-20261205-00001D",
+        "DIA-20261205-00002Z",
+        "DIA-20261205-00003G",
+        "DIA-20261206-00004T",
+        "DIA-20261206-00005X",
+        "DIA-20261207-00006Z",
+        "DIA-20261208-00007L",
+        "DIA-20261209-00008S"
+      ]
+    },
+    {
+      "comprobacion": "cada folio existe CONFIRMADO en el portal con su día (comprobación independiente)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "ningún día con más citas que unidades",
+      "ok": true,
+      "detalle": {
+        "2026-12-05": 3,
+        "2026-12-06": 2,
+        "2026-12-07": 1,
+        "2026-12-08": 1,
+        "2026-12-09": 1
+      }
+    },
+    {
+      "comprobacion": "ninguna solicitud del plan pasó por la cola general (sin asignaciones del motor)",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "todas las solicitudes del plan terminaron COMPLETADO",
+      "ok": true,
+      "detalle": [
+        "COMPLETADO"
+      ]
+    },
+    {
+      "comprobacion": "sin datos personales en los registros del motor ni del navegador",
+      "ok": true,
+      "detalle": []
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "nombre": "portal_laboratorio_dia",
+  "version": 2,
+  "modo": "POR_DIA",
+  "descripcion": "Portal de PRUEBA, reservación por día (sin hora). Datos ficticios.",
+  "pantallas": {
+    "datos": {
+      "url": "/cita",
+      "marcador": "datos",
+      "formulario": "datos",
+      "envio": "/cita/datos",
+      "campos": [
+        {"nombre": "operacion", "etiqueta": "Operación", "tipo": "opcion", "origen": "operacion", "obligatorio": true},
+        {"nombre": "tramite", "etiqueta": "Tipo de trámite", "tipo": "opcion", "origen": "tipo_tramite", "obligatorio": true},
+        {"nombre": "identificador", "etiqueta": "Identificador de registro", "tipo": "texto", "origen": "id_registro_previo", "obligatorio": true,
+         "validacion": {"patron": "[A-Z0-9-]{3,32}"}},
+        {"nombre": "fecha_nacimiento", "etiqueta": "Fecha de nacimiento", "tipo": "fecha", "origen": "fecha_nacimiento", "obligatorio": true,
+         "validacion": {"max_fecha": "hoy"}},
+        {"nombre": "telefono", "etiqueta": "Teléfono", "tipo": "texto", "origen": "telefono", "obligatorio": true, "personal": true,
+         "validacion": {"patron": "[0-9]{10}", "mensaje": "10 dígitos"}},
+        {"nombre": "telefono_confirmacion", "etiqueta": "Confirmación de teléfono", "tipo": "texto", "origen": "telefono", "obligatorio": true,
+         "personal": true, "confirmacion_de": "telefono"},
+        {"nombre": "correo", "etiqueta": "Correo", "tipo": "texto", "origen": "correo", "obligatorio": true, "personal": true},
+        {"nombre": "correo_confirmacion", "etiqueta": "Confirmación de correo", "tipo": "texto", "origen": "correo", "obligatorio": true,
+         "personal": true, "confirmacion_de": "correo"},
+        {"nombre": "folio_anterior", "etiqueta": "Folio de la cita anterior", "tipo": "texto", "origen": "folio_anterior", "obligatorio": false,
+         "requerido_si": {"campo": "operacion", "igual": "reprogramar"}},
+        {"nombre": "clave_identidad", "etiqueta": "Clave de identidad", "tipo": "texto", "modo": "MANUAL_REQUIRED", "obligatorio": true,
+         "personal": true, "guardar": false, "sin_pegar": true,
+         "validacion": {"patron": "[A-Z]{3}[0-9]{6}", "mensaje": "Tres letras y seis números (AAA000000)", "mayusculas": true},
+         "instrucciones": "Pídela al solicitante y tecléala tal como la dicta. No se guarda en el sistema y el portal no permite pegarla."},
+        {"nombre": "acepto_privacidad", "etiqueta": "Aceptación del aviso de privacidad", "tipo": "casilla", "modo": "MANUAL_REQUIRED",
+         "obligatorio": true, "guardar": false, "validacion": {"valor_requerido": "si"},
+         "instrucciones": "Lee el aviso al solicitante y marca la casilla solo si acepta."}
+      ],
+      "exito": {"redirige_a": "/cita/calendario"}
+    },
+    "calendario": {
+      "url": "/cita/calendario",
+      "marcador": "calendario",
+      "filtros": {"estado": {"origen": "region", "transformar": "minusculas"}, "sucursal": {"origen": "sucursal"},
+                  "mes": {"origen": "mes"}},
+      "formulario": "dia",
+      "opcion_dia": "dia",
+      "clave": "clave",
+      "envio": "/cita/continuar",
+      "solo_lectura": [
+        {"campo": "ficha_identificador", "origen": "id_registro_previo"},
+        {"campo": "tramite_ficha", "atributo": "data-valor", "origen": "tipo_tramite"}
+      ],
+      "exito": {"redirige_prefijo": "/cita/resultado/"}
+    },
+    "resultado": {"marcador": "resultado", "folio_atributo": "data-folio", "campos": ["estado", "fecha", "sucursal"]}
+  },
+  "marcadores": {"error_campo": "data-error", "error_general": "data-error-general", "pantalla": "data-pantalla"},
+  "verificacion": {"por_folio": "/api/reservaciones/{folio}", "por_clave": "/api/reservaciones", "cancelar": "/api/reservaciones/{folio}/cancelar"}
+}

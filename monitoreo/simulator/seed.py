@@ -15,8 +15,9 @@ HOLDERS = ["Expediente Lince", "Expediente Ceiba", "Expediente Quetzal", "Expedi
            "Expediente Nopal", "Expediente Ámbar", "Expediente Jade", "Expediente Ópalo", "Expediente Cobre"]
 
 
-def seed_base(db: Database) -> None:
-    """Regiones y canales mínimos (siempre necesarios)."""
+def seed_base(db: Database, production: bool = False) -> None:
+    """Regiones y canales mínimos (siempre necesarios). En producción no se crean los canales
+    de prueba (simulado y webhook hacia /api-prueba)."""
     with db.session() as s:
         for code, name in REGIONS:
             if s.get(Region, code) is None:
@@ -24,9 +25,12 @@ def seed_base(db: Database) -> None:
         if not s.scalar(select(Channel.id).limit(1)):
             s.add(Channel(name="Panel", type="panel", enabled=True))
             s.add(Channel(name="Registro", type="registro", enabled=True))
-            s.add(Channel(name="Simulado", type="simulado", config={"fail_rate": 0.0}, enabled=True))
-            s.add(Channel(name="Webhook local", type="webhook",
-                          config={"url": "http://127.0.0.1:8000/api-prueba/webhook"}, enabled=False))
+            if production:
+                s.add(Channel(name="Webhook", type="webhook", config={}, enabled=False))
+            else:
+                s.add(Channel(name="Simulado", type="simulado", config={"fail_rate": 0.0}, enabled=True))
+                s.add(Channel(name="Webhook local", type="webhook",
+                              config={"url": "http://127.0.0.1:8000/api-prueba/webhook"}, enabled=False))
             s.add(Channel(name="Telegram", type="telegram", config={}, enabled=False))
             s.add(Channel(name="Correo", type="correo", config={}, enabled=False))
 
@@ -35,11 +39,13 @@ def seed_demo(db: Database, rng: random.Random | None = None, requests_per_regio
               interval_s: float = 5, with_file_sources: bool = True, port: int = 8000, clock=None) -> None:
     rng = rng or random.Random(42)
     seed_base(db)
+    world = World(db, clock=clock, rng=rng)
+    # v1.4: la comprobación y la inserción van en la MISMA transacción (en SQLite, BEGIN IMMEDIATE
+    # la hace atómica). Antes eran dos: dos instancias arrancando a la vez sobre una base vacía
+    # pasaban ambas la comprobación y la segunda caía con UNIQUE en sources.code (visto en CI).
     with db.session() as s:
         if s.scalar(select(Source.id).limit(1)):
             return  # ya sembrado
-    world = World(db, clock=clock, rng=rng)
-    with db.session() as s:
         for region, atype, rtype, names in FEEDS:
             s.add(Source(code=feed_code(region), name=f"Simulador {region.title()} ({atype})", region=region,
                          category=atype, availability_type=atype, connector_type="simulacion",
@@ -91,3 +97,22 @@ def _seed_file_sources(db: Database, port: int) -> None:
     w = World(db)
     for k in range(3):
         w.create_item("api-sur", f"AS-{k}", f"Reserva API Ficticia · turno {k + 1}", "SUR", "mesa", capacity=4)
+
+
+def seed_captura(db: Database) -> None:
+    """v1.5: fuente del portal de reservaciones de PRUEBA (idempotente; solo fuera de producción)."""
+    import os
+    url = os.environ.get("MONITOREO_PORTAL_URL", "http://127.0.0.1:8200")
+    with db.session() as s:
+        if not s.scalar(select(Source.id).where(Source.code == "portal-lab")):
+            s.add(Source(code="portal-lab", name="Portal de reservaciones de prueba", region="CENTRO",
+                         category="calendario", availability_type="calendario", connector_type="portal_reservas",
+                         config={"url_base": url, "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5},
+                         interval_s=10, jitter_pct=0.1, rate_limit_per_min=12))
+        # v1.6: calendario POR DÍA del mismo portal de prueba (mecanismo A: eventos, con respaldo B)
+        if not s.scalar(select(Source.id).where(Source.code == "portal-lab-dias")):
+            s.add(Source(code="portal-lab-dias", name="Portal de prueba · calendario por día", region="CENTRO",
+                         category="calendario", availability_type="calendario", connector_type="portal_dias",
+                         config={"url_base": url, "token_env": "MONITOREO_PORTAL_TOKEN", "timeout_s": 5,
+                                 "mecanismo": os.environ.get("MONITOREO_CALENDARIO_MECANISMO", "eventos")},
+                         interval_s=10, jitter_pct=0.1, rate_limit_per_min=30))

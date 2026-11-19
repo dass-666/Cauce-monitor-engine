@@ -1,0 +1,94 @@
+{
+ "etiqueta": "MEDIDO con navegador real (Chromium + Playwright) sobre procesos reales; datos ficticios",
+ "objetivo": "dos reservaciones POR_DIA seguidas, desde el panel ya con sesión iniciada hasta el segundo folio",
+ "antes_v1_6": {
+  "modo": "v1.6",
+  "folios": [
+   "DIA-20261116-00001R",
+   "DIA-20261116-00002A"
+  ],
+  "clics": 13,
+  "casillas": 6,
+  "campos_tecleados": 2,
+  "teclas": 18,
+  "esperas_ms": 0,
+  "interacciones": 21,
+  "pasos": [
+   "abrir Captura",
+   "pestaña Expedientes",
+   "abrir el expediente en la lista",
+   "preparar formulario",
+   "teclear clave (campo manual)",
+   "aceptar aviso de privacidad (campo manual)",
+   "marcar «He revisado los campos»",
+   "enviar datos al portal",
+   "elegir día disponible",
+   "marcar «Confirmo esta reservación»",
+   "confirmar reservación",
+   "cerrar el expediente terminado",
+   "abrir el expediente en la lista",
+   "preparar formulario",
+   "teclear clave (campo manual)",
+   "aceptar aviso de privacidad (campo manual)",
+   "marcar «He revisado los campos»",
+   "enviar datos al portal",
+   "elegir día disponible",
+   "marcar «Confirmo esta reservación»",
+   "confirmar reservación"
+  ],
+  "duracion_s": 2.4,
+  "errores_js": [],
+  "folios_en_portal": [
+   true,
+   true
+  ]
+ },
+ "despues_v1_7": {
+  "modo": "v1.7",
+  "folios": [
+   "DIA-20261116-00001R",
+   "DIA-20261116-00002A"
+  ],
+  "clics": 9,
+  "casillas": 6,
+  "campos_tecleados": 2,
+  "teclas": 18,
+  "esperas_ms": 0,
+  "interacciones": 17,
+  "pasos": [
+   "abrir Captura",
+   "«Continuar» con el primero de Mi trabajo (prepara el formulario)",
+   "teclear clave (campo manual)",
+   "aceptar aviso de privacidad (campo manual)",
+   "marcar «He revisado los campos»",
+   "enviar datos al portal",
+   "elegir día disponible",
+   "marcar «Confirmo esta reservación»",
+   "confirmar reservación",
+   "«Siguiente expediente» (prepara el formulario)",
+   "teclear clave (campo manual)",
+   "aceptar aviso de privacidad (campo manual)",
+   "marcar «He revisado los campos»",
+   "enviar datos al portal",
+   "elegir día disponible",
+   "marcar «Confirmo esta reservación»",
+   "confirmar reservación"
+  ],
+  "duracion_s": 1.9,
+  "errores_js": [],
+  "folios_en_portal": [
+   true,
+   true
+  ]
+ },
+ "reduccion": {
+  "interacciones": 4,
+  "pct": 19.0
+ },
+ "validaciones_conservadas": [
+  "casilla «He revisado los campos»",
+  "campos manuales tecleados por el operador",
+  "casilla «Confirmo esta reservación»",
+  "folio verificado por el portal"
+ ]
+}
