@@ -31,8 +31,8 @@ powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 
 ## 3. Demostración automática (opcional, prueba que el equipo puede hacerlo)
 
-Doble clic en **`recorrido_rc1.bat`**. Debe terminar con `RESULTADO: el recorrido RC1 paso` y `26/26
-comprobaciones`. Deja `resultados\recorrido_rc1\recorrido_rc1.json` y 19 capturas. La confirmación de la cita la
+Doble clic en **`recorrido_rc1.bat`**. Debe terminar con `RESULTADO: el recorrido RC1 paso` y `27/27
+comprobaciones`. Deja `resultados\recorrido_rc1\recorrido_rc1.json` y 20 capturas. La confirmación de la cita la
 hace el script y **es simulada** (así consta en el JSON).
 
 ## 4. Abrir Cauce y usarlo a mano
@@ -49,7 +49,8 @@ Recorrido sugerido (lo mismo que hace la demostración):
 1. **Importar** → elige el `.xlsx`. Se elige sola la hoja «Clientes». Revisa la vista previa: la columna
    «Contraseña del portal» aparece **descartada** y «Consentimiento» **ignorada**. Pulsa **Importar 6 fila(s)**.
 2. **Preparar estos expedientes**: verás 4 «Falta consentimiento» y 2 «Faltan datos». Ninguno se puede
-   seleccionar para el plan todavía.
+   seleccionar para el plan todavía. En Daniela pulsa **Corregir datos**, pon el nacimiento `30/01/1992` y
+   guarda: pasa a «Falta consentimiento». Teléfono y correo solo se cambian escribiéndolos dos veces.
 3. En Ana, Bruno y Fabiola pulsa **Registrar consentimiento**: medio, aviso `AP-2026-01`, elige cualquier
    PDF ficticio (solo se calcula su huella; no se envía) y una referencia como `Carpeta LAB hoja 1`.
 4. Marca la casilla de cabecera (selecciona los «Listo para planificar») → **Añadir 3 seleccionado(s) al plan**.

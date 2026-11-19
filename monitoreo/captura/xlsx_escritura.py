@@ -41,8 +41,11 @@ def _celda(ref: str, v) -> str:
     return f'<c r="{ref}" t="inlineStr" s="2"><is><t xml:space="preserve">{escape(str(v))}</t></is></c>'
 
 
-def libro(hojas: dict[str, list[list]]) -> bytes:
-    """hojas: {nombre: filas}. Devuelve el .xlsx en bytes."""
+def libro(hojas: dict[str, list[list]], columnas_texto: dict[str, list[int]] | None = None) -> bytes:
+    """hojas: {nombre: filas}. `columnas_texto` {hoja: [índices]}: columnas con formato Texto (@), para que
+    Excel no convierta en número lo que se teclee después (p. ej. «00450001» perdería sus ceros).
+    Devuelve el .xlsx en bytes."""
+    columnas_texto = columnas_texto or {}
     buf = io.BytesIO()
     nombres = list(hojas)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
@@ -89,18 +92,22 @@ def libro(hojas: dict[str, list[list]]) -> bytes:
         for i, n in enumerate(nombres):
             filas = "".join(f'<row r="{r + 1}">' + "".join(_celda(f"{_col(c)}{r + 1}", v) for c, v in enumerate(f)) + "</row>"
                             for r, f in enumerate(hojas[n]))
+            cols = "".join(f'<col min="{c + 1}" max="{c + 1}" width="22" style="2" customWidth="1"/>'
+                           for c in sorted(columnas_texto.get(n, [])))
             z.writestr(f"xl/worksheets/sheet{i + 1}.xml",
                        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-                       f"<sheetData>{filas}</sheetData></worksheet>")
+                       + (f"<cols>{cols}</cols>" if cols else "") + f"<sheetData>{filas}</sheetData></worksheet>")
     return buf.getvalue()
 
 
-PLANTILLA_ENCABEZADOS = ["Nombre completo", "Fecha de nacimiento", "Registro previo", "Teléfono", "Correo",
-                         "Región", "Sucursal", "Trámite", "Fecha solicitada", "Acepta desde", "Acepta hasta",
-                         "Prioridad"]
+PLANTILLA_ENCABEZADOS = ["Nombre completo", "Operación", "Trámite", "Registro previo", "Fecha de nacimiento",
+                         "Teléfono", "Correo", "Folio de la cita anterior", "Región", "Sucursal",
+                         "Fecha solicitada", "Acepta desde", "Acepta hasta", "Prioridad"]
+# Columnas que deben ser TEXTO en Excel: identificadores (ceros iniciales) y teléfono
+PLANTILLA_TEXTO = [PLANTILLA_ENCABEZADOS.index(c) for c in ("Registro previo", "Teléfono", "Folio de la cita anterior")]
 
 
 def plantilla() -> bytes:
     """Plantilla vacía con los encabezados que el importador reconoce sin asignación manual."""
-    return libro({"Clientes": [PLANTILLA_ENCABEZADOS]})
+    return libro({"Clientes": [PLANTILLA_ENCABEZADOS]}, {"Clientes": PLANTILLA_TEXTO})

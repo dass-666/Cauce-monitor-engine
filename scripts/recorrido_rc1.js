@@ -70,6 +70,19 @@ const CLAVE = "QXZ482915";      // campo manual ficticio que se teclea en el for
     const seleccionables0 = await A.$$("#exp-tabla [data-sel]");
     paso("4_incompletos_bloqueados", seleccionables0.length === 0, { seleccionables_antes_de_consentimiento: seleccionables0.length });
 
+    // ------------------------------------------------------------ 4b. corregir un dato importado desde la Mesa de control
+    const aCorregir = clasif[3];                       // fila sin fecha de nacimiento
+    await A.click(`[data-corregir="${aCorregir.codigo}"]`);
+    await A.waitForSelector("#form-corregir");
+    await A.fill('#form-corregir [name="fecha_nacimiento"]', "1992-01-30");
+    await shot("corregir_datos_importados");
+    await A.click('#form-corregir button[type="submit"]');
+    await A.waitForSelector("#drawer.hidden", { state: "attached" });
+    await ir("expedientes", "#exp-tabla tbody tr");
+    const corregido = (await filasExp()).find((x) => x.codigo === aCorregir.codigo);
+    paso("4b_corregir_dato_importado", aCorregir.situacion === "INCOMPLETO" && corregido.situacion === "SIN_CONSENTIMIENTO",
+      { expediente: aCorregir.codigo, antes: aCorregir.situacion, despues: corregido.situacion, campo: "fecha_nacimiento" });
+
     // ------------------------------------------------------------ 5. el administrador prepara: consentimientos con evidencia
     const doc = path.join(outDir, "formato_consentimiento_ficticio.pdf");
     fs.writeFileSync(doc, "%PDF-1.4\n% formato de consentimiento FICTICIO del laboratorio (RC1)\n%%EOF\n");

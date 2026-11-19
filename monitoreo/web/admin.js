@@ -324,7 +324,8 @@ async function viewExpedientesAdmin() {
       h("td", {}, h("div", { class: "actions" },
         e.consentimiento === "FALTA" && !["CERRADO", "REVOCADO", "CONFIRMADA"].includes(e.situacion) ? h("button", { class: "btn small", "data-consentir": e.codigo, onclick: () => formConsentimientoAdmin(e) }, "Registrar consentimiento") : null,
         ["INCOMPLETO", "SIN_CONSENTIMIENTO", "LISTO", "REVISION"].includes(e.situacion) ? h("button", { class: "btn ghost small", "data-fechas": e.codigo, onclick: () => formFechas(e) }, "Fechas") : null,
-        h("button", { class: "btn ghost small", onclick: () => showExpediente(e.id) }, "Ver / corregir"),
+        ["INCOMPLETO", "SIN_CONSENTIMIENTO", "LISTO", "REVISION"].includes(e.situacion) ? h("button", { class: "btn ghost small", "data-corregir": e.codigo, onclick: () => formCorregir(e) }, "Corregir datos") : null,
+        h("button", { class: "btn ghost small", onclick: () => showExpediente(e.id) }, "Ver"),
         h("button", { class: "btn ghost small", onclick: async () => openDrawer(await historialExpediente(e.id, true)) }, "Historial"))))))));
   const desde = h("input", { type: "date", id: "plan-desde", title: "Solo días desde (opcional)" });
   const hasta = h("input", { type: "date", id: "plan-hasta", title: "Solo días hasta (opcional)" });
@@ -356,7 +357,7 @@ async function viewExpedientesAdmin() {
   }
   return h("div", { id: "expedientes-admin" },
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Expedientes"),
-      h("div", { class: "muted" }, `${d.expedientes.length} mostrados · nombres enmascarados · los datos completos se ven en «Ver / corregir» (queda registrado)`)),
+      h("div", { class: "muted" }, `${d.expedientes.length} mostrados · nombres enmascarados · los datos completos se ven en «Ver» o «Corregir datos» (queda registrado)`)),
       h("div", { class: "actions" }, h("button", { class: "btn", onclick: () => irA("importar") }, "Importar lista"),
         h("button", { class: "btn", onclick: () => irA("ventanilla") }, "Atender uno en Ventanilla"))),
     barra, alPlan, errs, tabla);
@@ -382,6 +383,51 @@ function formConsentimientoAdmin(e) {
   openDrawer(h("div", { id: "consentimiento-admin", "data-expediente": e.codigo }, h("h2", {}, `Consentimiento · ${e.codigo}`),
     h("p", { class: "muted" }, "Registra solo un consentimiento que exista: el formato firmado por la persona. Cauce guarda su huella, no el documento. ",
       "No se puede registrar a partir de lo que diga la lista importada."), form));
+}
+
+// RC1 · Corrección de los datos del formulario desde la Mesa de control. Usa el mismo PATCH (con control de
+// versión) que el resto de la aplicación: mismas validaciones y el expediente se vuelve a validar solo.
+// Teléfono y correo se escriben dos veces SOLO si se cambian; la confirmación no se guarda.
+async function formCorregir(e) {
+  const x = await api(`/api/expedientes/${e.id}`);       // datos completos: la consulta queda auditada
+  const errs = h("div", { class: "error full", role: "alert" });
+  const inp = (name, attrs) => h("input", { name, autocomplete: "off", ...attrs });
+  const opciones = (cat, actual) => Object.entries(cat).map(([k, v]) => h("option", { value: k, selected: k === actual }, v));
+  const form = h("form", { class: "form", id: "form-corregir", onsubmit: async (ev) => {
+    ev.preventDefault(); errs.textContent = "";
+    const el = ev.target.elements, body = { version: x.version };
+    for (const k of ["operacion", "tipo_tramite", "id_registro_previo", "fecha_nacimiento", "folio_anterior"]) {
+      const v = el[k].value.trim();
+      if (v && v !== String(x[k] || "")) body[k] = v;
+    }
+    for (const k of ["telefono", "correo"]) {
+      const v = el[k].value.trim();
+      if (v) { body[k] = v; body[k + "_confirmacion"] = el[k + "_confirmacion"].value.trim(); }
+    }
+    if (Object.keys(body).length === 1) { errs.textContent = "No cambiaste nada."; return; }
+    try {
+      const r = await api(`/api/expedientes/${e.id}`, { method: "PATCH", body });
+      $("drawer").classList.add("hidden");
+      toast(`${e.codigo}: corregido (${(r.campos_modificados || []).map((c) => CAMPO_NOMBRE[c] || c).join(", ")})`, 5000);
+      S.dirty = false; refresh(true);
+    } catch (err) {
+      const d = err.detalle || {};
+      errs.replaceChildren(err.message, d.errores ? h("ul", {}, Object.entries(d.errores).map(([k, v]) => h("li", {}, `${CAMPO_NOMBRE[k.replace("_confirmacion", "")] || k}: ${v}`))) : "");
+    }
+  } },
+    field("Operación", h("select", { name: "operacion" }, opciones({ nueva: "Nueva cita", reprogramar: "Reprogramar" }, x.operacion))),
+    field("Tipo de trámite", h("select", { name: "tipo_tramite" }, opciones(TRAMITES, x.tipo_tramite))),
+    field("Identificador de registro previo", inp("id_registro_previo", { maxlength: 32, value: x.id_registro_previo || "", placeholder: "se guarda como texto: conserva los ceros" })),
+    field("Fecha de nacimiento", inp("fecha_nacimiento", { type: "date", value: x.fecha_nacimiento || "" })),
+    field(`Teléfono nuevo (actual: ${x.telefono || "falta"})`, inp("telefono", { maxlength: 20, inputmode: "tel" })),
+    field("Confirma el teléfono nuevo", inp("telefono_confirmacion", { maxlength: 20, inputmode: "tel" })),
+    field(`Correo nuevo (actual: ${x.correo || "falta"})`, inp("correo", { type: "email", maxlength: 128 })),
+    field("Confirma el correo nuevo", inp("correo_confirmacion", { type: "email", maxlength: 128 })),
+    field("Folio de la cita anterior (solo al reprogramar)", inp("folio_anterior", { maxlength: 32, value: x.folio_anterior || "" })),
+    h("button", { class: "btn primary", type: "submit" }, "Guardar corrección"), errs);
+  openDrawer(h("div", {}, h("h2", {}, `Corregir datos · ${e.codigo}`),
+    h("p", { class: "muted" }, "Mismas reglas que el alta. Deja teléfono y correo vacíos si no cambian. Si el expediente ya estaba listo y cambias el trámite, se vuelve a validar."),
+    form));
 }
 
 function formFechas(e) {

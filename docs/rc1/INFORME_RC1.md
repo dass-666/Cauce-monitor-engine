@@ -70,16 +70,18 @@ Punto de entrada Windows: **`cauce_rc1.bat`** (instalación aislada en `resultad
 
 ## 4. Campos
 
+Revisión del contrato de datos de los 8 campos del formulario (2026-11-19, tarde): [MATRIZ_CAMPOS_FORMULARIO_RC1.md](MATRIZ_CAMPOS_FORMULARIO_RC1.md).
+
 Inventario completo con procedencia, validaciones e importabilidad: [INVENTARIO_CAMPOS_RC1.md](INVENTARIO_CAMPOS_RC1.md).
 Único campo nuevo: fecha solicitada y rango aceptable (pedido explícito). El formulario conocido es el del
 portal de **laboratorio**: catálogo de trámites, sucursales y formato del registro previo **falta confirmarlos
 con documentación real**.
 
-## 5. Evidencia del recorrido (con la interfaz, 26/26)
+## 5. Evidencia del recorrido (con la interfaz, 27/27)
 
 `scripts/recorrido_rc1.py` arranca el laboratorio en una carpeta temporal, genera la lista ficticia y un
 Chromium hace solo clics y teclas como administrador. Luego el script comprueba por su cuenta (portal, base y
-registros). Resultado: [recorrido_rc1.json](recorrido_rc1.json), 19 capturas en [capturas/](capturas/).
+registros). Resultado: [recorrido_rc1.json](recorrido_rc1.json), 20 capturas en [capturas/](capturas/).
 
 | Paso pedido | Resultado | Captura |
 |---|---|---|
@@ -87,13 +89,14 @@ registros). Resultado: [recorrido_rc1.json](recorrido_rc1.json), 19 capturas en 
 | 2 Importa 6 | vista previa 6 nuevos, lote LOT-000001 con 6 creados; contraseña descartada | 02, 03 |
 | 3 Clasifica y detecta faltantes | 4 «falta consentimiento», 2 «faltan datos» (nacimiento; teléfono y correo) | 04 |
 | 4 Incompletos bloqueados | ninguno seleccionable para el plan | 04 |
-| 5 Revisa los incorporables | consentimiento de 3 con huella → 3 «Listo para planificar» | 05, 06 |
-| 6 Plan solo con elegibles | 3 aceptados; los 3 bloqueados fuera | 07, 08 |
-| 7 Calendario publica fecha | observador NOR-1/alta activo; se abre 2027-01-14 | 09, 10 |
-| 8 Detecta la coincidencia | EXP-000001 (Ana); KPI coincidencias 1, confirmadas 0 | 11 |
-| 9 Operación simulada y folio | folio `DIA-20270114-00001T`, **confirmación SIMULADA** | 12–14 |
-| 10 Historial conserva | folio en historial con IMPORTADO, consentimiento, plan; aparece en el panel | 15, 16 |
-| 11 Reimportar no duplica | vista previa 0 nuevos / 6 ya existen; LOT-000002 creó 0; siguen 6 expedientes | 17, 18 |
+| 4b Corrige un dato importado | «Corregir datos» en Expedientes: se añade el nacimiento de Daniela → pasa a «Falta consentimiento» | 05 |
+| 5 Revisa los incorporables | consentimiento de 3 con huella → 3 «Listo para planificar» | 06, 07 |
+| 6 Plan solo con elegibles | 3 aceptados; los 3 bloqueados fuera | 08, 09 |
+| 7 Calendario publica fecha | observador NOR-1/alta activo; se abre 2027-01-14 | 10, 11 |
+| 8 Detecta la coincidencia | EXP-000001 (Ana); KPI coincidencias 1, confirmadas 0 | 12 |
+| 9 Operación simulada y folio | folio `DIA-20270114-00001T`, **confirmación SIMULADA** | 13–15 |
+| 10 Historial conserva | folio en historial con IMPORTADO, consentimiento, plan; aparece en el panel | 16, 17 |
+| 11 Reimportar no duplica | vista previa 0 nuevos / 6 ya existen; LOT-000002 creó 0; siguen 6 expedientes | 18, 19 |
 
 Comprobaciones independientes: el folio está CONFIRMADO en el portal y es del día abierto; solo EXP-000001 tiene
 cita; Bruno (rango que no incluye el día) y Fabiola (otro trámite) siguen esperando; la cadena de sellos del
@@ -112,7 +115,7 @@ Regresiones locales (Linux, SQLite) sobre la rama RC1:
 
 | Prueba | Resultado |
 |---|---|
-| `recorrido_rc1.py` (nuevo) | 26/26 |
+| `recorrido_rc1.py` (nuevo) | 27/27 (26/26 antes de añadir el paso 4b) |
 | `recorrido_ventanilla_v23.py` (v2.3.1) | 21/21 |
 | `recorrido_integral.py` (respaldo/restauración/retención) | 32/32 |
 | `demo_v20.py` / `aceptacion_v21.py` / `demo_v22.py` | 28/28 · 42/42 · 36/36 |

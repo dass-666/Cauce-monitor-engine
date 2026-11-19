@@ -2,12 +2,12 @@
   "version": "RC1",
   "plataforma": "Linux-6.18.44-fc-v653-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "inicio": "2026-11-19T14:43:12",
+  "inicio": "2026-11-19T17:06:16",
   "confirmacion_humana": "SIMULADA por el script",
   "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
   "lista": {
-    "xlsx": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1/lista_demostracion/clientes_ficticios_rc1.xlsx",
-    "csv": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1/lista_demostracion/clientes_ficticios_rc1.csv",
+    "xlsx": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1b/lista_demostracion/clientes_ficticios_rc1.xlsx",
+    "csv": "/tmp/claude-0/-home-claude/850655e6-daf2-5526-90f8-7ecfe7de5cb9/scratchpad/rc1b/lista_demostracion/clientes_ficticios_rc1.csv",
     "mes": "2027-01",
     "dia": "2027-01-14",
     "generado": "2026-11-19"
@@ -55,6 +55,16 @@
         }
       },
       {
+        "paso": "4b_corregir_dato_importado",
+        "ok": true,
+        "detalle": {
+          "expediente": "EXP-000004",
+          "antes": "INCOMPLETO",
+          "despues": "SIN_CONSENTIMIENTO",
+          "campo": "fecha_nacimiento"
+        }
+      },
+      {
         "paso": "5_revisar_los_que_pueden_entrar",
         "ok": true,
         "detalle": {
@@ -65,7 +75,7 @@
           ],
           "siguen_bloqueados": [
             "EXP-000003:SIN_CONSENTIMIENTO",
-            "EXP-000004:INCOMPLETO",
+            "EXP-000004:SIN_CONSENTIMIENTO",
             "EXP-000005:INCOMPLETO"
           ]
         }
@@ -164,8 +174,8 @@
     "folio": "DIA-20270114-00001T",
     "kpis_finales": {
       "total": 6,
-      "incompletos": 2,
-      "sin_consentimiento": 1,
+      "incompletos": 1,
+      "sin_consentimiento": 2,
       "en_plan": 2,
       "coincidencias": 0,
       "confirmadas": 1
@@ -175,7 +185,7 @@
     "EXP-000001": "CONFIRMADA",
     "EXP-000002": "EN_PLAN",
     "EXP-000003": "SIN_CONSENTIMIENTO",
-    "EXP-000004": "INCOMPLETO",
+    "EXP-000004": "SIN_CONSENTIMIENTO",
     "EXP-000005": "INCOMPLETO",
     "EXP-000006": "EN_PLAN"
   },
@@ -222,6 +232,16 @@
       }
     },
     {
+      "comprobacion": "interfaz · 4b_corregir_dato_importado",
+      "ok": true,
+      "detalle": {
+        "expediente": "EXP-000004",
+        "antes": "INCOMPLETO",
+        "despues": "SIN_CONSENTIMIENTO",
+        "campo": "fecha_nacimiento"
+      }
+    },
+    {
       "comprobacion": "interfaz · 5_revisar_los_que_pueden_entrar",
       "ok": true,
       "detalle": {
@@ -232,7 +252,7 @@
         ],
         "siguen_bloqueados": [
           "EXP-000003:SIN_CONSENTIMIENTO",
-          "EXP-000004:INCOMPLETO",
+          "EXP-000004:SIN_CONSENTIMIENTO",
           "EXP-000005:INCOMPLETO"
         ]
       }
@@ -343,7 +363,7 @@
     {
       "comprobacion": "portal · el folio existe y está CONFIRMADO",
       "ok": true,
-      "detalle": "{\"folio\":\"DIA-20270114-00001T\",\"estado\":\"CONFIRMADA\",\"clave\":\"59854e231cd19bc7813974bb\",\"identificador\":\"00450001\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Auro"
+      "detalle": "{\"folio\":\"DIA-20270114-00001T\",\"estado\":\"CONFIRMADA\",\"clave\":\"7a6c9159cb2bb1d955ac7954\",\"identificador\":\"00450001\",\"tramite\":\"alta\",\"operacion\":\"nueva\",\"sucursal\":\"NOR-1\",\"sucursal_nombre\":\"Plaza Auro"
     },
     {
       "comprobacion": "portal · la cita es del día abierto en el calendario del laboratorio",
@@ -362,7 +382,7 @@
         "EXP-000001": "CONFIRMADA",
         "EXP-000002": "EN_PLAN",
         "EXP-000003": "SIN_CONSENTIMIENTO",
-        "EXP-000004": "INCOMPLETO",
+        "EXP-000004": "SIN_CONSENTIMIENTO",
         "EXP-000005": "INCOMPLETO",
         "EXP-000006": "EN_PLAN"
       }
@@ -374,7 +394,7 @@
         "EXP-000001": "CONFIRMADA",
         "EXP-000002": "EN_PLAN",
         "EXP-000003": "SIN_CONSENTIMIENTO",
-        "EXP-000004": "INCOMPLETO",
+        "EXP-000004": "SIN_CONSENTIMIENTO",
         "EXP-000005": "INCOMPLETO",
         "EXP-000006": "EN_PLAN"
       }
@@ -386,7 +406,7 @@
         "EXP-000001": "CONFIRMADA",
         "EXP-000002": "EN_PLAN",
         "EXP-000003": "SIN_CONSENTIMIENTO",
-        "EXP-000004": "INCOMPLETO",
+        "EXP-000004": "SIN_CONSENTIMIENTO",
         "EXP-000005": "INCOMPLETO",
         "EXP-000006": "EN_PLAN"
       }
@@ -434,27 +454,28 @@
       "detalle": null
     }
   ],
-  "aprobadas": 26,
-  "total": 26,
+  "aprobadas": 27,
+  "total": 27,
   "capturas": [
     "01_mesa_de_control_vacia.png",
     "02_importar_vista_previa.png",
     "03_importar_resultado_lote.png",
     "04_expedientes_del_lote_clasificados.png",
-    "05_registrar_consentimiento_con_huella.png",
-    "06_expedientes_tras_consentimiento.png",
-    "07_seleccion_para_el_plan.png",
-    "08_plan_solo_elegibles.png",
-    "09_mesa_de_control_plan_y_observador.png",
-    "10_calendario_laboratorio_publica_fecha.png",
-    "11_coincidencia_detectada_no_es_cita.png",
-    "12_operacion_revision_de_datos.png",
-    "13_operacion_confirmacion_simulada.png",
-    "14_cita_confirmada_con_folio.png",
-    "15_historial_con_folio.png",
-    "16_mesa_de_control_cita_confirmada.png",
-    "17_reimportar_mismo_archivo_vista_previa.png",
-    "18_reimportar_mismo_archivo_resultado.png",
-    "19_mesa_de_control_final.png"
+    "05_corregir_datos_importados.png",
+    "06_registrar_consentimiento_con_huella.png",
+    "07_expedientes_tras_consentimiento.png",
+    "08_seleccion_para_el_plan.png",
+    "09_plan_solo_elegibles.png",
+    "10_mesa_de_control_plan_y_observador.png",
+    "11_calendario_laboratorio_publica_fecha.png",
+    "12_coincidencia_detectada_no_es_cita.png",
+    "13_operacion_revision_de_datos.png",
+    "14_operacion_confirmacion_simulada.png",
+    "15_cita_confirmada_con_folio.png",
+    "16_historial_con_folio.png",
+    "17_mesa_de_control_cita_confirmada.png",
+    "18_reimportar_mismo_archivo_vista_previa.png",
+    "19_reimportar_mismo_archivo_resultado.png",
+    "20_mesa_de_control_final.png"
   ]
 }

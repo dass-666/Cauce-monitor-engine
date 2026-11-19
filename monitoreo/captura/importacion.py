@@ -67,16 +67,29 @@ CAMPOS: dict[str, tuple[str, tuple[str, ...]]] = {
                                                  "f nacimiento", "fecha nac", "fec nac", "f nac")),
     "id_registro_previo": ("Registro o identificador previo", (
         "registro", "registro previo", "id registro", "id registro previo", "identificador", "identificador previo",
-        "numero de registro", "no registro", "num registro", "no de registro", "numero registro")),
+        "numero de registro", "no registro", "num registro", "no de registro", "numero registro",
+        # etiqueta del formulario del laboratorio y nombres del propietario (RC1)
+        "identificador de registro", "identificador de registro previo", "folio de registro", "folio de registro previo",
+        "identificador de cliente", "identificador del cliente")),
     "id_externo": ("Identificador interno (opcional)", ("id externo", "id interno", "clave interna", "numero de empleado",
-                                                        "no empleado", "num empleado", "id cliente", "id")),
-    "telefono": ("Teléfono", ("telefono", "tel", "celular", "movil", "telefono celular", "telefono movil")),
-    "correo": ("Correo", ("correo", "email", "e mail", "correo electronico", "mail")),
+                                                        "no empleado", "num empleado", "id")),
+    "telefono": ("Teléfono", ("telefono", "tel", "celular", "movil", "telefono celular", "telefono movil",
+                              "telefono de contacto")),
+    # Confirmaciones: solo se COMPARAN con el dato; no existen como columnas de la base de datos
+    "telefono_confirmacion": ("Confirmación de teléfono (no se guarda)", (
+        "confirmacion de telefono", "confirmacion del telefono", "confirmacion telefono", "confirmar telefono",
+        "telefono confirmacion", "telefono confirmado", "confirma telefono", "confirma el telefono")),
+    "correo": ("Correo", ("correo", "email", "e mail", "correo electronico", "mail", "correo de contacto")),
+    "correo_confirmacion": ("Confirmación de correo (no se guarda)", (
+        "confirmacion de correo", "confirmacion del correo", "confirmacion correo", "confirmar correo",
+        "correo confirmacion", "confirmacion de correo electronico", "confirmacion del correo electronico",
+        "confirma correo", "confirma el correo")),
     "region": ("Región", ("region", "zona")),
     "sucursal": ("Sucursal", ("sucursal", "oficina", "sede", "sucursal preferida")),
     "sucursales_alternativas": ("Sucursales alternativas", ("sucursales alternativas", "otras sucursales", "alternativas")),
     "tipo_tramite": ("Trámite", ("tramite", "tipo de tramite", "tipo tramite", "servicio")),
-    "operacion": ("Operación (nueva o reprogramar)", ("operacion", "tipo de cita", "tipo de operacion")),
+    "operacion": ("Operación (nueva o reprogramar)", ("operacion", "tipo de cita", "tipo de operacion",
+                                                     "operacion a realizar")),
     "prioridad": ("Prioridad (1 a 5)", ("prioridad",)),
     "fecha_solicitada": ("Fecha solicitada por la persona", ("fecha solicitada", "fecha deseada", "fecha preferida",
                                                              "fecha pedida", "fecha de cita deseada")),
@@ -88,6 +101,7 @@ CAMPOS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 CAMPOS_FECHA = ("fecha_nacimiento", "fecha_solicitada", "fechas_desde", "fechas_hasta")
 CAMPOS_IDENT = ("id_registro_previo", "id_externo", "folio_anterior")
+CAMPOS_TELEFONO = ("telefono", "telefono_confirmacion")
 # Palabras que delatan un secreto: la columna se descarta siempre (no se muestra ni se guarda).
 _PROHIBIDAS = ("contrasena", "password", "passwd", "clave de acceso", "clave acceso", "clave de identidad",
                "clave identidad", "nip", "pin", "token", "usuario del portal", "usuario portal", "secreto")
@@ -129,13 +143,13 @@ def clasificar_encabezado(texto) -> tuple[str, str | None]:
     n = normalizar_encabezado(texto)
     if not n:
         return "SIN_USO", None
-    for campo, (_, sinonimos) in CAMPOS.items():
-        if n in sinonimos:
+    for campo, (etiqueta, sinonimos) in CAMPOS.items():
+        if n in sinonimos or n == normalizar_encabezado(etiqueta):      # también su propia etiqueta (plantilla)
             return "CAMPO", campo
     palabras = f" {n} "
     if any(f" {p} " in palabras for p in _PROHIBIDAS) or n.startswith("clave") and "interna" not in n:
         return "PROHIBIDA", None
-    if any(p in n for p in _CONSENTIMIENTO):
+    if any(f" {p} " in palabras for p in _CONSENTIMIENTO):       # palabras completas («confirmación» ≠ «firma»)
         return "CONSENTIMIENTO", None
     return "SIN_USO", None
 
@@ -370,7 +384,7 @@ def convertir(campo: str, c: Celda, formato_fecha: str, avisos: list[str]) -> tu
             return None, str(e) if "año" in str(e) or "usa" in str(e) else "Fecha no válida"
     if c.tipo == "numero":
         x = float(c.valor)
-        if campo in CAMPOS_IDENT or campo == "telefono":
+        if campo in CAMPOS_IDENT or campo in CAMPOS_TELEFONO:
             if not x.is_integer():
                 return None, "Identificador no válido"
             t = str(int(x))
@@ -386,7 +400,7 @@ def convertir(campo: str, c: Celda, formato_fecha: str, avisos: list[str]) -> tu
     t = _texto(c)
     if not t:
         return None, None
-    if campo == "telefono":
+    if campo in CAMPOS_TELEFONO:
         if re.fullmatch(r"\+?[\d ()\-.]{7,20}", t):
             return t, None
         return None, "Teléfono no válido"
@@ -468,8 +482,21 @@ def _region_de_sucursal(s, suc: str) -> str | None:
     return s.scalar(select(CalendarioDia.region).where(CalendarioDia.sucursal == suc).limit(1))
 
 
+def _de_catalogo(valor, catalogo: dict[str, str], alias: dict[str, str]) -> str:
+    """Acepta la clave del catálogo («reprogramar») o su etiqueta visible («Nueva cita»,
+    «Renovación (ficticia)»), sin distinguir acentos ni mayúsculas. Si no coincide se deja tal cual
+    y `validacion.validar` lo rechaza con su mensaje."""
+    n = normalizar_encabezado(valor)
+    for clave, etiqueta in catalogo.items():
+        sin_nota = re.sub(r"\s*\(.*?\)", "", etiqueta)
+        if n in (normalizar_encabezado(clave), normalizar_encabezado(etiqueta), normalizar_encabezado(sin_nota)):
+            return clave
+    return alias.get(n, str(valor))
+
+
 def _filas(s, hoja: list[list[Celda]], cols: dict[int, str], formato_fecha: str, hoy: date) -> list[Fila]:
     regiones = set(s.scalars(select(Region.code)))
+    columnas_conf = {c for c in cols.values() if c.endswith("_confirmacion")}
     out = []
     for n, celdas in enumerate(hoja[1:], start=2):
         if not any(c.tipo != "vacia" and (c.valor not in (None, "")) or c.tipo == "formula" for c in celdas):
@@ -490,9 +517,9 @@ def _filas(s, hoja: list[list[Celda]], cols: dict[int, str], formato_fecha: str,
             if k in errores:
                 errores["nombre"] = errores.pop(k)
         if crudo.get("tipo_tramite"):
-            crudo["tipo_tramite"] = _TRAMITES.get(normalizar_encabezado(crudo["tipo_tramite"]), crudo["tipo_tramite"])
+            crudo["tipo_tramite"] = _de_catalogo(crudo["tipo_tramite"], val.TRAMITES, _TRAMITES)
         if crudo.get("operacion"):
-            crudo["operacion"] = normalizar_encabezado(crudo["operacion"])
+            crudo["operacion"] = _de_catalogo(crudo["operacion"], val.OPERACIONES, {})
         if crudo.get("region"):
             r = normalizar_encabezado(crudo["region"]).upper()
             crudo["region"] = r[7:] if r.startswith("REGION ") else r
@@ -503,16 +530,22 @@ def _filas(s, hoja: list[list[Celda]], cols: dict[int, str], formato_fecha: str,
                 avisos.append("Región deducida de la sucursal")
         entrada = dict(crudo)
         # El archivo es la fuente: no hay «segunda captura» que comparar (la confirmación existe para lo tecleado)
-        if "telefono" in entrada:
-            entrada["telefono_confirmacion"] = entrada["telefono"]
-        if "correo" in entrada:
-            entrada["correo_confirmacion"] = entrada["correo"]
+        # Si el archivo trae columna de confirmación, se compara con el dato (validacion.validar); nunca se guarda.
+        for campo in ("telefono", "correo"):
+            conf = campo + "_confirmacion"
+            if campo in entrada and conf not in columnas_conf:
+                entrada[conf] = entrada[campo]
+            elif conf in columnas_conf and campo not in entrada and entrada.get(conf):
+                errores.setdefault(campo, "Hay confirmación pero falta el dato")
         r = val.validar(entrada, regiones, incompleto=True, hoy=hoy)
         for k, msg in r.errores.items():
             k = k.replace("_confirmacion", "")
             if k not in errores:
-                errores[k] = ("Falta la región (y no se pudo deducir de la sucursal)"
-                              if k == "region" and msg == "Campo obligatorio" else msg)
+                if k == "region" and msg == "Campo obligatorio":
+                    msg = "Falta la región (y no se pudo deducir de la sucursal)"
+                elif msg == "Confirma el dato":
+                    msg = "La columna de confirmación está vacía en esta fila"
+                errores[k] = msg
         f = Fila(n, r.datos if not errores else {}, errores, avisos)
         if not errores:
             f.clave, f.clave2 = claves(r.datos)

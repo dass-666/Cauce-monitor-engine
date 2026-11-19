@@ -195,3 +195,83 @@ def test_dos_cargas_simultaneas_no_duplican(app):
         assert s.scalar(select(func.count()).select_from(ImportacionFila).where(ImportacionFila.resultado == "CREADO")) == 3
         assert s.scalar(select(func.count()).select_from(PlanElemento)) == 0
     assert not errores
+
+
+# ------------------------------------------------------------------ contrato de datos: los 8 campos del formulario
+# Encabezados con las etiquetas del formulario del laboratorio (portal_laboratorio_dia.json) y los nombres del
+# propietario. Operación y trámite son columnas y valores INDEPENDIENTES.
+ENC8 = ["Nombre completo", "Operación a realizar", "Tipo de trámite", "Identificador de cliente", "Fecha de nacimiento",
+        "Teléfono de contacto", "Confirmación del teléfono", "Correo electrónico", "Confirmación del correo",
+        "Folio de la cita anterior", "Región", "Sucursal"]
+
+
+def test_ocho_campos_se_reconocen_y_las_confirmaciones_se_comparan_sin_guardarse(app):
+    filas = [
+        ["Ana Ocho Uno", "Reprogramar", "Renovación (ficticia)", "00450007", "15/03/1985", "5550000011", "555 000 0011",
+         "ana.ocho@ejemplo.test", "ANA.OCHO@ejemplo.test", "F-0001", "NORTE", "NOR-1"],
+        ["Beto Ocho Dos", "Nueva cita", "Alta", "000123", "02/07/1990", "5550000012", "5550000012",
+         "beto.ocho@ejemplo.test", "beto.ocho@ejemplo.test", "", "NORTE", "NOR-1"],
+        ["Carla Ocho Tres", "nueva", "constancia", "00450009", "23/11/1978", "5550000013", "5550000099",   # no coincide
+         "carla.ocho@ejemplo.test", "carla.ocho@ejemplo.test", "", "NORTE", "NOR-1"],
+        ["Dora Ocho Cuatro", "nueva", "alta", "00450010", "30/01/1992", "5550000014", "5550000014",
+         "dora.ocho@ejemplo.test", "otra@ejemplo.test", "", "NORTE", "NOR-1"],                               # no coincide
+    ]
+    datos = csv_bytes(filas, ENC8)
+    pv = app.post("/api/admin/importaciones/previsualizar", json=body("ocho.csv", datos)).json()
+    asignado = {x["texto"]: (x["tipo"], x["campo_sugerido"]) for x in pv["encabezados"]}
+    assert asignado["Operación a realizar"] == ("CAMPO", "operacion")
+    assert asignado["Tipo de trámite"] == ("CAMPO", "tipo_tramite")
+    assert asignado["Identificador de cliente"] == ("CAMPO", "id_registro_previo")
+    assert asignado["Teléfono de contacto"] == ("CAMPO", "telefono")
+    # antes «Confirmación» contenía «firma» y se tomaba por una columna de consentimiento
+    assert asignado["Confirmación del teléfono"] == ("CAMPO", "telefono_confirmacion")
+    assert asignado["Confirmación del correo"] == ("CAMPO", "correo_confirmacion")
+    res = {f["fila"]: f for f in pv["filas"]}
+    assert [res[n]["resultado"] for n in (2, 3, 4, 5)] == ["CREADO", "CREADO", "RECHAZADO", "RECHAZADO"]
+    assert "no coinciden" in res[4]["errores"]["telefono"] and "no coinciden" in res[5]["errores"]["correo"]
+
+    lote = app.post("/api/admin/importaciones", json=body("ocho.csv", datos)).json()
+    assert lote["creadas"] == 2 and lote["rechazadas"] == 2
+    with app.app.state.db.session() as s:
+        a = s.scalar(select(Expediente).where(Expediente.nombre == "Ana Ocho Uno"))
+        b = s.scalar(select(Expediente).where(Expediente.nombre == "Beto Ocho Dos"))
+        assert (a.operacion, a.tipo_tramite, a.folio_anterior) == ("reprogramar", "renovacion", "F-0001")
+        assert (b.operacion, b.tipo_tramite) == ("nueva", "alta")
+        assert a.id_registro_previo == "00450007" and b.id_registro_previo == "000123"   # ceros iniciales
+        assert a.telefono == "5550000011" and a.correo == "ana.ocho@ejemplo.test"
+    # las confirmaciones no son columnas de la base de datos
+    assert not [c for c in Expediente.__table__.columns.keys() if "confirmacion" in c]
+
+
+def test_plantilla_reconoce_sus_encabezados_y_protege_los_ceros():
+    import io
+    import zipfile
+    from monitoreo.captura.xlsx_escritura import PLANTILLA_ENCABEZADOS, PLANTILLA_TEXTO, plantilla
+    assert all(im.clasificar_encabezado(e)[0] == "CAMPO" for e in PLANTILLA_ENCABEZADOS)
+    assert {im.clasificar_encabezado(e)[1] for e in PLANTILLA_ENCABEZADOS} >= {
+        "operacion", "tipo_tramite", "id_registro_previo", "fecha_nacimiento", "telefono", "correo", "folio_anterior"}
+    assert im.clasificar_encabezado("ID cliente") == ("SIN_USO", None)          # ambiguo: lo elige el administrador
+    assert im.clasificar_encabezado("Firma del trabajador")[0] == "CONSENTIMIENTO"  # «firma» como palabra, sí
+    hoja = zipfile.ZipFile(io.BytesIO(plantilla())).read("xl/worksheets/sheet1.xml").decode()
+    for i in PLANTILLA_TEXTO:                      # columnas con formato Texto (@ = estilo 2)
+        assert f'<col min="{i + 1}" max="{i + 1}"' in hoja and 'style="2"' in hoja
+
+
+def test_corregir_desde_la_mesa_de_control_exige_confirmar_y_revalida(app):
+    filas = [["Eva Corrige Uno", "nueva", "alta", "00450011", "", "5550000021", "5550000021",
+              "eva@ejemplo.test", "eva@ejemplo.test", "", "NORTE", "NOR-1"]]           # falta nacimiento
+    app.post("/api/admin/importaciones", json=body("corr.csv", csv_bytes(filas, ENC8)))
+    e = next(x for x in app.get("/api/admin/expedientes").json()["expedientes"] if x["situacion"] == "INCOMPLETO")
+    x = app.get(f"/api/expedientes/{e['id']}").json()
+    # teléfono sin confirmar: rechazado y no se toca nada
+    r = app.patch(f"/api/expedientes/{e['id']}", json={"version": x["version"], "telefono": "5550000022"})
+    assert r.status_code == 422 and "telefono_confirmacion" in r.json()["detail"]["errores"]
+    r = app.patch(f"/api/expedientes/{e['id']}", json={
+        "version": x["version"], "fecha_nacimiento": "1988-04-05", "id_registro_previo": "000777",
+        "telefono": "5550000022", "telefono_confirmacion": "5550000022"})
+    assert r.status_code == 200, r.text
+    assert set(r.json()["campos_modificados"]) == {"fecha_nacimiento", "id_registro_previo", "telefono"}
+    y = app.get(f"/api/expedientes/{e['id']}").json()
+    assert y["id_registro_previo"] == "000777" and y["telefono"] == "5550000022"
+    sit = {z["id"]: z["situacion"] for z in app.get("/api/admin/expedientes").json()["expedientes"]}
+    assert sit[e["id"]] == "SIN_CONSENTIMIENTO"           # ya no faltan datos; solo el consentimiento
