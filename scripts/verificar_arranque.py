@@ -126,6 +126,10 @@ def base_env(tmp: Path, entorno: str) -> dict:
         "MONITOREO_ABRIR_NAVEGADOR": "0", "MONITOREO_LEASE_S": "5", "PYTHONUNBUFFERED": "1",
         # v2.2: los recorridos anteriores no registran consentimientos; demo_v22.py lo activa
         "MONITOREO_EXIGIR_CONSENTIMIENTO": "0",
+        # v2.2.2 (integración): los servidores de los recorridos escriben sus archivos (feeds,
+        # notificaciones.log, respaldos) en la carpeta temporal, no en el data/ del proyecto.
+        # Reproducido: scripts/integracion_http.py dejaba data/notificaciones.log (~550 KB).
+        "MONITOREO_DATA_DIR": str(tmp / f"datos-{entorno}"),
     })
     return env
 

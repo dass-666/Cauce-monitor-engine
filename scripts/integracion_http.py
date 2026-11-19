@@ -620,6 +620,26 @@ def _merge_history(before: list[dict], after: list[dict]) -> list[dict]:
     return sorted(out, key=lambda h: h["t"])
 
 
+def _diagnostico(rk, t, nxt, interval, polls, evs, lst, i) -> dict:
+    """v2.2.2: contexto de un cambio no detectado, para distinguir un defecto del motor de un hueco de
+    consultas. Tiempos en segundos relativos al cambio (t=0)."""
+    rel = lambda x: round((x - t).total_seconds(), 3)  # noqa: E731
+    cerca = [p for p in polls if t - timedelta(seconds=3 * interval) <= p[0] <= nxt + timedelta(seconds=interval)]
+    oks = [p[0] for p in polls if p[2] == "OK"]
+    antes = max((x for x in oks if x <= t), default=None)
+    despues = [x for x in oks if t < x <= nxt]
+    return {"duracion_estado_s": round((nxt - t).total_seconds(), 3),
+            "consultas": [{"t": rel(p[0]), "ms": round(p[1] or 0), "resultado": p[2], "cambios": p[3]} for p in cerca],
+            "consultas_ok_durante_el_estado": len(despues),
+            "hueco_max_entre_ok_s": round(max((b - a).total_seconds() for a, b in zip(
+                [antes] + despues, despues + [min((x for x in oks if x > nxt), default=nxt)]) if a), 3)
+            if antes else None,
+            "eventos_del_recurso": [{"observado": rel(o) if o else None, "detectado": rel(d)}
+                                    for r, o, d, _ in evs if r == rk and d and abs((d - t).total_seconds()) < 30],
+            "cambios_vecinos": [{"t": rel(parse(x["t"])), "antes": x["antes"], "despues": x["despues"],
+                                 "motivo": x["motivo"]} for x in lst[max(0, i - 2): i + 3]]}
+
+
 def _audit(url, history, controlled, fault_windows, start, end, interval, own_reservations=frozenset()) -> dict:
     """Compara la verdad del proveedor con los eventos del motor.
 
@@ -662,9 +682,13 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
         from monitoreo.models import Source
         region_of = {x.id: x.config.get("region") for x in s.scalars(select(Source))}
         ok_times: dict[str, list] = {}
-        for sid, t in s.execute(select(PollLog.source_id, PollLog.started_at).where(
-                PollLog.outcome == "OK", PollLog.started_at >= start).order_by(PollLog.started_at)):
-            ok_times.setdefault(region_of.get(sid), []).append(t)
+        polls_by_region: dict[str, list] = {}       # v2.2.2: para diagnosticar los no detectados
+        for sid, t, dur, outc, chg in s.execute(select(PollLog.source_id, PollLog.started_at, PollLog.duration_ms,
+                                                       PollLog.outcome, PollLog.changes).where(
+                PollLog.started_at >= start).order_by(PollLog.started_at)):
+            polls_by_region.setdefault(region_of.get(sid), []).append((t, dur, outc, chg))
+            if outc == "OK":
+                ok_times.setdefault(region_of.get(sid), []).append(t)
     blind: dict[str, list] = {}
     for reg, ts in ok_times.items():
         ts = [start] + ts + [end]
@@ -749,7 +773,8 @@ def _audit(url, history, controlled, fault_windows, start, end, interval, own_re
                 known = h["despues"]  # (el motor lo verá en el siguiente cambio)
                 res["no_detectados_fuera_de_fallos"] += 1
                 if len(res["ejemplos_no_detectados"]) < 5:
-                    res["ejemplos_no_detectados"].append(h)
+                    res["ejemplos_no_detectados"].append({**h, "diagnostico": _diagnostico(
+                        rk, t, nxt, interval, polls_by_region.get(region_by_res[rk], []), evs, lst, i)})
     # liberaciones controladas: tiempos exactos de punta a punta
     det, to_asg, to_tg = [], [], []
     found = 0
