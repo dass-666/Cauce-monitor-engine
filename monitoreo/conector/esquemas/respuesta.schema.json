@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cauce.conector/1/respuesta",
+  "title": "Respuesta del conector (un JSON por stdout). Sin texto libre: no hay canal para datos personales.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato", "id_solicitud", "estado", "codigo", "enviado", "campos_llenados", "evidencia", "duracion_ms"],
+  "properties": {
+    "contrato": {"const": "cauce.conector/1"},
+    "id_solicitud": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "estado": {"enum": ["PREPARADO", "RECHAZADO", "ERROR", "CADUCADO", "INCIERTO"]},
+    "codigo": {"enum": ["OK", "ACCION_NO_PERMITIDA", "PORTAL_NO_PERMITIDO", "PORTAL_NO_DISPONIBLE",
+                        "CAMPO_NO_RECONOCIDO", "HUELLA_NO_COINCIDE", "SOLICITUD_CADUCADA", "TIEMPO_AGOTADO",
+                        "CONTRATO_NO_SOPORTADO", "ERROR_INTERNO"]},
+    "enviado": {"const": false},
+    "campos_llenados": {"type": "array", "maxItems": 64,
+                        "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"}},
+    "evidencia": {
+      "type": "object", "additionalProperties": false, "required": ["huella_campos", "huella_pagina", "pasos"],
+      "properties": {
+        "huella_campos": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "huella_pagina": {"type": "string", "pattern": "^([0-9a-f]{64})?$"},
+        "pasos": {"type": "integer", "minimum": 0, "maximum": 100}
+      }
+    },
+    "duracion_ms": {"type": "integer", "minimum": 0, "maximum": 600000}
+  }
+}

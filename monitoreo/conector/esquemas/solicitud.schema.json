@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cauce.conector/1/solicitud",
+  "title": "Solicitud de Monitor al conector (una por proceso, por stdin)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato", "id_solicitud", "clave_idempotencia", "accion", "envio_permitido", "portal",
+               "emitida", "caduca", "tiempo_max_s", "autorizacion", "campos", "huella_campos"],
+  "properties": {
+    "contrato": {"const": "cauce.conector/1"},
+    "id_solicitud": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "clave_idempotencia": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{8,128}$"},
+    "accion": {"enum": ["PREPARAR", "VERIFICAR"]},
+    "envio_permitido": {"const": false},
+    "portal": {
+      "type": "object", "additionalProperties": false, "required": ["base", "proveedor_id"],
+      "properties": {
+        "base": {"type": "string", "pattern": "^http://127\\.0\\.0\\.1:[0-9]{2,5}$"},
+        "proveedor_id": {"type": "string", "pattern": "^[a-z0-9_-]{1,32}$"}
+      }
+    },
+    "emitida": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "caduca": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "tiempo_max_s": {"type": "integer", "minimum": 1, "maximum": 120},
+    "autorizacion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision_humana", "aprobada_por", "aprobada_en", "consentimiento_vigente"],
+      "properties": {
+        "revision_humana": {"const": true},
+        "aprobada_por": {"type": "string", "pattern": "^usr-[0-9]{1,9}$"},
+        "aprobada_en": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+        "consentimiento_vigente": {"const": true}
+      }
+    },
+    "campos": {"type": "object", "description": "Nombre de campo -> valor ficticio. Se valida aparte (nombres y longitudes)."},
+    "huella_campos": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
