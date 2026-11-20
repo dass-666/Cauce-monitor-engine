@@ -223,9 +223,67 @@ const VIEWS = {
   config: { t: "Configuración", f: viewConfig, admin: true },
 };
 const vistaVisible = (v) => (!v.admin || isAdmin()) && (!v.lab || labOn()) && (!v.flujo || flujoOn());
+// Menú superior: el trabajo diario a la vista y las secciones técnicas agrupadas en desplegables. Solo cambia
+// dónde se muestra cada enlace: qué secciones existen y para quién lo siguen decidiendo VIEWS y vistaVisible.
+// Las de laboratorio («lab») no aparecen en producción porque vistaVisible las filtra antes de agrupar.
+const NAV_PRINCIPAL = ["panel", "importar", "expedientes", "ventanilla", "recuperacion"];
+const NAV_GRUPOS = [
+  ["operacion", "Operación", ["captura", "solicitudes", "alertas", "supervision", "tramites"]],
+  ["sistema", "Sistema", ["inicio", "monitor", "salud", "conexiones", "config"]],
+  ["laboratorio", "Laboratorio", ["laboratorio-calendario", "laboratorio"]],
+];
+function navEnlace(k) {
+  const a = h("a", { href: "#" + k, class: S.view === k ? "active" : null, "aria-current": S.view === k ? "page" : null }, VIEWS[k].t);
+  if (k === "recuperacion" && S.recBloqueado) {
+    a.classList.add("alerta");
+    a.append(h("span", { class: "nav-senal", id: "nav-rec-senal", title: "Recuperación bloqueada: requiere conciliación" }, "Bloqueada"));
+  }
+  return a;
+}
 function renderNav() {
-  $("nav").replaceChildren(...Object.entries(VIEWS).filter(([, v]) => vistaVisible(v)).map(([k, v]) =>
-    h("a", { href: "#" + k, class: S.view === k ? "active" : null }, v.t)));
+  const visibles = (ks) => ks.filter((k) => VIEWS[k] && vistaVisible(VIEWS[k]));
+  const principal = visibles(NAV_PRINCIPAL);
+  // Sin Mesa de control (operador, o producción sin el flujo administrativo), «Inicio» queda a la vista.
+  if (!principal.includes("panel")) principal.unshift("inicio");
+  const agrupadas = new Set(principal);
+  const grupos = NAV_GRUPOS.map(([id, t, ks]) => [id, t, visibles(ks).filter((k) => !agrupadas.has(k))])
+    .filter(([, , ks]) => ks.length);
+  // Cualquier sección visible que no esté en la lista no se pierde: va a «Sistema».
+  const listadas = new Set([...principal, ...grupos.flatMap(([, , ks]) => ks)]);
+  const sueltas = visibles(Object.keys(VIEWS)).filter((k) => !listadas.has(k));
+  if (sueltas.length) {
+    const g = grupos.find(([id]) => id === "sistema");
+    if (g) g[2].push(...sueltas); else grupos.push(["sistema", "Sistema", sueltas]);
+  }
+  $("nav").replaceChildren(...principal.map(navEnlace), ...grupos.map(([id, t, ks]) => {
+    const activo = ks.includes(S.view);
+    return h("details", { class: "nav-grupo" + (activo ? " active" : ""), "data-grupo": id },
+      h("summary", { "aria-label": activo ? `${t}: ${VIEWS[S.view].t}` : t },
+        h("span", {}, t), activo ? h("span", { class: "nav-actual" }, VIEWS[S.view].t) : null),
+      h("div", { class: "nav-menu" }, ks.map(navEnlace)));
+  }));
+}
+// Desplegables: uno abierto a la vez; se cierran con Escape, al elegir una sección o al hacer clic fuera.
+function cerrarGrupos(excepto) {
+  document.querySelectorAll("#nav details[open]").forEach((d) => { if (d !== excepto) d.open = false; });
+}
+$("nav").addEventListener("toggle", (e) => { if (e.target.open) cerrarGrupos(e.target); }, true);
+$("nav").addEventListener("click", (e) => { if (e.target.closest(".nav-menu a")) cerrarGrupos(); });
+document.addEventListener("click", (e) => { if (!e.target.closest("#nav details")) cerrarGrupos(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const abierto = document.querySelector("#nav details[open]");
+  if (abierto) { abierto.open = false; abierto.querySelector("summary").focus(); }
+});
+// Señal «Bloqueada» junto a «Recuperación» (solo administrador). El estado lo decide el servidor.
+function marcarRecuperacion(bloqueado) {
+  if (S.recBloqueado === Boolean(bloqueado)) return;
+  S.recBloqueado = Boolean(bloqueado);
+  if (!$("nav").querySelector("details[open]")) renderNav();
+}
+async function revisarRecuperacion() {
+  if (!isAdmin()) return;
+  try { marcarRecuperacion((await api("/api/recuperacion")).bloqueado); } catch (_) { /* sin cambio */ }
 }
 window.addEventListener("hashchange", () => { go(location.hash.slice(1)); });
 function go(v) {
@@ -271,8 +329,14 @@ async function start() {
   $("login-view").classList.add("hidden"); $("app").classList.remove("hidden");
   // RC1: el administrador del laboratorio empieza en la mesa de control
   go(location.hash.slice(1) || (isAdmin() && flujoOn() ? "panel" : "inicio"));
+  revisarRecuperacion();
   clearInterval(S.timer);
-  S.timer = setInterval(() => { if (!document.hidden && $("drawer").classList.contains("hidden")) refresh(); }, 4000);
+  let ticks = 0;
+  S.timer = setInterval(() => {
+    if (document.hidden) return;
+    if (++ticks % 5 === 0) revisarRecuperacion();     // señal del menú cada ~20 s
+    if ($("drawer").classList.contains("hidden")) refresh();
+  }, 4000);
 }
 
 // ------------------------------------------------------------------ INICIO

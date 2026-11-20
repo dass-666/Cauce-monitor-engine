@@ -3,7 +3,12 @@
 Asuntos acordados para más adelante. **No están implementados.** Antes de abordarlos hay que proponer el diseño
 y obtener la aprobación de Diego.
 
-## 1. Simplificar el menú superior (registrado el 2026-11-19)
+## 1. Simplificar el menú superior (registrado el 2026-11-19) · IMPLEMENTADO el 2026-11-20
+
+> Implementado en la rama `claude/project-thread-3mgurm` tal como la tabla de abajo, a petición de Diego
+> (2026-11-19 23:55 UTC). Código: `NAV_PRINCIPAL`/`NAV_GRUPOS` y `renderNav()` en `monitoreo/web/app.js`.
+> Sin operador ni Mesa de control, «Inicio» queda a la vista. Los permisos y filtros (`admin`, `lab`, `flujo`)
+> no cambiaron: se aplican antes de agrupar.
 
 **Situación.** En laboratorio, el administrador ve 17 secciones en una sola fila:
 

@@ -304,6 +304,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::demo_ventanilla.bat terminó con $LASTEXITCODE"; exit 1 }
           New-Item -ItemType Directory -Force C:\inst\resultados | Out-Null
           Copy-Item -Recurse -Force resultados\demo_v20 C:\inst\resultados\demo_ventanilla
+      - name: Una sola ruta · instalar_cauce.bat en una carpeta nueva y RC1 desde ella (no es el MSI físico)
+        if: matrix.ps == 'pwsh'
+        run: |
+          Expand-Archive "$env:RUNNER_TEMP\motor.zip" C:\inst\unaruta
+          Set-Location C:\inst\unaruta
+          cmd /c instalar_cauce.bat
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::instalar_cauce.bat terminó con $LASTEXITCODE"; exit 1 }
+          foreach ($p in ".env", ".venv\Scripts\python.exe", "node_modules\playwright", "resultados\comprobacion_equipo.txt") {
+            if (-not (Test-Path $p)) { Write-Host "::error::falta $p tras instalar_cauce.bat"; exit 1 }
+          }
+          $envAntes = Get-FileHash .env
+          $salida = cmd /c instalar_cauce.bat 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $salida
+          if ($code -ne 0) { Write-Host "::error::la segunda ejecución de instalar_cauce.bat terminó con $code"; exit 1 }
+          if ($salida -notmatch "Ya estaba preparado") { Write-Host "::error::la segunda ejecución volvió a instalar el navegador"; exit 1 }
+          if ((Get-FileHash .env).Hash -ne $envAntes.Hash) { Write-Host "::error::.env modificado"; exit 1 }
+          cmd /c comprobar_equipo.bat
+          if ($LASTEXITCODE -gt 1) { Write-Host "::error::comprobar_equipo.bat encontró problemas críticos"; exit 1 }
+          cmd /c recorrido_rc1.bat
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::recorrido_rc1.bat terminó con $LASTEXITCODE"; exit 1 }
+          New-Item -ItemType Directory -Force C:\inst\resultados\unaruta | Out-Null
+          Copy-Item -Recurse -Force resultados\* C:\inst\resultados\unaruta
       - name: Preparar una instalación anterior con datos de la v1.0
         run: |
           New-Item -ItemType Directory C:\inst\anterior | Out-Null
@@ -640,6 +663,8 @@ jobs:
         run: python scripts/recorrido_integral.py --salida resultados/recorrido_integral
       - name: RC1 · Flujo administrativo con la interfaz (importar 6 ficticios, consentimiento, plan, coincidencia, folio, reimportar)
         run: python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
+      - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
+        run: python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -737,6 +762,10 @@ jobs:
       - name: RC1 · Flujo administrativo con la interfaz
         run: |
           python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
+          exit $LASTEXITCODE
+      - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
+        run: |
+          python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |

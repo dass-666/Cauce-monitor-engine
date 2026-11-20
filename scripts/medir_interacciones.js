@@ -51,6 +51,7 @@ const CLAVE = "KLM305918";
   };
 
   const folios = [];
+  await clic('#nav details[data-grupo="operacion"] > summary', "abrir el menú Operación");
   await clic('#nav a[href="#captura"]', "abrir Captura");
   if (modo === "v1.6") {
     await clic("[data-tab=expedientes]", "pestaña Expedientes");

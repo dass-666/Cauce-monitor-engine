@@ -44,6 +44,7 @@ function recErr(errs, err) {
 async function tarjetaRecuperacion() {
   let e;
   try { e = await api("/api/recuperacion"); } catch (_) { return null; }
+  marcarRecuperacion(e.bloqueado);
   const el = kpi("Recuperación segura",
     h("span", { id: "kpi-recuperacion", "data-bloqueado": e.bloqueado ? "1" : "0" }, e.bloqueado ? "BLOQUEADA" : "Operable"),
     e.bloqueado ? `${e.pendientes || 0} discrepancia(s) · ${recCodigos(e).join(", ")}` : (e.copia && e.copia.configurada ? "diario íntegro · con copia externa" : "diario íntegro · SIN copia externa"));
@@ -56,6 +57,7 @@ async function tarjetaRecuperacion() {
 
 async function viewRecuperacion() {
   const [e, audit] = await Promise.all([api("/api/recuperacion"), api("/api/audit?limit=500").catch(() => [])]);
+  marcarRecuperacion(e.bloqueado);
   const errs = h("div", { class: "error", role: "alert", id: "rec-error" });
   const cods = recCodigos(e);
   const estado = card("Estado", h("div", { id: "rec-estado", "data-bloqueado": e.bloqueado ? "1" : "0" },
