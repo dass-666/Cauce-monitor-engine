@@ -110,6 +110,12 @@ class RecorridoUI(Recorrido):
 
 
 def main() -> int:
+    # Windows con la salida redirigida (CI, «> archivo») usa cp1252: sin esto «→» detenía el recorrido (CI 104).
+    for flujo in (sys.stdout, sys.stderr):
+        try:
+            flujo.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", default=str(ROOT / "resultados" / "recorrido_recuperacion_ui"))
     ap.add_argument("--manual", action="store_true",
