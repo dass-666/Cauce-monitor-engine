@@ -354,6 +354,11 @@ async function viewExpedientesAdmin() {
     const r = S.adm.ultimoPlan;
     resultado.append(h("div", { class: "section", id: "plan-lote-resultado", "data-aceptados": r.aceptados.length, "data-rechazados": r.rechazados.length },
       h("p", {}, h("b", {}, `${r.aceptados.length} incorporado(s)`), ` al plan ${r.plan.fecha_jornada} (${r.plan.vivos} de ${r.plan.capacidad}).`),
+      r.aceptados.length ? h("ul", { id: "plan-lote-fechas" }, r.aceptados.map((x) => {
+        const fs = [...(x.fechas_aceptables || [])].sort();
+        const txt = !fs.length ? "sin fechas" : fs.length === 1 ? `solo el ${fs[0]}` : `del ${fs[0]} al ${fs[fs.length - 1]} (${fs.length} días)`;
+        return h("li", {}, `${x.codigo || x.expediente_id}: acepta ${txt}`);
+      })) : null,
       r.rechazados.length ? h("ul", {}, r.rechazados.map((x) => h("li", { class: "warn-text" }, `${x.codigo || x.expediente_id}: ${x.motivo}`))) : null));
   }
   return h("div", { id: "expedientes-admin" },

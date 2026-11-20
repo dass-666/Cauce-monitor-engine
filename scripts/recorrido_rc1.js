@@ -120,7 +120,10 @@ const CLAVE = "QXZ482915";      // campo manual ficticio que se teclea en el for
     await A.waitForSelector("#exp-tabla tbody tr");
     const enPlan = (await filasExp()).filter((x) => x.situacion === "EN_PLAN").map((x) => x.codigo);
     await shot("plan_solo_elegibles");
-    paso("6_plan_solo_elegibles", aceptados === "3" && enPlan.length === 3 && listos.every((c) => enPlan.includes(c)), { en_plan: enPlan });
+    const fechasPlan = (await A.$$eval("#plan-lote-fechas li", (ls) => ls.map((l) => l.textContent)));
+    paso("6_plan_solo_elegibles", aceptados === "3" && enPlan.length === 3 && listos.every((c) => enPlan.includes(c))
+      && fechasPlan.length === 3 && fechasPlan.every((t) => /acepta (del \d{4}-\d{2}-\d{2} al \d{4}-\d{2}-\d{2}|solo el \d{4}-\d{2}-\d{2})/.test(t)),
+      { en_plan: enPlan, fechas_aceptables_mostradas: fechasPlan });
 
     // ------------------------------------------------------------ 7a. observador (laboratorio) en marcha
     await ir("panel", "#panel-kpis");
