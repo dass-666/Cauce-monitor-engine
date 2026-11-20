@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cauce.conector.v1/solicitud",
+  "title": "Solicitud Monitor -> conector (stdin, una por proceso). Contrato unificado cauce.conector.v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato", "tipo", "solicitud_id", "emitida_en", "caduca_en", "autorizacion", "formulario", "campos", "opciones"],
+  "properties": {
+    "contrato": {"const": "cauce.conector.v1"},
+    "tipo": {"const": "preparar_formulario"},
+    "solicitud_id": {"type": "string", "pattern": "^sol_[0-9a-f]{16,32}$"},
+    "emitida_en": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "caduca_en": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "autorizacion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ref", "formulario_id", "otorgada_por_ref", "vigente_hasta", "consentimiento_vigente"],
+      "properties": {
+        "ref": {"type": "string", "pattern": "^aut_[a-z0-9_]{1,40}$"},
+        "formulario_id": {"type": "string", "pattern": "^frm_[a-z0-9_]{1,40}$"},
+        "otorgada_por_ref": {"type": "string", "pattern": "^rev_[a-z0-9_]{1,40}$"},
+        "vigente_hasta": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "consentimiento_vigente": {"const": true}
+      }
+    },
+    "formulario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["formulario_id", "url", "perfil", "perfil_sha256", "firma_estructura_esperada"],
+      "properties": {
+        "formulario_id": {"type": "string", "pattern": "^frm_[a-z0-9_]{1,40}$"},
+        "url": {"type": "string", "pattern": "^https?://[A-Za-z0-9.-]{1,100}(:[0-9]{2,5})?(/[A-Za-z0-9._~/-]{0,100})?$"},
+        "perfil": {"type": "string", "pattern": "^[a-z0-9_]{1,40}$"},
+        "perfil_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "firma_estructura_esperada": {"type": "string", "pattern": "^v2:[0-9a-f]{16}$"}
+      }
+    },
+    "campos": {"type": "object", "description": "Nombre lógico del perfil -> valor ficticio. Nombres y longitudes se validan aparte; solo campos que declara el perfil."},
+    "opciones": {
+      "type": "object", "additionalProperties": false, "required": ["espera_revision_max_s", "pausa_tecla_ms"],
+      "properties": {
+        "espera_revision_max_s": {"type": "integer", "minimum": 0, "maximum": 900},
+        "pausa_tecla_ms": {"type": "integer", "minimum": 0, "maximum": 500}
+      }
+    }
+  }
+}
