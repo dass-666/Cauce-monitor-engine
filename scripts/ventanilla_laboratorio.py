@@ -23,10 +23,13 @@ import os
 import secrets
 import shutil
 import signal
+import socket
+import sqlite3
 import sys
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
@@ -58,10 +61,48 @@ class Laboratorio:
         self.portal: PortalProceso | None = None
         self.motor: Server | None = None
 
+    @staticmethod
+    def _puerto_disponible(p: int) -> bool:
+        with socket.socket() as s:
+            try:
+                s.bind(("127.0.0.1", p))
+            except OSError:
+                return False
+        return True
+
+    def _puerto_registrado(self) -> int | None:
+        """Puerto del portal que la base de esta carpeta ya tiene registrado como su proveedor (si lo hay)."""
+        db = self.carpeta / "cauce_lab.db"
+        if not db.exists():
+            return None
+        try:
+            con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True, timeout=5)
+            try:
+                fila = con.execute("select value from settings where key = 'proveedor.identidad'").fetchone()
+            finally:
+                con.close()
+            u = urlparse(json.loads(fila[0])["destino"]) if fila else None
+            return u.port if u and u.hostname == "127.0.0.1" else None
+        except Exception:  # noqa: BLE001 - sin base legible simplemente no hay preferencia
+            return None
+
+    def _puerto_portal_estable(self) -> int | None:
+        """El motor registra en la base la identidad del portal (host y PUERTO). Si el portal del laboratorio
+        tomara un puerto libre distinto en cada arranque, al reabrir la misma carpeta el motor vería «otro
+        portal» y se negaría a preparar o confirmar citas. Por eso se reutiliza el puerto ya registrado (o el
+        último usado) mientras esté libre."""
+        for p in (self._puerto_registrado(), self.cfg.get("puerto_portal")):
+            if isinstance(p, int) and 1024 <= p <= 65535 and self._puerto_disponible(p):
+                return p
+        return None
+
     def iniciar(self) -> dict:
         c = self.carpeta
-        self.portal = PortalProceso(c / "portal.json", token=self.cfg["token"], token_control=self.cfg["token_control"],
-                                    log=c / "portal.log", extra=["--zona-horaria", ZONA])
+        self.portal = PortalProceso(c / "portal.json", puerto=self._puerto_portal_estable(), token=self.cfg["token"],
+                                    token_control=self.cfg["token_control"], log=c / "portal.log",
+                                    extra=["--zona-horaria", ZONA])
+        self.cfg["puerto_portal"] = self.portal.puerto
+        (c / "laboratorio.json").write_text(json.dumps(self.cfg), "utf-8")
         self.portal.iniciar()
         env = base_env(c, "desarrollo")
         env.update({"MONITOREO_DATOS_DEMO": "0", "MONITOREO_ADMIN_PASSWORD": ADMIN_PWD,
@@ -81,6 +122,12 @@ class Laboratorio:
         r = adm.post("/api/auth/login", json={"username": "admin", "password": ADMIN_PWD})
         r.raise_for_status()
         adm.headers["Authorization"] = "Bearer " + r.json()["token"]
+        if not adm.get("/api/proveedor").json().get("compatible", True):
+            # El puerto registrado ya lo usa otro programa: se adopta el portal actual (explícito y auditado).
+            # El motor lo niega solo si quedan reservaciones a medias del portal anterior.
+            a = adm.post("/api/proveedor/adoptar", json={"confirmo": True})
+            if a.status_code != 200:
+                print(f"AVISO: el portal del laboratorio cambió de puerto y no se pudo adoptar: {a.text[:200]}")
         adm.put("/api/settings/engine", json={"captura_modo": "POR_DIA"}).raise_for_status()
         usuarios = {u["username"] for u in adm.get("/api/users").json()}
         if OPERADOR[0] not in usuarios:
