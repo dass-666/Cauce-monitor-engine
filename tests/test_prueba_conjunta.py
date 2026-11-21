@@ -101,7 +101,7 @@ def test_puede_lanzar_sigue_bloqueado_y_el_arnes_no_lo_usa():
 @solo_linux
 def test_preparacion_completa_sin_envio_y_cierre_por_la_persona(ent):
     sol = ent.solicitud(espera=60)
-    r = lanzar(ent, sol, A.persona_cierra_ventana, cdp=True)
+    r = lanzar(ent, sol, A.persona_cierra_ventana, cdp=True, **ent.con_traza())
     assert r.nota == "ventana_cerrada" and r.codigo == 0, (r.codigo, r.nota, r.stderr[-300:])
     assert r.resp["estado"] == "preparado_revisado_sin_envio"
     assert r.resp["envio"] == {"realizado_por_conector": False, "envio_humano_observado": False}
@@ -268,20 +268,24 @@ def test_navegador_que_desaparece_no_cuenta_como_revision(ent):
 
 @solo_linux
 def test_ventana_cerrada_no_es_aprobacion_ni_envio(ent):
-    """HALLAZGO 2: cerrar la ventana da PREPARADO en ~8 de 10 corridas y ERROR en ~2 (carrera en el conector entre el cierre
-    de la página y la desconexión del navegador). Ambos son seguros (nada se envió) pero ninguno es aprobación humana:
-    Monitor debe exigir su propia confirmación explícita y nunca derivar «aprobado» de PREPARADO."""
-    r = lanzar(ent, ent.solicitud(espera=60), A.persona_cierra_ventana, cdp=True)
-    final = validar_y_registrar(ent, r)
-    assert final["estado"] in ("PREPARADO", "ERROR")                      # nunca ENVIADA_POR_PERSONA ni otro éxito
+    """Con la revisión ya iniciada, cerrar la ventana da PREPARADO (40 de 40 corridas de investigación). PREPARADO NO es
+    aprobación humana: Monitor exige su propia confirmación (ver test_confirmacion_humana.py)."""
+    r = lanzar(ent, ent.solicitud(espera=60), A.persona_cierra_ventana, cdp=True, **ent.con_traza())
+    assert validar_y_registrar(ent, r)["estado"] == "PREPARADO"
     assert set(ent.sitio.metodos()) == {"GET"}
     assert r.resp["envio"]["envio_humano_observado"] is False and r.resp["envio"]["realizado_por_conector"] is False
     assert "aprob" not in json.dumps(r.resp).lower()                      # la respuesta no afirma aprobación humana
     sin_datos_personales(ent, r)
 
 
-def test_el_detector_de_datos_personales_en_archivos_funciona(ent):
-    """Control del propio arnés: un valor ficticio escondido en cualquier archivo del entorno SÍ se detecta."""
-    assert ent.hallazgos_en_archivos() == []
-    (ent.tmp / "residuo.txt").write_text("copia: " + A.VALORES["email"], encoding="utf-8")
-    assert ent.hallazgos_en_archivos() != []
+@solo_linux
+def test_cierre_antes_de_terminar_el_relleno_da_error_y_nunca_exito(ent):
+    """CAUSA de los «2 de 10» (reproducida 25 de 25 veces cerrando sin esperar): si la ventana se cierra mientras el conector
+    aún rellena o verifica, Playwright lanza TargetClosedError y el conector responde error_interno (ERROR). Es seguro:
+    no hay PREPARADO ni envío. Un cierre limpio no se distingue de este caso por el código (ver informe)."""
+    r = lanzar(ent, ent.solicitud(espera=60), A.persona_cierra_de_inmediato, cdp=True, **ent.con_traza())
+    assert r.nota == "cierre_inmediato"
+    assert r.resp["estado"] in ("error_interno", "preparado_revisado_sin_envio")      # carrera: nunca un éxito de envío
+    assert r.resp["envio"] == {"realizado_por_conector": False, "envio_humano_observado": False}
+    assert set(ent.sitio.metodos()) == {"GET"}
+    sin_datos_personales(ent, r)

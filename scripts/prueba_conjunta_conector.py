@@ -125,6 +125,7 @@ class Entorno:
         self.sitio = Sitio({"/f.html": self.html, "/captcha.html": (lab / "04_captcha_simulado.html").read_text("utf-8")})
         (self.dir / "hosts.json").write_text('{"allowed_hosts": []}', encoding="utf-8")
         self.puerto_cdp = _puerto_libre()
+        self.traza = self.dir / "traza.jsonl"
         self.registro = Registro()
         self.url = self.sitio.base + "/f.html"
         self.info = self.aprobar(self.url)
@@ -189,6 +190,14 @@ class Entorno:
         return sol
 
     # ------------------------------------------------------------------ Monitor: puerta simulada + lanzamiento de PRUEBAS
+    def con_traza(self) -> dict:
+        """Argumentos de `lanzar` para ejecutar el conector SIN modificarlo pero con el trazador de laboratorio."""
+        return {"comando": [sys.executable, str(RAIZ / "scripts" / "trazador_conector.py")],
+                "env_extra": {"CAUCE_TRACE": str(self.traza)}}
+
+    def revision_iniciada(self) -> bool:
+        return self.traza.exists() and '"inicio_revision"' in self.traza.read_text(encoding="utf-8")
+
     def autorizar(self, sol: dict) -> None:
         """Puerta simulada de Monitor (consentimiento y ventana); NO es la puerta operativa ni activa puede_lanzar()."""
         ahora = datetime.now(timezone.utc)
@@ -201,12 +210,14 @@ class Entorno:
         self.registro.mover(sol["solicitud_id"], "AUTORIZADA", ahora)
 
     def lanzar(self, sol: dict, accion=None, *, cdp: bool = False, plazo_s: float = 90.0,
-               registrar: bool = True) -> Resultado:
+               registrar: bool = True, comando: list | None = None, env_extra: dict | None = None) -> Resultado:
         """Lanza UN proceso `preparar` con la solicitud por stdin. `accion(pagina_cdp, proceso)` actúa como la persona."""
         if registrar:                                   # False: ensayo de que el CONECTOR rechaza por sí solo un reenvío
             self.registro.mover(sol["solicitud_id"], "LANZADA", datetime.now(timezone.utc))
-        proc = subprocess.Popen([sys.executable, "-m", "cauce_form_connector", "preparar"], cwd=self.dir / "trabajo",
-                                env=self.env(cdp=cdp), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        entorno = self.env(cdp=cdp)
+        entorno.update(env_extra or {})
+        proc = subprocess.Popen(comando or [sys.executable, "-m", "cauce_form_connector", "preparar"], cwd=self.dir / "trabajo",
+                                env=entorno, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=True)
         proc.stdin.write(json.dumps(sol))
         proc.stdin.close()
@@ -310,9 +321,13 @@ def _esperar_relleno(pg, t: float = 40.0) -> dict:
 
 
 def persona_cierra_ventana(ent, proc):
+    """Persona que cierra la ventana cuando la revisión YA empezó (el conector terminó de rellenar y verificar)."""
     pw, br, pg = _pagina(ent)
     try:
         v = _esperar_relleno(pg)
+        fin = time.monotonic() + 30
+        while not ent.revision_iniciada() and time.monotonic() < fin:
+            time.sleep(0.05)
         pg.close()                                      # la persona cierra la ventana
         return v, "ventana_cerrada"
     finally:
@@ -357,3 +372,16 @@ def _escenario_valores(r: Resultado) -> dict:
 
 if __name__ == "__main__":
     sys.exit("Use: python -m pytest tests/test_prueba_conjunta.py (con CONECTOR_REPO definido)")
+
+
+def persona_cierra_de_inmediato(ent, proc):
+    """Cierra la ventana en cuanto se ve el último campo escrito, SIN dar tiempo al conector de terminar su verificación."""
+    pw, br, pg = _pagina(ent)
+    try:
+        fin = time.monotonic() + 40
+        while time.monotonic() < fin and not (_valores(pg).get("acepta_terminos") is True):
+            time.sleep(0.01)
+        pg.close()
+        return {}, "cierre_inmediato"
+    finally:
+        pw.stop()
