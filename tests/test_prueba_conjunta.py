@@ -257,23 +257,6 @@ def test_revocacion_a_mitad_monitor_termina_el_arbol_y_queda_incierta(ent):
 
 
 @solo_linux
-@pytest.mark.xfail(strict=True, reason="HALLAZGO 1 (conector aa1bb02): SIGTERM no termina el proceso mientras espera la "
-                                       "revisión humana; Monitor debe matar el árbol. Se espera que el conector lo corrija.")
-def test_hallazgo_el_conector_debe_terminar_con_sigterm(ent):
-    def cancela(ent_, proc):
-        v, _ = A.persona_no_hace_nada(ent_, proc)
-        proc.send_signal(__import__("signal").SIGTERM)
-        try:
-            proc.wait(timeout=10)
-            return v, "salio_solo"
-        except Exception:
-            A._matar_arbol(proc)
-            return v, "no_salio"
-    r = lanzar(ent, ent.solicitud(espera=60), cancela, cdp=True)
-    assert r.nota == "salio_solo"
-
-
-@solo_linux
 def test_navegador_que_desaparece_no_cuenta_como_revision(ent):
     r = lanzar(ent, ent.solicitud(espera=60), A.navegador_muere, cdp=True)
     assert r.nota == "navegador_matado"

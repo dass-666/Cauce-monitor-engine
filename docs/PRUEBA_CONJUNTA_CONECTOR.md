@@ -32,7 +32,7 @@ Entorno temporal aislado (directorio propio, `HOME`/`TMPDIR` propios, entorno m�
 Solicitud repetida · perfil alterado · estructura cambiada (etiqueta distinta → `detenido_estructura_cambiada`, 0 teclas, 0 POST) · campo no aprobado/ambiguo (`CAMPO_NO_DECLARADO`, nada escrito) · dominio externo (Monitor rechaza `PORTAL_NO_LOCAL`; el conector, si se le salta Monitor, `FORMULARIO_NO_AUTORIZADO`; no se contactó ningún servicio externo) · CAPTCHA (no admite perfil aprobado; `aprobar-perfil` sale con 4) · consentimiento revocado antes de lanzar (Monitor no lanza; el conector sale con 6 sin JSON) · revocación a mitad (Monitor termina el proceso → INCIERTA) · navegador que desaparece (→ `error_interno`/ERROR, no PREPARADO).
 
 ## 4. Hallazgos (no se alteró ningún criterio para pasar)
-1. **SIGTERM no termina al conector mientras espera la revisión** [V: no salió en 30 s]. Se documenta con una prueba `xfail(strict)` que fallará (avisando) el día que el conector lo corrija. Consecuencia: Monitor debe matar el **árbol** de procesos tras una gracia breve (ya existe `detener_arbol`). En Linux, al matar solo al conector Chromium terminó solo (0 huérfanos en 1 corrida) [V]; en Windows **no verificado** [P].
+1. **SIGTERM: comportamiento NO consistente entre entornos** [V]. En el contenedor de desarrollo (Linux, usuario root, Chromium con `--no-sandbox`) el conector **no salió en 30 s** tras SIGTERM mientras esperaba la revisión. En la CI de GitHub (Linux, usuario normal) **sí salió** en menos de 10 s (una prueba `xfail(strict)` que escribí para documentarlo dio XPASS y la retiré). La causa no está demostrada (hipótesis [I]: root/`--no-sandbox` o temporización). Consecuencia que se mantiene: Monitor no puede confiar en que SIGTERM termine el proceso; debe matar el **árbol** tras una gracia breve (ya existe `detener_arbol`), y la prueba de revocación a mitad lo ejercita. En Linux, al matar solo al conector, Chromium terminó solo (0 huérfanos en 1 corrida); en Windows **no verificado** [P].
 2. **Cerrar la ventana no es aprobación humana**, pero la respuesta dice `preparado_revisado_sin_envio` («revisado»). Eso sobre-afirma [V por diseño de la respuesta]. Monitor no debe derivar «aprobado» de PREPARADO: debe exigir su propia confirmación explícita («revisé y apruebo») antes de cualquier uso posterior.
 3. **Clasificación no determinista del cierre**: cerrar la página dio PREPARADO en 8 de 10 corridas y `error_interno` en 2 (hipótesis [I]: carrera entre el evento de cierre de página y la desconexión del navegador en `_esperar_revision`). Ambas salidas son seguras (nada se envió), pero no deben usarse para distinguir «cerró la persona» de «murió el navegador».
 4. En Linux como `root` Chromium exige `--no-sandbox`; el conector no lo añade. El arnés lo añade solo si corre como root; en CI (usuario normal) no se usa.
@@ -45,7 +45,7 @@ Solicitud repetida · perfil alterado · estructura cambiada (etiqueta distinta 
 | Perfil | no existe | exige `aprobar-perfil` previo; sha256 + firma v2 |
 | Un solo uso del id | en memoria de Monitor | además, archivo en `state/` del conector (se pierde si se borra) |
 | Duración | instantánea | segundos hasta la revisión; hasta `espera_revision_max_s` |
-| Cancelación | trivial | SIGTERM no coopera (hallazgo 1) |
+| Cancelación | trivial | SIGTERM inconsistente entre entornos (hallazgo 1) |
 | Cierre de ventana | no modelado | PREPARADO o ERROR (hallazgos 2–3) |
 | `detalle` | solo en el escenario de fuga (para probar el filtro) | no lo emite nunca |
 | Entorno | Python puro | requiere Playwright/Chromium; en Windows solo hay CI |
@@ -60,7 +60,7 @@ Aislamiento Windows no demostrado · sin cifrado en reposo ni rol «conector» e
 ## 8. Requisitos exactos para integrar el conector al flujo de Monitor (solo si Diego lo autoriza)
 1. Aislamiento demostrado en Windows: cuenta local de baja privilegio + ACL solo a su carpeta de trabajo + prueba automatizada de `PermissionError` sobre `data/*.db` y `.env`. Hasta entonces `puede_lanzar()` = `False`.
 2. Lanzador de Monitor: un proceso por solicitud, script fijo en lista blanca, `shell=False`, entorno mínimo (como el de este arnés), plazo = `espera_revision_max_s` + 180 s, y terminación del **árbol** (SIGTERM no basta; `detener_arbol`).
-3. Corrección del conector (su repositorio): terminar con SIGTERM/`terminate()` de forma ordenada; clasificar el cierre de forma determinista; no escribir «revisado» cuando solo se cerró la ventana (hallazgos 1–3).
+3. Corrección del conector (su repositorio): garantizar y probar la salida ordenada con SIGTERM/`terminate()` (en Windows `terminate()` no es ordenado); clasificar el cierre de forma determinista; no escribir «revisado» cuando solo se cerró la ventana (hallazgos 1–3).
 4. Confirmación humana explícita dentro de Monitor antes de tratar una preparación como aprobada; PREPARADO ≠ aprobado ≠ enviado. El folio/comprobante sigue siendo la única prueba de envío.
 5. Tabla persistente de solicitudes con `UNIQUE(clave_idempotencia)` y `UNIQUE(solicitud_id)`, migración revisada y base de pruebas separada; diario de eventos `CONECTOR_*` sin datos personales.
 6. Respaldo/rotación del registro de ids usados del conector, o que Monitor sea la única fuente de unicidad.
