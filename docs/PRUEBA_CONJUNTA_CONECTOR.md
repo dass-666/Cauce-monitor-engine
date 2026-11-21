@@ -7,7 +7,7 @@ Esto es una **herramienta de pruebas** (`scripts/prueba_conjunta_conector.py`, `
 
 ## 1. Verificación inicial
 - Commits reales confirmados [V]: `git rev-parse HEAD` del conector = `aa1bb0295b32…`; Monitor = `9e7f88d`.
-- Esquemas `solicitud` y `respuesta`: **idénticos byte a byte** entre ambos repositorios [V, prueba]. `VERSION`, `SALIDA` y `MAPA_ESTADO` del código del conector son iguales a los de Monitor [V].
+- Esquemas `solicitud` y `respuesta`: **idénticos** entre ambos repositorios [V]: byte a byte en Linux; en la CI de Windows la copia descargada tiene finales de línea CRLF (artefacto del checkout [I]) y la prueba compara con los finales normalizados y, además, el JSON interpretado. `VERSION`, `SALIDA` y `MAPA_ESTADO` del código del conector son iguales a los de Monitor [V].
 - Estados exigidos:
 
 | Situación | Conector (`estado`, salida) | Monitor | Verificado |

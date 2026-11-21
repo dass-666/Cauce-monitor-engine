@@ -62,11 +62,14 @@ def lanzar(ent, sol, accion=None, **kw):
 
 
 # ---------------------------------------------------------------- 1. verificación inicial (contratos)
-def test_esquemas_identicos_byte_a_byte():
+def test_esquemas_identicos():
+    """Mismo contenido. Se normalizan SOLO los finales de línea: en Windows `git checkout` puede convertirlos a CRLF en
+    una de las copias (no cambia el esquema). Además se comparan los JSON ya interpretados."""
     for nombre in ("solicitud", "respuesta"):
         monitor = (RAIZ / "monitoreo" / "conector" / "esquemas" / f"{nombre}.schema.json").read_bytes()
         conector = (Path(CONECTOR) / "cauce_form_connector" / "contrato_v1" / f"{nombre}.schema.json").read_bytes()
-        assert monitor == conector, f"el esquema {nombre} difiere entre Monitor y el conector"
+        assert monitor.replace(b"\r\n", b"\n") == conector.replace(b"\r\n", b"\n"), f"el esquema {nombre} difiere"
+        assert json.loads(monitor) == json.loads(conector)
 
 
 def test_mapa_de_estados_y_salidas_coinciden_con_el_codigo_del_conector():
