@@ -14,7 +14,7 @@ if ($env:OS -ne "Windows_NT") { throw "Solo Windows." }
 $raiz = Join-Path ([IO.Path]::GetTempPath()) ("aisl_" + [guid]::NewGuid().ToString("N").Substring(0, 8))
 $yo = "$env:USERDOMAIN\$env:USERNAME"
 $clave = "P@" + [guid]::NewGuid().ToString("N") + "aA1!"
-$resultado = [ordered]@{ cuenta = $Cuenta; raiz = $raiz; sonda = $null; veredicto = "NO_EJECUTADO"; fallos = @() }
+$resultado = [ordered]@{ cuenta = $Cuenta; raiz = $raiz; sonda = $null; veredicto = "NO_EJECUTADO"; fallos = @(); diagnostico = "" }
 try {
     # --- árbol de prueba (datos ficticios)
     foreach ($d in "data", "respaldos", "conector\codigo", "conector\trabajo") { New-Item -ItemType Directory -Force -Path (Join-Path $raiz $d) | Out-Null }
@@ -54,7 +54,9 @@ print(json.dumps({"usuario": os.environ.get("USERNAME", ""), "pruebas": r}))
 '@ | Set-Content $sonda -Encoding UTF8
 
     # --- cuenta local restringida
-    net user $Cuenta $clave /add /expires:never | Out-Null
+    $o = net user $Cuenta $clave /add /expires:never 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "net user /add falló ($LASTEXITCODE): $o" }
+    $resultado.diagnostico = (net user $Cuenta 2>&1 | Out-String)
     # --- ACL NTFS: sin herencia; el conector solo recorre la raíz, lee su código y escribe en su trabajo
     icacls $raiz /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "${yo}:(OI)(CI)F" | Out-Null
     icacls $raiz /grant "${Cuenta}:(RX)" | Out-Null                                     # solo esta carpeta (para atravesar)

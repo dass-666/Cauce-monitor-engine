@@ -327,7 +327,7 @@ def test_lanzador_de_laboratorio_termina_todo_el_arbol_del_conector_real(ent):
                    cwd=ent.dir / "trabajo", env=ent.env(), plazo_s=120)
     assert visto["n"] >= 1, "el navegador nunca llegó a arrancar: la prueba no demostraría nada"
     assert r.estado == "CANCELADO" and r.sobrevivientes == [] and r.stdout.strip() == ""
-    assert r.eliminados >= 1 and del_entorno() == []
+    assert del_entorno() == []        # el conector puede salir solo con la señal ordenada (CI) o hacer falta forzar (contenedor root)
     assert ent.registro.proceso_terminado_sin_respuesta(sol["solicitud_id"], datetime.now(timezone.utc))["estado"] == "INCIERTA"
     assert set(ent.sitio.metodos()) <= {"GET"}
     texto = r.stdout + r.stderr
