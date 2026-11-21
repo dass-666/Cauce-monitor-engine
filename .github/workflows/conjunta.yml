@@ -51,3 +51,25 @@ jobs:
         with:
           name: conjunta-${{ matrix.os }}
           path: conjunta.xml
+
+  aislamiento-windows:
+    # INFORMATIVO: ejecuta la prueba negativa de aislamiento en un runner efímero (cuenta local + ACL NTFS). Su resultado no
+    # demuestra aislamiento en la instalación real ni en la MSI: solo si la técnica funciona y qué falla.
+    name: Aislamiento Windows (prueba negativa, informativa)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prueba negativa con cuenta restringida y ACL NTFS
+        shell: pwsh
+        run: ./scripts/aislamiento_windows_prueba.ps1 -Salida aislamiento_windows.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aislamiento-windows
+          path: aislamiento_windows.json
+          if-no-files-found: warn
