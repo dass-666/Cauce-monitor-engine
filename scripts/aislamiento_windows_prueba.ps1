@@ -5,6 +5,8 @@
  Requiere administrador. Solo para entornos de prueba efímeros (runner de CI o equipo de laboratorio); no toca la instalación real.
  Uso:  pwsh -File scripts/aislamiento_windows_prueba.ps1 [-Salida resultados\aislamiento.json] [-Python python]
 #>
+# La clave es aleatoria, de un solo uso, de una cuenta local efimera que se borra al terminar: no es un secreto.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '')]
 param([string]$Salida = "aislamiento_windows.json", [string]$Python = "python", [string]$Cuenta = "cauce_conector_t")
 $ErrorActionPreference = "Stop"
 $esAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
