@@ -56,6 +56,20 @@ def mes_vacio(c: httpx.Client) -> str:
     raise RuntimeError("no hay un mes vacío en el horizonte del plan")
 
 
+def estados_sockets() -> dict:
+    """Diagnóstico: cuántos sockets TCP hay en cada estado (agotamiento de puertos efímeros / TIME_WAIT)."""
+    try:
+        t = subprocess.run(["netstat", "-an"], capture_output=True, text=True, timeout=30).stdout
+    except Exception as e:  # noqa: BLE001
+        return {"error": type(e).__name__}
+    n: dict = {}
+    for ln in t.splitlines():
+        if ln.split()[:1] in (["TCP"], ["tcp"], ["tcp6"]):
+            est = ln.split()[-1]
+            n[est] = n.get(est, 0) + 1
+    return n
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", default=str(ROOT / "resultados" / "recorrido_v23"))
@@ -99,6 +113,9 @@ def main() -> int:
             return 3 if "Cannot find module" in p.stderr else 1
         nav = json.loads(linea[len("RESULTADO "):])
         res["navegador"] = nav
+        if nav.get("diagnostico") is not None:
+            print("DIAGNOSTICO_NAVEGADOR " + json.dumps(nav["diagnostico"], ensure_ascii=False))
+            print("DIAGNOSTICO_SOCKETS " + json.dumps(estados_sockets()))
         for x in nav["pasos"]:
             check(f"interfaz · {x['paso']}", x["ok"], x["detalle"])
         check("interfaz · recorrido completo sin interrupciones", not nav.get("fallo"), nav.get("fallo"))
