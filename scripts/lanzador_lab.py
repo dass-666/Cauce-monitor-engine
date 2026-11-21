@@ -157,9 +157,10 @@ class LanzadorLab:
         while time.monotonic() < fin and any(self._vivo(p) for p in candidatos.values()):
             time.sleep(0.05)
         # 2) forzada: Windows cierra el Job (mata a todos); en todas partes, rondas de kill hasta que no quede ninguno
-        if ES_WINDOWS and trabajo is not None:
-            trabajo.terminar()
         eliminados, tope = 0, time.monotonic() + 10
+        if ES_WINDOWS and trabajo is not None:
+            eliminados += sum(1 for p in candidatos.values() if self._vivo(p) and p.pid != os.getpid())  # los que cierra el Job también cuentan
+            trabajo.terminar()
         while time.monotonic() < tope:
             ronda = {**historial, **candidatos, **self._descendientes(raiz), **self._por_marca(marca)}
             vivos = [p for p in ronda.values() if self._vivo(p) and p.pid != os.getpid()]
