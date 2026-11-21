@@ -295,7 +295,8 @@ def test_lanzador_de_laboratorio_termina_todo_el_arbol_del_conector_real(ent):
     """Monitor cancela a mitad con el lanzador de laboratorio: no queda ni el conector ni Chromium ni sus hijos."""
     import threading
     import psutil
-    from monitoreo.conector.lanzador_lab import LanzadorLab
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    from lanzador_lab import LanzadorLab
     sol = ent.solicitud(espera=120)
     ent.autorizar(sol)
     ent.registro.mover(sol["solicitud_id"], "LANZADA", datetime.now(timezone.utc))

@@ -11,7 +11,8 @@ import psutil
 import pytest
 
 from monitoreo.conector import aislamiento
-from monitoreo.conector.lanzador_lab import LanzadorBloqueado, LanzadorLab
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from lanzador_lab import LanzadorBloqueado, LanzadorLab  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parents[1]
 HELPER = Path(__file__).resolve().parent / "herramientas" / "arbol_prueba.py"
@@ -60,9 +61,8 @@ def test_sin_modo_laboratorio_no_se_puede_crear():
 
 def test_puede_lanzar_sigue_bloqueado_y_ningun_modulo_operativo_importa_el_lanzador():
     assert aislamiento.puede_lanzar()[0] is False
+    assert not (RAIZ / "monitoreo" / "conector" / "lanzador_lab.py").exists()
     for f in (RAIZ / "monitoreo").rglob("*.py"):
-        if f.name == "lanzador_lab.py":
-            continue
         for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
             nombres = [a.name for a in n.names] if isinstance(n, ast.Import) else \
                 ([n.module or ""] + [a.name for a in n.names]) if isinstance(n, ast.ImportFrom) else []

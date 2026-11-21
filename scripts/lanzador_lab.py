@@ -1,5 +1,7 @@
 """Lanzador de LABORATORIO para procesos del conector: controla y termina TODO el árbol de procesos.
 
+Vive en scripts/ (fuera del paquete `monitoreo`) a propósito: la capa de contrato tiene una prueba que le prohíbe lanzar procesos.
+
 NO es el lanzador operativo: exige `modo_laboratorio=True` de forma explícita, no consulta ni cambia
 `aislamiento.puede_lanzar()` (sigue siendo False) y ningún módulo de producción lo importa (hay una prueba).
 Sirve para probar, con datos ficticios, que Monitor puede detener un conector y a todo lo que haya lanzado.
