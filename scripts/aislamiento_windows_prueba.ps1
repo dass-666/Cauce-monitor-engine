@@ -1,4 +1,4 @@
-<#
+﻿<#
  Prueba NEGATIVA de aislamiento en Windows para el conector (especificación: docs/AISLAMIENTO_WINDOWS_ESPECIFICACION.md).
  Crea una cuenta local restringida, un árbol de prueba con datos FICTICIOS, aplica ACL NTFS y ejecuta una sonda COMO esa cuenta.
  Pasa solo si TODAS las lecturas/escrituras prohibidas dan PermissionError y las permitidas funcionan.
@@ -54,7 +54,7 @@ print(json.dumps({"usuario": os.environ.get("USERNAME", ""), "pruebas": r}))
 '@ | Set-Content $sonda -Encoding UTF8
 
     # --- cuenta local restringida
-    $o = net user $Cuenta $clave /add /expires:never 2>&1
+    $o = net user $Cuenta $clave /add /expires:never /y 2>&1
     if ($LASTEXITCODE -ne 0) { throw "net user /add falló ($LASTEXITCODE): $o" }
     $resultado.diagnostico = (net user $Cuenta 2>&1 | Out-String)
     # --- ACL NTFS: sin herencia; el conector solo recorre la raíz, lee su código y escribe en su trabajo
