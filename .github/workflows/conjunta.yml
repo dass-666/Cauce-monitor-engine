@@ -1,0 +1,52 @@
+# Prueba conjunta Monitor <-> Conector Universal (cauce.conector.v1). SOLO laboratorio, datos ficticios, 127.0.0.1.
+# Herramienta de pruebas: no activa aislamiento.puede_lanzar() ni toca el flujo operativo de Monitor.
+# El Conector Universal se descarga en SOLO LECTURA en un commit fijo; este flujo no escribe en ese repositorio.
+name: Prueba conjunta con el Conector Universal
+
+on:
+  push:
+    branches: ["claude/prueba-conjunta-conector"]
+  pull_request:
+    paths: ["scripts/prueba_conjunta_conector.py", "tests/test_prueba_conjunta.py", ".github/workflows/conjunta.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conjunta:
+    name: Conjunta · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dass-666/CAUCE-UNIVERSAL-CONEXION
+          ref: aa1bb0295b32c17ba0435490678adf1ee54c55a0
+          path: conector-universal
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r conector-universal/requirements-dev.txt psutil
+      - run: python -m playwright install --with-deps chromium
+        if: runner.os == 'Linux'
+      - run: python -m playwright install chromium
+        if: runner.os == 'Windows'
+      - name: Commit del conector (debe ser aa1bb02) y pruebas conjuntas
+        shell: bash
+        run: |
+          git -C conector-universal rev-parse HEAD
+          python -m pytest tests/test_prueba_conjunta.py -v -rxs --junitxml=conjunta.xml
+        env:
+          CONECTOR_REPO: ${{ github.workspace }}/conector-universal
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conjunta-${{ matrix.os }}
+          path: conjunta.xml
