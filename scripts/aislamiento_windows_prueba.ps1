@@ -50,7 +50,10 @@ r = [
  prueba("escribir en su carpeta de trabajo", lambda: escribe(trabajo/"salida.txt"), False),
  prueba("leer lo que escribió", lambda: (trabajo/"salida.txt").read_text(), False),
 ]
-print(json.dumps({"usuario": os.environ.get("USERNAME", ""), "pruebas": r}))
+import ctypes
+_b = ctypes.create_unicode_buffer(256); _n = ctypes.c_ulong(256)
+ctypes.windll.advapi32.GetUserNameW(_b, ctypes.byref(_n))   # identidad real del token, no variables de entorno
+print(json.dumps({"usuario": _b.value, "pruebas": r}))
 '@ | Set-Content $sonda -Encoding UTF8
 
     # --- cuenta local restringida
