@@ -289,3 +289,46 @@ def test_cierre_antes_de_terminar_el_relleno_da_error_y_nunca_exito(ent):
     assert r.resp["envio"] == {"realizado_por_conector": False, "envio_humano_observado": False}
     assert set(ent.sitio.metodos()) == {"GET"}
     sin_datos_personales(ent, r)
+
+
+def test_lanzador_de_laboratorio_termina_todo_el_arbol_del_conector_real(ent):
+    """Monitor cancela a mitad con el lanzador de laboratorio: no queda ni el conector ni Chromium ni sus hijos."""
+    import threading
+    import psutil
+    from monitoreo.conector.lanzador_lab import LanzadorLab
+    sol = ent.solicitud(espera=120)
+    ent.autorizar(sol)
+    ent.registro.mover(sol["solicitud_id"], "LANZADA", datetime.now(timezone.utc))
+    lan = LanzadorLab(modo_laboratorio=True, gracia_s=3)
+    marca = str(ent.tmp)
+
+    def del_entorno():                                   # procesos cuyo comando menciona el temporal de este ensayo
+        out = []
+        for p in psutil.process_iter(["cmdline"]):
+            try:
+                if any(marca in a for a in (p.info["cmdline"] or [])) and p.is_running() and p.status() != psutil.STATUS_ZOMBIE:
+                    out.append(p.pid)
+            except psutil.Error:
+                pass
+        return out
+    visto = {"n": 0}
+
+    def cancelar_cuando_haya_navegador():
+        fin = time.monotonic() + 60
+        while time.monotonic() < fin and not del_entorno():
+            time.sleep(0.1)
+        time.sleep(1.0)
+        visto["n"] = len(del_entorno())
+        lan.cancelar()
+    import time
+    threading.Thread(target=cancelar_cuando_haya_navegador, daemon=True).start()
+    r = lan.lanzar([sys.executable, "-m", "cauce_form_connector", "preparar"], entrada=json.dumps(sol),
+                   cwd=ent.dir / "trabajo", env=ent.env(), plazo_s=120)
+    assert visto["n"] >= 1, "el navegador nunca llegó a arrancar: la prueba no demostraría nada"
+    assert r.estado == "CANCELADO" and r.sobrevivientes == [] and r.stdout.strip() == ""
+    assert r.eliminados >= 1 and del_entorno() == []
+    assert ent.registro.proceso_terminado_sin_respuesta(sol["solicitud_id"], datetime.now(timezone.utc))["estado"] == "INCIERTA"
+    assert set(ent.sitio.metodos()) <= {"GET"}
+    texto = r.stdout + r.stderr
+    assert all(v not in texto for v in A.VALORES.values() if len(v) >= 3)
+    assert ent.hallazgos_en_archivos() == []
