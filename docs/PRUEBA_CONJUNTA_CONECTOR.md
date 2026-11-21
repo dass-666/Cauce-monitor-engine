@@ -66,3 +66,11 @@ Aislamiento Windows no demostrado · sin cifrado en reposo ni rol «conector» e
 6. Respaldo/rotación del registro de ids usados del conector, o que Monitor sea la única fuente de unicidad.
 7. Validación física en Windows (cierre de ventana, procesos huérfanos, temporales del navegador) con la MSI de pruebas, no la instalada.
 8. Solo después: operación con un portal propio de laboratorio; ningún proveedor real sin autorización escrita.
+
+## 9. Fase de estabilización (correcciones prioritarias)
+Marcas como arriba. Detalle: `docs/CI_INTERMITENTES_ANALISIS.md`, `docs/AISLAMIENTO_WINDOWS_ESPECIFICACION.md`, `docs/CAMBIOS_PARA_CONECTOR_UNIVERSAL.md`.
+1. **Hallazgos 2–3 explicados** [V]: cerrar la página antes de que el conector termine de rellenar/verificar provoca `TargetClosedError` → `error_interno` (reproducido 25/25). Si se espera a que empiece la revisión, el cierre da PREPARADO (40/40). Ningún caso llega a PREPARADO por error ni a «enviado». Corrección propuesta en el conector (no aplicada aquí).
+2. **Lanzador de laboratorio** (`scripts/lanzador_lab.py`, `tests/test_lanzador_lab.py`) [V Linux, V Windows en CI conjunta]: termina el árbol completo (terminación normal, forzada, hijos que ignoran SIGTERM, nietos). Límite conocido en Linux: un proceso que haga setsid y limpie el entorno en <100 ms puede escapar [V]; en Windows se usa Job Object. `puede_lanzar()` sigue en `False`.
+3. **Confirmación humana en Monitor** (`monitoreo/conector/confirmacion.py`, 36 pruebas) [V]: PREPARADO ≠ revisado ≠ enviado; el conector no puede aprobar; el envío exige comprobante. En memoria: falta tabla/migración/interfaz para uso operativo [P]. No cambia el contrato.
+4. **CI intermitente**: causa no demostrada (hipótesis: agotamiento de recursos en runners Windows) [I]; no se cambiaron umbrales ni pruebas.
+5. **Aislamiento Windows**: la prueba negativa corrió en un runner efímero con cuenta local restringida + ACL NTFS y dio `AISLAMIENTO_DEMOSTRADO_EN_ESTE_ENTORNO` (la sonda verificó su identidad real por token; `PermissionError` sobre data, .env y respaldos) [V solo en runner efímero]. **No** demuestra aislamiento en la MSI/instalación real [P]; `puede_lanzar()` sigue en `False`. Dos defectos propios del script se corrigieron en el camino (clave larga que pedía confirmación; identidad leída de variable de entorno).
