@@ -370,3 +370,46 @@ def test_respaldo_externo_y_cita_asistida_tras_restaurar_se_detecta_y_concilia(l
     with lab.db.session() as s:
         assert s.get(Expediente, eid).estado == ex.RES_CONFIRMADA
         assert ex.coherencia(s) == []
+
+
+def test_corte_del_proceso_entre_el_diario_y_la_base_no_inventa_la_cita(lab):
+    """Interrupción real (corte de luz / proceso matado) DESPUÉS de anotar el intento en el diario y ANTES de
+    guardar la cita: no hay `finally`, así que el diario queda con el intento sin resultado. Tras reiniciar:
+    Cauce se BLOQUEA (confirmación incierta) y no abre revisiones nuevas; la cita NO aparece como registrada;
+    la revisión sigue REVISADA y el operador registra el folio una sola vez (lo ya hecho no se bloquea);
+    la discrepancia desaparece y el administrador levanta el bloqueo. Estados coherentes."""
+    eid, u, h = asignado(lab)
+    conf = hasta_revisada(lab, eid, h)
+    with lab.db.session() as s:
+        res_id = s.get(ConfirmacionHumana, conf["id"]).reservacion_id
+    rc.confirmacion_intento(lab.db, res_id)            # ...y el proceso muere aquí
+    url = lab.db.url
+    lab.c.__exit__(None, None, None)
+    lab.db.engine.dispose()
+    lab.c = TestClient(create_app(url, start_engine=False, seed_demo=False))
+    lab.c.__enter__()
+    lab.db = lab.c.app.state.db
+    h = lab.login(u, OP_PWD)
+    lab.h = lab.login("admin", ADMIN_PWD)
+    est = lab.c.get("/api/recuperacion", headers=lab.h).json()
+    assert est["bloqueado"] and [d["tipo"] for d in est["discrepancias"]] == ["CONFIRMACION_INCIERTA"], est
+    e2, _, h2 = asignado(lab)
+    r = lab.c.post(_url(e2, "abrir"), headers=h2)
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "RECUPERACION_PENDIENTE"
+    st = lab.c.get(_url(eid), headers=h).json()
+    assert st["viva"]["estado"] == "REVISADA" and not [x for x in st["historial"] if x["estado"] == "CITA_REGISTRADA"]
+    with lab.db.session() as s:
+        assert s.get(Expediente, eid).estado != ex.RES_CONFIRMADA
+        assert s.get(Reservacion, res_id).estado != "CONFIRMADA"
+    r = lab.c.post(_url(eid, "registrar"), headers=h, json=cita("FON-CORTE-0001"))
+    assert r.status_code == 200, r.text
+    r2 = lab.c.post(_url(eid, "registrar"), headers=h, json=cita("FON-CORTE-0001"))   # doble clic tras volver
+    assert r2.status_code == 200 and r2.json()["repetida"] is True
+    with lab.db.session() as s:
+        assert s.scalar(select(text("count(*)")).select_from(Reservacion).where(Reservacion.folio == "FON-CORTE-0001")) == 1
+        assert s.get(Expediente, eid).estado == ex.RES_CONFIRMADA
+        assert ex.coherencia(s) == []
+    est = lab.c.get("/api/recuperacion", headers=lab.h).json()
+    assert est["pendientes"] == 0 and est["discrepancias"] == [], est
+    assert lab.c.post("/api/recuperacion/levantar", headers=lab.h, json={"motivo": "corte revisado"}).json()["levantado"]
+    assert lab.c.get("/api/recuperacion", headers=lab.h).json()["bloqueado"] is False
