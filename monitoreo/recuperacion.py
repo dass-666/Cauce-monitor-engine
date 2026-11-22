@@ -1188,6 +1188,11 @@ def _cancelar_local(db, rid: int, actor: str, now) -> None:
             evidencia={**(r.evidencia or {}), "cancelada_en_portal": "conciliacion_manual"}))
         exp = s.get(Expediente, r.expediente_id)
         ex.evento(s, exp.id, "RESERVACION_CANCELADA", actor, now, reservacion_id=rid, evidencia="conciliacion_manual")
+        if r.contrato == "oficial_asistido":          # piloto asistido: la confirmación humana refleja la anulación
+            from .models import ConfirmacionHumana
+            tc = ConfirmacionHumana.__table__
+            s.execute(update(tc).where(tc.c.reservacion_id == rid, tc.c.estado == "CITA_REGISTRADA").values(
+                estado="ANULADA", revocada_en=now, revocada_por=actor))
         if exp.estado != ex.CERRADO:
             ex.cerrar(s, exp, "CANCELADO", actor, now, nota="cancelación conciliada tras restaurar")
 

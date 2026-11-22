@@ -19,7 +19,7 @@ fs.mkdirSync(outDir, { recursive: true });
     pg.on("response", (r) => { if (r.status() >= 400) res.http_errores.push(`${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`); });
   };
   vigilar(A);
-  let n = 0;
+  let n = E.fase === "anular" ? 20 : 0;      // la segunda fase no pisa la numeración de la primera
   const shot = async (nombre) => { n += 1; await A.screenshot({ path: path.join(outDir, `${String(n).padStart(2, "0")}_${nombre}.png`), fullPage: true }); };
   const paso = (k, ok, detalle) => { res.pasos.push({ paso: k, ok: !!ok, detalle }); if (!ok) throw new Error(`paso ${k} falló: ${JSON.stringify(detalle)}`); };
   const entrar = async () => {
@@ -33,6 +33,33 @@ fs.mkdirSync(outDir, { recursive: true });
   const texto = async (sel) => ((await A.textContent(sel)) || "").trim();
 
   try {
+    if (E.fase === "anular") {
+      // 9. La persona canceló: el ADMINISTRADOR abre la ficha y anula la cita (folio tecleado, motivo, declaración)
+      await A.goto(base + "/");
+      await A.fill("input[name=username]", E.admin[0]); await A.fill("input[name=password]", E.admin[1]);
+      await A.click("button[type=submit]");
+      await A.waitForSelector("#nav a");
+      await A.waitForSelector("#nota-origen-citas", { timeout: 20000 });
+      const nota = await texto("#nota-origen-citas");
+      paso("9a_mesa_de_control_no_dice_simulada_en_el_piloto", !/SIMULADA/i.test(nota) && /Declarada por persona/.test(nota), { nota });
+      await A.evaluate((id) => showExpediente(id), E.eid);
+      await A.waitForSelector("#asis-anular", { timeout: 20000 });
+      await A.click("#asis-anular summary");
+      await shot("admin_anular_cita");
+      await A.focus("#anu-folio"); await A.keyboard.type(E.folio + "X");
+      await A.fill("#anu-motivo", "la persona canceló (ficticio)");
+      await A.check("#anu-declaro");
+      await A.click("#btn-asistida-anular");
+      await A.waitForFunction(() => /no coincide/.test(document.querySelector("#anu-error")?.textContent || ""), null, { timeout: 10000 });
+      paso("9_anular_con_folio_distinto_se_rechaza", true, { error: await texto("#anu-error") });
+      await A.fill("#anu-folio", "");
+      await A.focus("#anu-folio"); await A.keyboard.type(E.folio);
+      await A.click("#btn-asistida-anular");
+      await A.waitForFunction(() => !document.querySelector("#asis-anular"), null, { timeout: 15000 });
+      await shot("cita_anulada_expediente_cerrado");
+      paso("10_cita_anulada_por_el_administrador", true, {});
+      return;
+    }
     // 1. El operador abre Ventanilla: la atención en curso muestra la opción del portal oficial (sin laboratorio)
     await entrar();
     await A.waitForSelector("#btn-asistida-abrir", { timeout: 20000 });

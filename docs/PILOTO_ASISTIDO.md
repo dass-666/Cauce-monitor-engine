@@ -67,7 +67,7 @@ página. Al volver, «Retomar» te deja en el mismo paso.
 | Tras restaurar un respaldo, falta una cita asistida registrada después | Aparece en «Recuperación» como confirmación ausente: el administrador escribe el folio del comprobante (solo se acepta el que anotó el diario) y la cita vuelve a la base. | No la registres de nuevo como cita nueva. |
 | Se fue la luz o se cerró Cauce justo al pulsar «Registrar la cita» | Al volver, «Recuperación» muestra una confirmación incierta y Cauce queda bloqueado. El operador registra el folio de su comprobante (la revisión sigue REVISADA); después el administrador pulsa «Levantar bloqueo». | No agendes otra vez en el portal ni pongas un folio distinto. |
 | «Operaciones bloqueadas: recuperación pendiente» al abrir | Se restauró un respaldo: el administrador concilia en «Recuperación» antes de agendar nuevas citas. Una cita YA hecha sí se puede registrar. | No agendes a nadie mientras tanto (riesgo de duplicar). |
-| La persona cancela una cita ya registrada | Avisa al administrador. **Limitación de esta versión:** no hay botón para anular una cita asistida; se registra en la nota del expediente. | No reutilices el folio. |
+| La persona cancela una cita ya registrada | El administrador cancela la cita en el portal oficial y, en la ficha del expediente, abre «La persona canceló esta cita»: teclea el folio, el motivo y marca la declaración. La cita queda ANULADA y el expediente CERRADO (CANCELADO). | No reutilices el folio (Cauce lo rechaza). No la anules en Cauce sin cancelarla antes en el portal. |
 | Cauce no responde | Atiende en papel (folio, fecha, sucursal, quién) y registra todo al volver. | No reinicies el equipo sin avisar. |
 
 ## 4. Criterios para DETENER el piloto
@@ -86,7 +86,7 @@ Se detiene (y se vuelve a papel) si ocurre cualquiera de estos:
 
 - La cita asistida no se comprueba con el proveedor: es una declaración de una persona, firmada por su usuario,
   hora, huella de los datos revisados y, si lo hay, huella del comprobante.
-- No hay anulación de una cita asistida desde la interfaz (sí la revocación ANTES de registrar).
+- La anulación de una cita (solo administrador) tampoco se comprueba con el proveedor: es una declaración a su nombre.
 - El expediente debe estar tomado por un operador (Ventanilla); un administrador sin operador vinculado puede
   revocar pero no agendar.
 - El cálculo de la huella del archivo en el navegador requiere abrir Cauce en `http://127.0.0.1` o `localhost`

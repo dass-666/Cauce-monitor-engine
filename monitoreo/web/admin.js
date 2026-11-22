@@ -78,7 +78,7 @@ async function viewPanel() {
       { t: "", f: (x) => h("button", { class: "btn primary", "data-operar": x.codigo, onclick: (ev) => { ev.stopPropagation(); operarCoincidencia(x, errs); } },
         x.situacion === "COINCIDENCIA" ? "Preparar operación" : "Continuar operación") }], d.coincidencias)));
   const confirmadas = card("Citas confirmadas con folio", h("div", { id: "panel-confirmadas" },
-    h("p", { class: "muted" }, d.simulado),
+    h("p", { class: "muted", id: "nota-origen-citas" }, labOn() ? d.simulado : "Piloto asistido: cada cita la agenda una persona en el portal oficial y la registra aquí con su folio. Cauce no la comprueba con el proveedor («Declarada por persona»)."),
     table([
       { t: "Expediente", f: (x) => h("b", {}, x.codigo) },
       { t: "Folio", f: (x) => h("b", { class: "mono", "data-folio": x.folio }, x.folio) },

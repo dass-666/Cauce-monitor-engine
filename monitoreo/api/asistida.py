@@ -43,6 +43,13 @@ class RevocarIn(BaseModel):
     motivo: str = Field(max_length=200)
 
 
+class AnularIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    folio: str = Field(max_length=64)
+    motivo: str = Field(max_length=200)
+    declaro: bool = False
+
+
 @router.get("/expedientes/{eid}/asistida")
 def estado(eid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
     try:
@@ -84,5 +91,14 @@ def revocar(eid: int, body: RevocarIn, request: Request, user: CurrentUser = Dep
             db: Database = Depends(get_db)):
     try:
         return asi.revocar(db, eid, user, body.motivo, utcnow(), client_ip(request))
+    except asi.ErrorAsistida as e:
+        _err(e)
+
+
+@router.post("/expedientes/{eid}/asistida/anular")
+def anular(eid: int, body: AnularIn, request: Request, user: CurrentUser = Depends(current_user),
+           db: Database = Depends(get_db)):
+    try:
+        return asi.anular(db, eid, user, body.folio, body.motivo, body.declaro, utcnow(), client_ip(request))
     except asi.ErrorAsistida as e:
         _err(e)

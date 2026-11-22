@@ -413,3 +413,92 @@ def test_corte_del_proceso_entre_el_diario_y_la_base_no_inventa_la_cita(lab):
     assert est["pendientes"] == 0 and est["discrepancias"] == [], est
     assert lab.c.post("/api/recuperacion/levantar", headers=lab.h, json={"motivo": "corte revisado"}).json()["levantado"]
     assert lab.c.get("/api/recuperacion", headers=lab.h).json()["bloqueado"] is False
+
+
+# ---------------------------------------------------------------- anular una cita ya registrada
+def _con_cita(lab, folio):
+    eid, u, h = asignado(lab)
+    hasta_revisada(lab, eid, h)
+    assert lab.c.post(_url(eid, "registrar"), headers=h, json=cita(folio)).status_code == 200
+    return eid, u, h
+
+
+def anular(lab, eid, h, folio, **kw):
+    return lab.c.post(_url(eid, "anular"), headers=h, json={"folio": folio, "motivo": "la persona canceló", "declaro": True, **kw})
+
+
+def test_anular_cita_asistida_registrada(lab):
+    """La persona cancela: solo un administrador anula, con el folio otra vez, motivo y declaración. La reservación
+    queda CANCELADA, el expediente CERRADO, el diario lo anota y el folio no se puede reutilizar."""
+    eid, u, h = _con_cita(lab, "FON-ANULA-0001")
+    assert anular(lab, eid, h, "FON-ANULA-0001").status_code == 403                    # el operador no
+    r = anular(lab, eid, lab.h, "FON-ANULA-9999")
+    assert r.status_code == 422 and r.json()["detail"]["codigo"] == "FOLIO_NO_COINCIDE"
+    r = anular(lab, eid, lab.h, "FON-ANULA-0001", declaro=False)
+    assert r.status_code == 422 and r.json()["detail"]["codigo"] == "SIN_DECLARACION"
+    assert anular(lab, eid, lab.h, "FON-ANULA-0001", motivo="x").status_code == 422
+    r = anular(lab, eid, lab.h, "fon-anula-0001")
+    assert r.status_code == 200, r.text
+    c = r.json()["confirmacion"]
+    assert c["estado"] == "ANULADA" and c["revocada_por"] == "admin" and c["verificada_con_proveedor"] is False
+    r2 = anular(lab, eid, lab.h, "FON-ANULA-0001")                                      # doble clic
+    assert r2.status_code == 200 and r2.json()["repetida"] is True
+    with lab.db.session() as s:
+        res = s.get(Reservacion, c["reservacion_id"])
+        assert res.estado == "CANCELADA" and res.evidencia["cancelada_por_persona"]["verificada_con_proveedor"] is False
+        e = s.get(Expediente, eid)
+        assert e.estado == ex.CERRADO and e.motivo_cierre == "CANCELADO"
+        assert ex.coherencia(s) == []
+    tipos = [x["tipo"] for x in diario_tipos()]
+    assert tipos[-2:] == ["CANCELACION_INTENTO", "CANCELACION_RESULTADO"]
+    assert lab.c.get("/api/recuperacion", headers=lab.h).json()["bloqueado"] is False
+    # el folio anulado no se reutiliza en otro expediente
+    e2, _, h2 = asignado(lab)
+    hasta_revisada(lab, e2, h2)
+    r = lab.c.post(_url(e2, "registrar"), headers=h2, json=cita("FON-ANULA-0001"))
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "FOLIO_DUPLICADO"
+    # la mesa de control ya no la cuenta como cita confirmada
+    panel = lab.c.get("/api/admin/panel", headers=lab.h).json()
+    assert not [x for x in panel.get("confirmadas") or [] if x.get("folio") == "FON-ANULA-0001"]
+
+
+def test_anular_sin_diario_no_cambia_nada(lab, monkeypatch):
+    eid, u, h = _con_cita(lab, "FON-ANULA-0002")
+
+    def falla(*a, **k):
+        raise rc.ErrorDiario("disco lleno")
+    monkeypatch.setattr(rc, "cancelacion_intento", falla)
+    r = anular(lab, eid, lab.h, "FON-ANULA-0002")
+    assert r.status_code == 503 and r.json()["detail"]["codigo"] == "DIARIO_NO_DISPONIBLE"
+    with lab.db.session() as s:
+        assert s.get(Expediente, eid).estado == ex.RES_CONFIRMADA
+        assert s.scalar(select(Reservacion.estado).where(Reservacion.folio == "FON-ANULA-0002")) == "CONFIRMADA"
+
+
+def test_anulacion_perdida_al_restaurar_se_detecta_y_concilia(lab):
+    """Respaldo con la cita registrada -> se anula -> se restaura el respaldo: la cita vuelve a la base como
+    CONFIRMADA, el diario recuerda la anulación, Cauce se bloquea y el administrador la aplica sin portal."""
+    if not lab.db.is_sqlite:
+        pytest.skip("migrate.restore solo restaura SQLite")
+    from monitoreo import migrate
+    eid, u, h = _con_cita(lab, "FON-ANULA-0003")
+    archivo = migrate.backup(lab.db.url, "antes_de_anular")
+    assert anular(lab, eid, lab.h, "FON-ANULA-0003").status_code == 200
+    lab.c.__exit__(None, None, None)
+    lab.db.engine.dispose()
+    migrate.restore(lab.db.url, archivo)
+    lab.c = TestClient(create_app(lab.db.url, start_engine=False, seed_demo=False))
+    lab.c.__enter__()
+    lab.db = lab.c.app.state.db
+    lab.h = lab.login("admin", ADMIN_PWD)
+    est = lab.c.get("/api/recuperacion", headers=lab.h).json()
+    disc = [d for d in est["discrepancias"] if d["tipo"] == "CANCELACION_AUSENTE"]
+    assert est["bloqueado"] and len(disc) == 1, est
+    r = lab.c.post(f"/api/recuperacion/discrepancias/{disc[0]['ref']}/resolver", headers=lab.h,
+                   json={"tipo": "CANCELACION_AUSENTE", "accion": "aplicar_cancelacion", "motivo": "anulada antes del respaldo restaurado"})
+    assert r.status_code == 200, r.text
+    with lab.db.session() as s:
+        assert s.get(Expediente, eid).estado == ex.CERRADO
+        c = s.scalar(select(ConfirmacionHumana).where(ConfirmacionHumana.expediente_id == eid))
+        assert c.estado == "ANULADA"
+        assert ex.coherencia(s) == []

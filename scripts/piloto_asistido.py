@@ -157,6 +157,28 @@ def recorrido(p: Piloto, out: Path) -> dict:
     conf = [x for x in (panel.json().get("confirmadas") or []) if x.get("folio") == entrada["folio"]] if panel.status_code == 200 else []
     ck("API · la mesa de control la muestra como «declarada por persona», no como comprobada en el portal",
        bool(conf) and conf[0].get("origen") == "PERSONA", conf)
+    # La persona cancela: el administrador anula la cita desde la ficha (segunda fase del navegador)
+    f_in.write_text(json.dumps({**entrada, "fase": "anular"}), "utf-8")
+    r = subprocess.run([nodo, str(ROOT / "scripts" / "recorrido_asistido_ui.js"), p.motor.base, str(capt), str(f_in)],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+                       env=navegador.entorno(), cwd=str(ROOT / "scripts"))
+    linea = next((x for x in r.stdout.splitlines() if x.startswith("RESULTADO ")), None)
+    if not ck("el navegador terminó (anulación)", linea is not None, (r.stdout + r.stderr)[-800:]):
+        return res
+    ui2 = json.loads(linea[len("RESULTADO "):])
+    for x in ui2["pasos"]:
+        ck("UI · " + x["paso"], x["ok"], x.get("detalle"))
+    ck("UI · sin errores de JavaScript (anulación)", not ui2["errores_js"], ui2["errores_js"][:5])
+    st = p.adm.get(f"/api/expedientes/{e['id']}/asistida").json()
+    exp = p.adm.get(f"/api/expedientes/{e['id']}").json()
+    ck("API · la cita quedó ANULADA por el administrador y el expediente CERRADO (CANCELADO)",
+       st["historial"][0]["estado"] == "ANULADA" and st["historial"][0]["revocada_por"] == "admin"
+       and exp.get("estado") == "CERRADO", {"conf": st["historial"][0]["estado"], "exp": exp.get("estado")})
+    panel = p.adm.get("/api/admin/panel").json()
+    rec = p.adm.get("/api/recuperacion").json()
+    ck("API · la mesa de control ya no la cuenta y la recuperación sigue operable",
+       not [x for x in (panel.get("confirmadas") or []) if x.get("folio") == entrada["folio"]] and rec.get("bloqueado") is False,
+       {"bloqueado": rec.get("bloqueado")})
     return res
 
 

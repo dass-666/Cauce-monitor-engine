@@ -184,7 +184,7 @@ async function pintarFlujo(box, e, viva, conf, pasoPrevio) {
   const revalidar = () => h("button", { class: "btn small", id: "btn-revalidar", onclick: async () => {
     await act(() => api(`/api/expedientes/${e.id}/revalidar`, { method: "POST" }), (r) => `Expediente ${r.estado.replace(/_/g, " ")}`); reabrir(); } }, "Volver a validar");
   if (conf && conf.evidencia && conf.evidencia.fuente === "PERSONA_PORTAL_OFICIAL") {
-    pintarCitaAsistida(box, conf);
+    pintarCitaAsistida(box, conf, e, reabrir);
     return;
   }
   if (conf) {
@@ -739,7 +739,7 @@ async function pintarAsistida(box, e, c, reabrir) {
     h("p", { class: "muted" }, "Si el portal no te dio un folio, no registres nada: revoca la revisión y deja una nota."), form), revocarAsistida(e, reabrir));
 }
 
-function pintarCitaAsistida(box, conf) {
+function pintarCitaAsistida(box, conf, e, reabrir) {
   const ev = conf.evidencia || {};
   const comp = { CON_HUELLA: "con huella del comprobante", SOLO_REFERENCIA: "solo referencia del comprobante", SIN_COMPROBANTE: "sin comprobante" }[ev.comprobante] || "—";
   box.replaceChildren(paso(3, "Cita agendada por una persona en el portal oficial",
@@ -751,5 +751,26 @@ function pintarCitaAsistida(box, conf) {
       h("dt", {}, "Revisada"), h("dd", {}, `${ev.revisada_por || "—"} · ${fmtTime(ev.revisada_en)}`),
       h("dt", {}, "Comprobante"), h("dd", { class: "mono", "data-comprobante": ev.comprobante }, comp + (ev.comprobante_ref ? ` · ${ev.comprobante_ref}` : "")),
       ev.comprobante_sha256 ? [h("dt", {}, "Huella"), h("dd", { class: "mono" }, ev.comprobante_sha256.slice(0, 16) + "…")] : null),
-    h("p", { class: "muted", id: "asis-aviso" }, "Declarada por una persona: Cauce no la comprobó con el proveedor. Si la persona cancela en el portal, avisa al administrador.")));
+    h("p", { class: "muted", id: "asis-aviso" }, "Declarada por una persona: Cauce no la comprobó con el proveedor. Si la persona cancela en el portal, avisa al administrador.")),
+    isAdmin() && e ? anularAsistida(e, conf, reabrir) : null);
+}
+
+// Solo administrador: la persona canceló. Primero se cancela en el portal oficial; después se declara aquí.
+function anularAsistida(e, conf, reabrir) {
+  const folio = h("input", { id: "anu-folio", maxlength: 32, placeholder: "Vuelve a teclear el folio", autocomplete: "off", spellcheck: "false" });
+  folio.addEventListener("paste", (ev) => { ev.preventDefault(); toast("Teclea el folio: no se admite pegar", 3000); });
+  const motivo = h("input", { id: "anu-motivo", maxlength: 200, placeholder: "Motivo (sin datos personales)", autocomplete: "off" });
+  const declaro = h("input", { type: "checkbox", id: "anu-declaro" });
+  const errs = h("div", { class: "error", role: "alert", id: "anu-error" });
+  const btn = h("button", { class: "btn small danger", id: "btn-asistida-anular", onclick: async () => {
+    errs.textContent = "";
+    try {
+      await api(`/api/expedientes/${e.id}/asistida/anular`, { method: "POST", body: { folio: folio.value, motivo: motivo.value, declaro: declaro.checked } });
+      toast(`Cita ${conf.folio} anulada: el expediente queda cerrado (CANCELADO)`, 5000); reabrir();
+    } catch (err) { errs.textContent = err.message; }
+  } }, "Anular la cita");
+  return h("details", { class: "section", id: "asis-anular" }, h("summary", {}, "La persona canceló esta cita (administrador)"),
+    h("p", { class: "muted" }, "Cancela primero la cita en el portal oficial. Cauce no lo comprueba: queda declarado a tu nombre. El folio no se podrá volver a usar."),
+    h("div", { class: "form" }, field("Folio", folio), field("Motivo", motivo),
+      h("label", { class: "check" }, declaro, " Cancelé esta cita en el portal oficial"), btn, errs));
 }

@@ -34,7 +34,8 @@ piloto_asistido.bat --recorrido
 Arranca Cauce **en modo piloto** (producción + flujo administrativo, sin portal) en
 `resultados\piloto_asistido`, crea un operador y un expediente ficticio y recorre la interfaz: revisión,
 cierre del navegador sin aprobar nada, frase exacta, folio tecleado dos veces, cita registrada y atención
-cerrada. Esperado: `RESULTADO: 17/17 comprobaciones`.
+cerrada; después el administrador anula la cita (la persona canceló) y el expediente queda cerrado.
+Esperado: `RESULTADO: 24/24 comprobaciones`.
 Evidencia: `resultados\piloto_asistido\recorrido_asistido.json` y `resultados\piloto_asistido\capturas\`.
 
 ## 4. Recorrido a mano, como lo haría el operador (20 min)
@@ -59,6 +60,7 @@ ficticio ya tomado en Ventanilla. Comprueba con tus propios ojos:
 | 11 | Guardar y cerrar la atención | La atención queda con cita y el contador sube a 1 | |
 | 12 | Entra como admin › Mesa de control | La cita aparece con folio y Origen «Declarada por persona (sin verificar)», nunca «Comprobada en el portal» | |
 | 13 | Admin › Recuperación | «Operable», sin discrepancias | |
+| 14 | Admin › Mesa de control › Ver la cita › «La persona canceló esta cita»: folio, motivo, marca y «Anular la cita» | El expediente queda CERRADO; la cita ya no cuenta en «Citas confirmadas» al recargar | |
 
 Termina con **Ctrl+C** en la consola.
 

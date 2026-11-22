@@ -14,6 +14,9 @@ trabaja así, todo desde la ficha del expediente:
                 reservación CONFIRMADA (contrato `oficial_asistido`), el expediente pasa a
                 RESERVACION_CONFIRMADA y la cita queda en el diario de eventos críticos (origen «persona»).
   revocar       antes de registrar, la persona o un administrador anula la confirmación (con motivo).
+  anular        DESPUÉS de registrar, si la persona cancela: un administrador declara que canceló la cita en el
+                portal oficial (folio tecleado otra vez y motivo). La reservación pasa a CANCELADA, el expediente
+                se cierra (CANCELADO) y el diario de eventos críticos lo anota. El folio no se puede reutilizar.
 
 Reglas:
 - Ninguna acción automática (cerrar el navegador, perder la red, que pase el tiempo) cuenta como revisión
@@ -46,7 +49,7 @@ from . import reservaciones as rs
 CONTRATO = "oficial_asistido"
 FRASE_REVISION = "REVISÉ Y APRUEBO"
 MIN_REVISION_S = 5
-ABIERTA, REVISADA, CITA_REGISTRADA, REVOCADA = "ABIERTA", "REVISADA", "CITA_REGISTRADA", "REVOCADA"
+ABIERTA, REVISADA, CITA_REGISTRADA, REVOCADA, ANULADA = "ABIERTA", "REVISADA", "CITA_REGISTRADA", "REVOCADA", "ANULADA"
 VIVAS = (ABIERTA, REVISADA)
 ESTADOS_EXPEDIENTE = (ex.ASIGNADO, ex.CAPTURA)
 FOLIO_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,31}$")
@@ -87,6 +90,7 @@ def vista(c: ConfirmacionHumana | None, now: datetime | None = None) -> dict | N
            "estado": c.estado, "huella_datos": c.huella_datos, "abierta_en": iso(c.abierta_en),
            "revisada_en": iso(c.revisada_en), "registrada_en": iso(c.registrada_en), "revocada_en": iso(c.revocada_en),
            "revocada_por": c.revocada_por, "motivo_revocacion": det.get("motivo_revocacion"),
+           "motivo_anulacion": det.get("motivo_anulacion"),
            "folio": c.folio, "fecha": c.fecha, "hora": c.hora, "sucursal": c.sucursal,
            "comprobante_sha256": c.comprobante_sha256, "comprobante_ref": c.comprobante_ref,
            "comprobante": det.get("comprobante"), "min_revision_s": MIN_REVISION_S, "frase": FRASE_REVISION,
@@ -380,6 +384,70 @@ def revocar(db: Database, exp_id: int, user, motivo: str, now: datetime, ip: str
                                                                                  "motivo": motivo[:200]}, ip)
         s.refresh(c)
         return {"confirmacion": vista(c)}
+
+
+# ---------------------------------------------------------------- anular una cita YA registrada
+def anular(db: Database, exp_id: int, user, folio: str, motivo: str, declaro: bool, now: datetime,
+           ip: str = "") -> dict:
+    """La persona canceló la cita: un ADMINISTRADOR, tras cancelarla él mismo en el portal oficial, lo declara.
+    Cauce no comprueba la cancelación con el proveedor (igual que no comprobó la cita)."""
+    if not user.is_admin:
+        raise ErrorAsistida(403, "Solo un administrador puede anular una cita registrada")
+    motivo = (motivo or "").strip()
+    if len(motivo) < 5:
+        raise ErrorAsistida(422, "Escribe el motivo (mínimo 5 caracteres, sin datos personales)")
+    if not declaro:
+        raise ErrorAsistida(422, "Marca que cancelaste la cita en el portal oficial: sin eso no se anula",
+                            {"codigo": "SIN_DECLARACION"})
+    actor = _actor(user)
+    folio = (folio or "").strip().upper()
+    with db.session() as s:
+        e = _exp(s, exp_id, user)
+        c = s.scalar(select(ConfirmacionHumana).where(ConfirmacionHumana.expediente_id == exp_id,
+                                                      ConfirmacionHumana.estado.in_([CITA_REGISTRADA, ANULADA]))
+                     .order_by(ConfirmacionHumana.id.desc()).limit(1))
+        if c is None:
+            raise ErrorAsistida(409, "Este expediente no tiene una cita asistida registrada", {"codigo": "SIN_CITA"})
+        if folio != (c.folio or ""):
+            raise ErrorAsistida(422, "El folio no coincide con el de la cita registrada", {"codigo": "FOLIO_NO_COINCIDE"})
+        if c.estado == ANULADA:
+            return {"confirmacion": vista(c), "repetida": True}
+        res_id, cid = c.reservacion_id, c.id
+        res = s.get(Reservacion, res_id)
+        if res is None or res.contrato != CONTRATO or res.estado != rs.CONFIRMADA:
+            raise ErrorAsistida(409, f"La reservación de esta cita está {res.estado if res else 'ausente'}: no se anula")
+    try:
+        recuperacion.cancelacion_intento(db, res_id)
+    except recuperacion.ErrorDiario as err:
+        raise ErrorAsistida(503, "No se pudo escribir el diario de eventos críticos: la cita NO se anuló en Cauce. "
+                                 "Revisa el autodiagnóstico y vuelve a intentarlo.",
+                            {"codigo": "DIARIO_NO_DISPONIBLE"}) from err
+    try:
+        with db.session() as s:
+            t, tc = Reservacion.__table__, ConfirmacionHumana.__table__
+            res = s.get(Reservacion, res_id)
+            evid = {**(res.evidencia or {}), "cancelada_por_persona": {"persona": actor, "en": now.isoformat() + "Z",
+                                                                       "verificada_con_proveedor": False}}
+            if s.execute(update(t).where(t.c.id == res_id, t.c.estado == rs.CONFIRMADA).values(
+                    estado=rs.CANCELADA, viva_expediente_id=None, updated_at=now, evidencia=evid)).rowcount != 1:
+                raise ErrorAsistida(409, "La cita cambió mientras tanto: recarga la ficha")
+            c = s.get(ConfirmacionHumana, cid)
+            s.execute(update(tc).where(tc.c.id == cid).values(
+                estado=ANULADA, revocada_en=now, revocada_por=actor,
+                detalle={**(c.detalle or {}), "motivo_anulacion": motivo[:200]}))
+            e = s.get(Expediente, exp_id)
+            ex.evento(s, exp_id, "CITA_ASISTIDA_ANULADA", actor, now, confirmacion=cid, reservacion_id=res_id,
+                      folio=res.folio, motivo=motivo[:200])
+            if e.estado != ex.CERRADO:
+                ex.cerrar(s, e, "CANCELADO", actor, now, nota="cita asistida anulada: cancelada en el portal oficial")
+            security.audit(s, user.username, "asistida_cita_anulada", e.codigo, {"confirmacion": cid,
+                                                                              "motivo": motivo[:200]}, ip)
+            s.flush()
+            s.refresh(c)
+            out = vista(c)
+    finally:
+        recuperacion.cancelacion_resultado(db, res_id)
+    return {"confirmacion": out, "repetida": False}
 
 
 # ---------------------------------------------------------------- conciliación tras restaurar un respaldo
