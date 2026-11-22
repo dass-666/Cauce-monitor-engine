@@ -187,6 +187,12 @@ def restore(url: str, backup_file: str, force_running: bool = False) -> dict:
     if not src.is_file():
         raise MigrationError(f"No existe el respaldo {src}")
     _verify_sqlite_backup(src)
+    # Piloto: un respaldo traído de un medio externo con manifiesto debe conservar su huella SHA-256.
+    from . import respaldo_externo
+    try:
+        respaldo_externo.comprobar_antes_de_restaurar(src)
+    except respaldo_externo.ErrorRespaldo as e:
+        raise MigrationError(str(e)) from e
     target = make_url(url).database
     if not target or target == ":memory:":
         raise MigrationError("No se puede restaurar sobre una base en memoria")
