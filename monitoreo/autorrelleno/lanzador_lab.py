@@ -16,6 +16,9 @@ Cómo se garantiza que no quedan procesos (cada punto tiene su prueba en tests/t
   CAUCE_LANZADOR_ID en su entorno. Con identidad (pid + hora de creación) para no matar un pid reutilizado.
 - Windows: el hijo se asigna a un Job Object con KILL_ON_JOB_CLOSE; terminarlo mata a todos los procesos del trabajo,
   incluidos los nietos. Se mantiene además la parte de psutil.
+Si Monitor muere de golpe (cierre de la consola, kill, corte): en Windows el Job Object no es heredable y se cierra
+con Monitor, lo que mata todo el árbol; en Linux el hijo directo recibe SIGTERM del núcleo (PR_SET_PDEATHSIG) y Forms
+cierra su Chromium al terminar. En macOS no hay equivalente (no se usa en el laboratorio).
 Límite conocido (Linux): un proceso que se separa (setsid), limpia su entorno y desaparece del árbol en menos de 100 ms,
 antes de ser visto, no se puede encontrar sin cgroups; en Windows el Job Object sí lo cubre. Aislamiento de permisos
 (cuenta restringida, ACL) es otro tema: ver docs/AISLAMIENTO_WINDOWS_ESPECIFICACION.md.
@@ -97,6 +100,19 @@ class _Trabajo:
 
 
 # ------------------------------------------------------------------------------------------------ lanzador
+def _morir_con_el_padre(padre: int):
+    """Linux: el hijo recibe SIGTERM si muere el hilo de Monitor que lo lanzó (también con kill -9 de Monitor)."""
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+
+    def preparar() -> None:          # corre en el hijo entre fork y exec: nada de locks ni logging
+        libc.prctl(1, int(signal.SIGTERM), 0, 0, 0)       # 1 = PR_SET_PDEATHSIG
+        if os.getppid() != padre:                           # Monitor murió antes de llegar aquí
+            os._exit(1)
+    return preparar
+
+
 def _id(p: psutil.Process) -> tuple[int, float]:
     return (p.pid, p.create_time())
 
@@ -195,6 +211,8 @@ class LanzadorLab:
             kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
         else:
             kw["start_new_session"] = True
+            if sys.platform.startswith("linux"):
+                kw["preexec_fn"] = _morir_con_el_padre(os.getpid())
         trabajo = _Trabajo() if ES_WINDOWS else None
         proc = subprocess.Popen(comando, cwd=cwd, env=entorno, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, shell=False, **kw)

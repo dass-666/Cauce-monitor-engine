@@ -252,6 +252,26 @@ def test_revocar_con_la_ventana_abierta_termina_forms(lab, monkeypatch):
     assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
 
 
+def test_detener_monitor_con_la_ventana_abierta_termina_forms(lab, monkeypatch):
+    """Punto 7: al detener Monitor (fin de la app: Ctrl+C en el laboratorio) no queda Forms abierto."""
+    monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps([sys.executable, str(ESPIA), str(lab.espia), "ok", "60"]))
+    h = lab.ops["op1"]
+    a, _ = atencion(lab, h)
+    assert pulsar(lab, a["id"], h).status_code == 202
+    fin = time.monotonic() + 15
+    while time.monotonic() < fin and not (lab.espia / "pid").exists():
+        time.sleep(0.05)
+    pid = int((lab.espia / "pid").read_text())
+    c = ad.en_curso()
+    t0 = time.monotonic()
+    lab.cerrar()                                    # apagado de la aplicación (lifespan)
+    lab.cerrar = lambda: None
+    assert time.monotonic() - t0 < 15
+    assert c.estado == "CANCELADA" and c.codigo == "MONITOR_DETENIDO" and c.procesos_restantes == 0, c.vista()
+    assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+    assert ad.en_curso() is None
+
+
 def test_permisos_de_monitor(lab):
     h1, h2 = lab.ops["op1"], lab.ops["op2"]
     a, _ = atencion(lab, h1)
@@ -386,3 +406,34 @@ def test_forms_real_revocacion_a_mitad_termina_chromium(lab, forms_real, monkeyp
         except (psutil.Error, OSError):
             continue
     assert marcados == []
+
+
+def _pids_forms() -> set[int]:
+    """Procesos lanzados por el lanzador de laboratorio (Python de Forms y su Chromium)."""
+    pids = set()
+    for p in psutil.process_iter():
+        try:
+            if "CAUCE_LANZADOR_ID" in p.environ():
+                pids.add(p.pid)
+        except (psutil.Error, OSError):
+            continue
+    return pids
+
+
+def test_forms_real_cerrar_la_ventana_a_mano_da_preparado(lab, forms_real, monkeypatch):
+    """Punto 5 de la validación: la persona cierra la ventana (la X) tras el rellenado -> PREPARADO, no CADUCADA."""
+    if os.environ.get("FORMS_HEADLESS", "1") != "0":
+        pytest.skip("necesita ventana visible (FORMS_HEADLESS=0)")
+    from .herramientas.cerrar_ventana import cerrar
+    monkeypatch.setenv("MONITOREO_AUTORRELLENO_ESPERA_S", "300")
+    h = lab.ops["op1"]
+    a, _ = atencion(lab, h)
+    assert pulsar(lab, a["id"], h).status_code == 202
+    time.sleep(float(os.environ.get("FORMS_ESPERA_RELLENO_S", "15")))   # Forms abre Chromium y teclea los 8 campos
+    assert cerrar(_pids_forms()) >= 1, "no se encontró la ventana de Forms"
+    c = esperar(lab, a["id"], h, t=60)
+    assert c["estado"] == "PREPARADO", c
+    inf = c["informe"]
+    assert all(x["correcto"] for x in inf["campos"]) and len(inf["campos"]) == 8, inf
+    assert not inf["envio_realizado_por_conector"] and c["procesos_restantes"] == 0, c
+    assert _pids_forms() == set()

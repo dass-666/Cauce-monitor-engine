@@ -96,6 +96,32 @@ def variables_motor(forms: Path, pin: Path, python: Path | None = None) -> dict:
             "MONITOREO_FORMS_DIR": str(forms), "MONITOREO_FORMS_PYTHON": str(python or python_de(forms))}
 
 
+TEXTOS = (".log", ".json", ".jsonl", ".txt", ".csv", ".html", ".md")
+
+
+def buscar_datos(carpetas: list[Path], valores: dict[str, str], *, desde: float = 0.0,
+                 excluir: tuple[Path, ...] = ()) -> list[dict]:
+    """Busca los VALORES de datos personales ficticios en los archivos de texto de `carpetas` (registros, estado,
+    evidencias) modificados después de `desde`. Devuelve archivo y NOMBRE del dato encontrado, nunca el valor.
+    `excluir`: archivos que guardan esos datos a propósito (p. ej. la entrada del recorrido o el registro del portal)."""
+    fuera = {x.resolve() for x in excluir}
+    hallazgos = []
+    for c in carpetas:
+        if not c.exists():
+            continue
+        for f in c.rglob("*"):
+            try:
+                if not f.is_file() or f.suffix.lower() not in TEXTOS or f.resolve() in fuera or f.stat().st_mtime < desde:
+                    continue
+                texto = f.read_text("utf-8", errors="replace")
+            except OSError:
+                continue
+            for k, v in valores.items():
+                if v and v in texto:
+                    hallazgos.append({"archivo": str(f), "dato": k})
+    return hallazgos
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--forms", required=True, type=Path)

@@ -118,6 +118,9 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             app.state.supervisor = Supervisor(db)
             app.state.supervisor.start()
         yield
+        import sys as _sys
+        if "monitoreo.autorrelleno.adaptador" in _sys.modules:   # solo laboratorio: no deja Forms abierto al parar
+            _sys.modules["monitoreo.autorrelleno.adaptador"].apagar()
         if app.state.supervisor is not None:
             app.state.supervisor.stop()
         if start and app.state.scheduler:

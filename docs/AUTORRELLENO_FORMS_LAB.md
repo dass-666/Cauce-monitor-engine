@@ -61,16 +61,26 @@ aceptable; **con datos reales no**, hasta tener la cuenta aparte + ACL descritas
 Por eso el router está en `modulos.SOLO_LABORATORIO` (nunca se monta en producción) y además exige en cada petición
 `MONITOREO_AUTORRELLENO_LAB=1`, portal propio en 127.0.0.1 con token de control y un perfil aprobado cuya huella coincide.
 
-## 4. Pruebas (contenedor Linux, bases temporales, 2026-11-22)
+## 4. Pruebas (contenedor Linux, bases temporales)
 
 | Prueba | Resultado |
 |---|---|
-| `tests/test_autorrelleno_forms.py` con conector espía (siempre) | 11/11 |
-| `tests/test_autorrelleno_forms.py` con **Forms real** (`FORMS_REPO=…`, Chromium sin ventana) | 2/2: 8 campos y 2 confirmaciones verificados; revocación a mitad termina Forms y Chromium (0 procesos restantes) |
-| `tests/test_lanzador_lab.py` (del PR #4) | 8/8 |
-| `scripts/recorrido_autorrelleno.py --con-ventana` (Forms real con ventana en pantalla virtual, interfaz con clics) | 18/18 |
-| Suite completa de Monitor (SQLite) | 761 aprobadas, 11 omitidas, 1 fallo ajeno: `test_database_down_is_reported_without_crashing` necesita `psycopg`, no instalado en el contenedor |
-| Suite de Forms en aa1bb02 | 128 aprobadas, 1 omitida |
+| `tests/test_autorrelleno_forms.py` con conector espía (siempre) | 12/12 (incluye «detener Monitor con la ventana abierta termina Forms») |
+| `tests/test_autorrelleno_forms.py` con **Forms real** (`FORMS_REPO=…`) | 3/3: 8 campos y 2 confirmaciones; revocación a mitad termina Forms y Chromium; **cerrar la ventana con la X → `PREPARADO`** (con ventana, `FORMS_HEADLESS=0`) |
+| Cierre de la ventana con la X, repetido | **10/10 `PREPARADO`** (2026-11-22, Xvfb, `WM_DELETE_WINDOW`) |
+| `tests/test_lanzador_lab.py` | 9/9, incluye «Monitor muere de golpe → el conector no queda huérfano» (falla sin la corrección: control negativo hecho) |
+| `scripts/recorrido_autorrelleno.py --con-ventana` | 18/18; la búsqueda de datos cubre ahora **todos** los archivos de texto del laboratorio, de Forms (`logs/`, `state/`) y de la evidencia |
+| `scripts/prueba_reinicio_autorrelleno.py --con-ventana` (Forms real) | 11/11: parada ordenada y muerte forzada de Monitor con la ventana abierta → 0 procesos de Forms/Chromium; Monitor rearranca y acepta otro autorrellenado |
+| `scripts/validar_autorrelleno_windows.py` (el mismo que usa el `.bat`, ejecutado en Linux) | TODO OK |
+| Suite completa de Monitor (SQLite) | 763 aprobadas, 12 omitidas; se excluyó `test_database_down_is_reported_without_crashing` (necesita `psycopg`, no instalado en el contenedor) |
+
+**Corrección de la validación física (punto 7).** Antes, si Monitor se detenía con la ventana abierta, Forms seguía vivo
+hasta su propio plazo (10 min) en Linux, y en una parada ordenada en cualquier sistema. Ahora:
+- al apagarse la aplicación, `adaptador.apagar()` cancela la corrida (`CANCELADA` / `MONITOR_DETENIDO`) y termina el árbol;
+- si Monitor muere de golpe: en Windows el Job Object (no heredable) se cierra con Monitor y mata todo el árbol; en Linux
+  el hijo directo recibe SIGTERM del núcleo (`PR_SET_PDEATHSIG`) y Forms cierra su Chromium.
+Límite: tras reiniciar, el expediente conserva `AUTORRELLENO_SOLICITADO` sin `AUTORRELLENO_TERMINADO` (la corrida vivía
+en memoria). No afecta a la seguridad; se puede añadir un evento de cierre al arrancar si se considera útil.
 
 Las pruebas espía demuestran qué sale de Monitor: los 8 valores salen de la base, sin nombre ni campos manuales;
 `aut_<consentimiento>` coincide con el código de la base; ninguna variable `MONITOREO_*` llega a Forms; y sin
@@ -87,8 +97,17 @@ git clone -b claude/project-thread-ksm2qd https://github.com/dass-666/Cauce-moni
 git clone https://github.com/dass-666/CAUCE-UNIVERSAL-CONEXION cauce-forms
 cd cauce-forms; git checkout aa1bb02; .\instalar_windows.bat; cd ..
 cd monitor; powershell -ExecutionPolicy Bypass -File .\instalar.ps1
-C:\cauce-autorrelleno\monitor\autorrelleno_laboratorio.bat
+C:\cauce-autorrelleno\monitor\validar_autorrelleno_windows.bat
 ```
+
+**Validación automática (un solo paso, ~10 min).** `validar_autorrelleno_windows.bat` comprueba la instalación y el
+commit de Forms, ejecuta las pruebas con Forms real y **ventana visible** (incluye cerrar la ventana con la X mediante
+`WM_CLOSE`, revocar a mitad, detener Monitor y matarlo de golpe), el recorrido por la interfaz y el reinicio de Monitor.
+Se ven abrirse y cerrarse ventanas de Chromium: no hay que tocarlas. Deja `resultados\validacion_autorrelleno\RESUMEN.txt`
+(solo códigos y conteos) y los `.log` de cada paso. Si falta Node.js/Playwright, el recorrido aparece como `OMITE`.
+
+**Comprobación a mano (2 min)**, con `C:\cauce-autorrelleno\monitor\autorrelleno_laboratorio.bat`:
+
 
 (En la MSI usa la ruta completa del `.bat` o doble clic: `NoDefaultCurrentDirectoryInExePath=1`.)
 
@@ -107,13 +126,27 @@ Recorrido automático opcional (necesita Node.js y Playwright como los otros rec
 
 ## 6. Qué queda sin probar
 
-- **Windows físico**: nada de esto se ha ejecutado aún en Windows (ventana visible con `CREATE_NO_WINDOW`, Job Object,
-  `CTRL_BREAK_EVENT`, rutas con `.pw-browsers` de Forms). La CI de Monitor no instala Forms: las 2 pruebas con Forms real
-  se omiten allí.
-- Cierre de la ventana por una persona real (`PREPARADO`): en el contenedor nadie cierra la ventana, así que se probó
-  `CADUCADA`; `PREPARADO` está cubierto con el espía y con las pruebas de Forms.
-- Si Monitor se reinicia con la ventana abierta: en Windows el Job Object debería cerrar Forms; en Linux Forms termina
-  por su propio plazo. No probado.
+Estado de los 8 puntos de la validación física (2026-11-22). **Ninguno está verificado en Windows todavía**: la MSI
+estaba sin conexión. En Linux (contenedor) están todos verificados con Forms real:
+
+| # | Punto | Linux (contenedor) | Windows 11 (MSI) |
+|---|---|---|---|
+| 1 | Instalación de ambos proyectos | n/a (entorno propio) | pendiente: paso 0 del `.bat` |
+| 2 | El botón abre Chromium visible | sí (Xvfb, captura) | pendiente (riesgo: `CREATE_NO_WINDOW`, `.pw-browsers`) |
+| 3 | 8 campos y 2 confirmaciones | sí | pendiente |
+| 4 | Forms no envía | sí (`envio_por_conector` False, sin cita) | pendiente |
+| 5 | Cerrar a mano → `PREPARADO` | sí, 10/10 con `WM_DELETE_WINDOW` | pendiente: prueba con `WM_CLOSE` + comprobación humana |
+| 6 | Revocar cierra Forms y sus procesos | sí, 0 restantes | pendiente (Job Object) |
+| 7 | Reiniciar Monitor sin huérfanos | sí, tras la corrección | pendiente; la CI Windows ejecuta la prueba espía del Job Object |
+| 8 | Sin datos sensibles en registros | sí, todos los archivos de texto | pendiente |
+
+Otros límites:
+- Cerrar con `WM_CLOSE`/`WM_DELETE_WINDOW` es lo que hace la X, pero no es una persona: por eso queda la comprobación
+  a mano. Con un conector antiguo (PR #4) hubo 2/10 `ERROR` al cerrar; con `aa1bb02` no se repitió en 10 intentos.
+  Si aparece en Windows, la causa probable está en Forms (`_esperar_revision` mira la desconexión del navegador antes que
+  el cierre de la página) y se corregiría allí, no en Monitor.
+- La prueba de cierre espera 15 s (25 s en el `.bat`) a que Forms termine de teclear; si Windows es más lento podría
+  cerrar antes de tiempo y fallar sin que sea un error real (se vería `DETENIDA`/`ERROR` en `1_pytest.log`).
 - Solo el formulario POR_DIA (`/cita`). POR_HORARIO necesitaría otro perfil aprobado.
 - La aprobación del perfil en laboratorio la hace el arranque (`rev_laboratorio`) con la correspondencia revisada en
   este PR; en un portal real tendría que ser un paso humano explícito.

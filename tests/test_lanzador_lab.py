@@ -128,3 +128,39 @@ def test_la_salida_tiene_limite(tmp_path):
     codigo = "import sys; sys.stdout.write('x' * 3_000_000)"
     r = ent.lanzar([sys.executable, "-c", codigo], entrada=json.dumps({}), plazo_s=30)
     assert r.estado == "TERMINO" and len(r.stdout) <= 1_000_000
+
+
+MONITOR_FALSO = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from monitoreo.autorrelleno.lanzador_lab import LanzadorLab
+LanzadorLab(modo_laboratorio=True).lanzar([sys.executable, sys.argv[2], sys.argv[3], "ok", "120"], entrada="{}",
+                                          plazo_s=300)
+'''
+
+
+def test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano(tmp_path):
+    """Punto 7 de la validación: Monitor muere sin limpiar (kill -9 / TerminateProcess) con Forms abierto.
+    Linux: PR_SET_PDEATHSIG; Windows: el Job Object se cierra con Monitor. El conector debe morir con él."""
+    import subprocess
+    guion = tmp_path / "monitor_falso.py"
+    guion.write_text(MONITOR_FALSO, encoding="utf-8")
+    carpeta = tmp_path / "espia"
+    mon = subprocess.Popen([sys.executable, str(guion), str(RAIZ), str(RAIZ / "tests" / "herramientas" / "forms_espia.py"),
+                            str(carpeta)])
+    try:
+        fin = time.monotonic() + 30
+        while time.monotonic() < fin and not (carpeta / "pid").exists():
+            time.sleep(0.1)
+        pid = int((carpeta / "pid").read_text())
+        assert psutil.pid_exists(pid)
+        mon.kill()                                   # sin limpieza de Monitor
+        mon.wait(10)
+        fin = time.monotonic() + 10
+        while time.monotonic() < fin and psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE:
+            time.sleep(0.1)
+        vivo = psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+        assert not vivo, "el conector siguió vivo tras morir Monitor"
+    finally:
+        if mon.poll() is None:
+            mon.kill()

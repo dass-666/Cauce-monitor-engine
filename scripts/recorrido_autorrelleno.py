@@ -32,7 +32,7 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
-from autorrelleno_forms import FormsNoListo  # noqa: E402
+from autorrelleno_forms import FormsNoListo, buscar_datos  # noqa: E402
 from ventanilla_laboratorio import ADMIN_PWD, OPERADOR, Laboratorio  # noqa: E402
 
 from monitoreo import navegador  # noqa: E402
@@ -59,6 +59,7 @@ def main() -> int:
     if not nodo:
         print("Falta Node.js (https://nodejs.org) para el navegador automatizado.")
         return 3
+    t_inicio = time.time() - 1
     tmp = Path(tempfile.mkdtemp(prefix="autorrelleno-"))
     lab = Laboratorio(tmp / "lab", nuevo=True, forms=Path(a.forms))
     lab.env_extra.update({"MONITOREO_AUTORRELLENO_ESPERA_S": str(a.espera_s),
@@ -143,9 +144,15 @@ def main() -> int:
                 con.close()
             fugas = [k for k in ("telefono", "correo", "fecha_nacimiento", "identificador") if persona[k] in textos]
             check("registros · auditoría e historial sin los datos personales ficticios", not fugas, fugas)
-        logs = "".join(f.read_text("utf-8", errors="replace") for f in (tmp / "lab").glob("*.log"))
-        fugas = [k for k in ("telefono", "correo") if persona[k] in logs]
-        check("registros · los .log del motor y del portal no contienen teléfono ni correo", not fugas, fugas)
+        # todos los archivos de texto del laboratorio (registros del motor y del portal, estado y perfiles de Forms)
+        # y los registros de Forms escritos durante esta corrida. Se excluye solo el registro ficticio del portal
+        # (portal.json), que guarda a propósito la fecha y el identificador de sus personas de ejemplo.
+        valores = {k: persona[k] for k in ("nombre", "telefono", "correo", "fecha_nacimiento", "identificador")}
+        forms = Path(a.forms)
+        hall = buscar_datos([tmp / "lab", forms / "logs", forms / "state", out], valores, desde=t_inicio,
+                            excluir=(tmp / "lab" / "portal.json",))
+        check("registros · ningún archivo de texto (motor, portal, Forms, evidencia) contiene los datos ficticios",
+              not hall, hall)
     finally:
         lab.detener()
         res["comprobaciones"] = ck

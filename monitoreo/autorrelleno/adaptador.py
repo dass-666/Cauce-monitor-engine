@@ -34,6 +34,7 @@ import re
 import secrets
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -348,6 +349,21 @@ def en_curso() -> Corrida | None:
     return next((c for c in _CORRIDAS.values() if c.en_curso), None)
 
 
+def apagar(espera_s: float = 15.0) -> Corrida | None:
+    """Al detener Monitor: cancela la corrida en curso (termina Forms y su Chromium) y espera a que acabe.
+    Sin esto, una ventana abierta seguiría viva hasta su propio plazo tras reiniciar Monitor."""
+    c = en_curso()
+    if c is None:
+        return None
+    c.cancelacion = c.cancelacion or "MONITOR_DETENIDO"
+    if c.lanzador is not None:
+        c.lanzador.cancelar()
+    fin = time.monotonic() + espera_s
+    while c.en_curso and time.monotonic() < fin:
+        time.sleep(0.1)
+    return c
+
+
 def _auditar(db: Database, user, accion: str, objetivo: str, detalle: dict) -> None:
     try:
         with db.session() as s:
@@ -439,6 +455,8 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
     try:
         lz = LanzadorLab(modo_laboratorio=True)
         corrida.lanzador = lz
+        if corrida.cancelacion:              # Monitor se está deteniendo: no se llega a lanzar nada útil
+            lz.cancelar()
         _REGISTRO.mover(sid, "LANZADA", datetime.now(timezone.utc))
         corrida.estado = "LANZADA"
         threading.Thread(target=_vigilar, args=(db, corrida, parar), daemon=True).start()
