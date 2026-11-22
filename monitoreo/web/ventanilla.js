@@ -237,7 +237,71 @@ async function pantallaAtencion(aid) {
   // v2.3: sin operación con el portal todavía, la persona puede quedarse en el plan del día
   const alPlan = !conf && (!viva || viva.estado === "PREPARADA") && ["preparar", "enviar"].includes(a.siguiente.clave)
     && (!a.consentimiento || !a.consentimiento.exigido || a.consentimiento.vigente) ? tarjetaAlPlan(a) : null;
-  return h("div", {}, cab, barraConsentimiento(a), flujo, alPlan, cierre(a, !!conf, viva), hist);
+  const auto = !conf && labOn() ? await tarjetaAutorrelleno(a) : null;
+  return h("div", {}, cab, barraConsentimiento(a), auto, flujo, alPlan, cierre(a, !!conf, viva), hist);
+}
+
+// ---------------------------------------------------------------- laboratorio · autorrellenado con Forms
+// El botón solo aparece si el motor lo tiene habilitado (MONITOREO_AUTORRELLENO_LAB=1 y Forms instalado).
+// El servidor decide con sus reglas (consentimiento, región, estado): la pantalla solo muestra el motivo.
+async function tarjetaAutorrelleno(a) {
+  let st;
+  try { st = await api(`/api/autorrelleno/atenciones/${a.id}`); } catch (_) { return null; }
+  if (!st || !st.habilitado) return null;
+  const caja = h("div", { class: "card section", id: "autorrelleno", "data-disponible": st.disponible ? "si" : "no",
+    "data-codigo": st.codigo || "" });
+  const pintar = (est, corrida) => {
+    const c = corrida || est.corrida;
+    const enCurso = !!(c && c.en_curso);
+    const errs = h("div", { class: "error", role: "alert", id: "autorrelleno-error" });
+    const boton = h("button", { class: "btn primary", id: "btn-autorrellenar", disabled: (!est.disponible || enCurso) || null,
+      onclick: async () => {
+        boton.disabled = true; errs.textContent = "";
+        try { const r = await api(`/api/autorrelleno/atenciones/${a.id}`, { method: "POST" }); pintar(est, r); seguir(); }
+        catch (err) { errs.textContent = err.message; caja.dataset.codigo = (err.detalle && err.detalle.codigo) || ""; boton.disabled = false; }
+      } }, "Autorrellenar formulario");
+    caja.dataset.estado = c ? c.estado : "";
+    caja.replaceChildren(...[      // replaceChildren escribiría «null» como texto: se filtran los vacíos
+      h("h2", {}, "Autorrellenar formulario (Forms · laboratorio)"),
+      h("p", { class: "muted" }, "Abre el formulario del portal de laboratorio en una ventana del navegador y Forms lo rellena con ",
+        "los datos de este expediente. Forms no envía nada: tú revisas, tecleas los campos manuales y decides. ",
+        "Solo viajan los campos que pide el formulario; el nombre y los campos manuales no."),
+      !est.disponible && est.motivo ? h("p", { class: "error", id: "autorrelleno-motivo" }, est.motivo) : null,
+      h("div", { class: "actions" }, boton), errs,
+      c ? resumenAutorrelleno(c) : null].filter((x) => x));
+  };
+  let timer = null;
+  const seguir = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (!document.body.contains(caja)) return;
+      try {
+        const est = await api(`/api/autorrelleno/atenciones/${a.id}`);
+        pintar(est);
+        if (est.corrida && est.corrida.en_curso) seguir();
+      } catch (_) { /* se reintenta al refrescar la pantalla */ }
+    }, 2000);
+  };
+  pintar(st);
+  if (st.corrida && st.corrida.en_curso) seguir();
+  return caja;
+}
+
+function resumenAutorrelleno(c) {
+  const i = c.informe;
+  const filas = i ? [
+    ...i.campos.map((x) => h("li", { "data-campo": x.campo, class: x.correcto ? "" : "error" },
+      `${x.correcto ? "✓" : "✗"} ${x.etiqueta}: ${x.correcto ? "escrito y verificado" : x.estado}`)),
+    ...i.confirmaciones.map((x) => h("li", { "data-confirmacion": x.campo, class: x.coinciden ? "" : "error" },
+      `${x.coinciden ? "✓" : "✗"} ${x.etiqueta}: ${x.coinciden ? "coincide" : "NO coincide"}`)),
+    ...i.sin_dato.map((x) => h("li", { class: "muted" }, `— ${x.etiqueta}: el expediente no lo trae; complétalo tú`)),
+    ...i.manuales.map((x) => h("li", { class: "muted" }, `— ${x}: captura manual del operador`)),
+  ] : [];
+  return h("div", { id: "autorrelleno-resultado", "data-estado": c.estado },
+    h("p", {}, badge(c.estado), " ", c.mensaje, c.en_curso ? "" : ` (${c.codigo || c.estado})`),
+    filas.length ? h("ul", { class: "lista-autorrelleno" }, filas) : null,
+    c.diagnostico && c.diagnostico.length ? h("p", { class: "muted", id: "autorrelleno-diagnostico" }, `Diagnóstico de Forms: ${c.diagnostico.join(" · ")}`) : null,
+    i ? h("p", { class: "muted" }, `Envío por Forms: ${i.envio_realizado_por_conector ? "SÍ" : "no"} · consentimiento ${c.consentimiento}`) : null);
 }
 
 const ESPERA_EXP = ["NUEVO", "INCOMPLETO", "EN_VALIDACION", "REQUIERE_REVISION"];   // no quedan a cargo del operador

@@ -45,7 +45,7 @@ OPERADOR = ("operador1", "Operador-Laboratorio-2026")
 
 
 class Laboratorio:
-    def __init__(self, carpeta: Path, nuevo: bool = False, rc1: bool = False):
+    def __init__(self, carpeta: Path, nuevo: bool = False, rc1: bool = False, forms: Path | None = None):
         self.carpeta = Path(carpeta)
         if nuevo and self.carpeta.exists():
             shutil.rmtree(self.carpeta)
@@ -61,6 +61,8 @@ class Laboratorio:
         self.portal: PortalProceso | None = None
         self.motor: Server | None = None
         self.env_extra: dict[str, str] = {}   # p. ej. MONITOREO_DIARIO_COPIA en el recorrido con medio externo
+        self.forms = Path(forms).resolve() if forms else None   # Forms (Conector Universal) para «Autorrellenar»
+        self.perfil_forms: Path | None = None
 
     @staticmethod
     def _puerto_disponible(p: int) -> bool:
@@ -116,6 +118,15 @@ class Laboratorio:
                     "MONITOREO_PORTAL_TOKEN_CONTROL": self.cfg["token_control"]})
         if os.environ.get("MONITOREO_PUERTO_LAB"):
             env["MONITOREO_PUERTO"] = os.environ["MONITOREO_PUERTO_LAB"]
+        if self.forms is not None:
+            # Laboratorio · autorrellenado con Forms: se aprueba el perfil del formulario /cita de ESTE portal
+            # (huella fijada por Monitor) y el motor recibe dónde está Forms. Ver docs/AUTORRELLENO_FORMS_LAB.md.
+            from autorrelleno_forms import aprobar, variables_motor
+            self.perfil_forms = aprobar(self.forms, self.portal.base, c)
+            env.update(variables_motor(self.forms, self.perfil_forms))
+            for k in ("MONITOREO_FORMS_BROWSER_PATH", "MONITOREO_FORMS_HEADLESS", "MONITOREO_AUTORRELLENO_ESPERA_S"):
+                if os.environ.get(k):            # base_env() quita MONITOREO_*: se pasan solo estas, si se definieron
+                    env[k] = os.environ[k]
         env.update(self.env_extra)
         self.motor = Server("motor-lab", env, c)
         self.motor.start()
@@ -165,7 +176,7 @@ class Laboratorio:
         return {"motor": self.motor.base, "ventanilla": self.motor.base + "/#ventanilla",
                 "calendario_laboratorio": self.motor.base + "/#laboratorio-calendario",
                 "portal": self.portal.base, "admin": ["admin", ADMIN_PWD], "operador": list(OPERADOR),
-                "carpeta": str(self.carpeta)}
+                "carpeta": str(self.carpeta), "forms": str(self.forms) if self.forms else None}
 
     def detener(self) -> None:
         if self.motor:
@@ -179,8 +190,9 @@ def main() -> int:
     ap.add_argument("--carpeta", default=str(ROOT / "resultados" / "ventanilla_lab"))
     ap.add_argument("--nuevo", action="store_true", help="borrar la carpeta y empezar de cero")
     ap.add_argument("--abrir", action="store_true", help="abrir el navegador en Ventanilla")
+    ap.add_argument("--forms", help="carpeta de Forms (Conector Universal) instalado: activa «Autorrellenar formulario»")
     a = ap.parse_args()
-    lab = Laboratorio(Path(a.carpeta), a.nuevo)
+    lab = Laboratorio(Path(a.carpeta), a.nuevo, forms=Path(a.forms) if a.forms else None)
     try:
         d = lab.iniciar()
     except Exception as e:  # noqa: BLE001
@@ -193,6 +205,8 @@ def main() -> int:
     print(f"  Administrador:            {d['admin'][0]} / {d['admin'][1]}")
     print(f"  Operador:                 {d['operador'][0]} / {d['operador'][1]}")
     print(f"  Carpeta:                  {d['carpeta']}")
+    if d.get("forms"):
+        print(f"  Autorrellenar con Forms:  ACTIVO ({d['forms']}); perfil aprobado en {lab.perfil_forms}")
     print("\nPulsa Ctrl+C para detenerlo. Al volver a abrirlo con la misma carpeta, todo sigue donde quedó.\n")
     if a.abrir:
         webbrowser.open(d["ventanilla"])

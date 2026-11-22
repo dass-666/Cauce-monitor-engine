@@ -43,6 +43,7 @@ SOLO_LABORATORIO = [
     ("monitoreo.api.adaptadores", "router", "Adaptadores P2 y captura manual de prueba"),
     ("monitoreo.api.planificador", "router_lab", "Simular caída del navegador del observador"),
     ("monitoreo.api.test_api", "router", "Rutas de prueba (/api-prueba)"),
+    ("monitoreo.api.autorrelleno", "router", "Autorrellenado con Forms en Ventanilla (laboratorio)"),
     ("monitoreo.emuladores.telegram", "router", "Emulador de Telegram"),
 ]
 
