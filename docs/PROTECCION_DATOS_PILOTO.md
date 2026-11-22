@@ -25,8 +25,11 @@ MONITOREO_DIARIO_COPIA=E:\Cauce\diario
 MONITOREO_RESPALDO_EXTERNO=E:\Cauce\respaldos
 ```
 
-- **Cifra la USB con BitLocker To Go** antes de poner datos reales. Cauce **no cifra** el respaldo `.db`: contiene
-  los expedientes. Una USB perdida sin cifrar es una fuga de datos personales.
+- **Cifra la USB con BitLocker To Go** antes de poner datos reales (el equipo del piloto tiene Windows 11 Pro). Cauce
+  **no cifra** el respaldo `.db`, que contiene los expedientes: una USB perdida sin cifrar es una fuga de datos
+  personales. Guarda la clave de recuperación de BitLocker aparte y comprueba que funciona: es el paso 3b de la
+  guía de validación. Activa «Desbloquear automáticamente en este equipo», porque si no, tras cada reinicio la
+  USB queda bloqueada y el motor también.
 - Déjala **siempre conectada** mientras el motor trabaja: si la copia del diario no se puede escribir, el motor
   bloquea las operaciones con el portal (es a propósito).
 - No uses esa USB para nada más.
@@ -88,7 +91,7 @@ Verificado en Linux con pruebas automatizadas (`tests/test_respaldo_externo_base
 - restaurar dos veces es idempotente, y la cita sigue siendo una sola con el mismo folio.
 
 **No verificado todavía:**
-- Una USB física real, su desconexión con el motor en marcha y BitLocker To Go. Están en
+- Una USB física real, su desconexión con el motor en marcha, y BitLocker To Go con su clave de recuperación. Están en
   [VALIDAR_PROTECCION_DATOS_WINDOWS.md](VALIDAR_PROTECCION_DATOS_WINDOWS.md), para el domingo.
 - Que `st_dev` distinga una USB de `C:` en el equipo físico. En la CI de Windows se prueba con `C:` frente a la
   unidad del repositorio cuando son distintas.
