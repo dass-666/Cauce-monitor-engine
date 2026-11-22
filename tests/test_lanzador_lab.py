@@ -130,6 +130,14 @@ def test_la_salida_tiene_limite(tmp_path):
     assert r.estado == "TERMINO" and len(r.stdout) <= 1_000_000
 
 
+def _vivo(pid: int) -> bool:
+    """Vivo y no zombi; el proceso puede desaparecer entre dos llamadas de psutil (carrera vista en Windows)."""
+    try:
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
 MONITOR_FALSO = r'''
 import json, sys
 sys.path.insert(0, sys.argv[1])
@@ -157,10 +165,9 @@ def test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano(tmp_path):
         mon.kill()                                   # sin limpieza de Monitor
         mon.wait(10)
         fin = time.monotonic() + 10
-        while time.monotonic() < fin and psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE:
+        while time.monotonic() < fin and _vivo(pid):
             time.sleep(0.1)
-        vivo = psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
-        assert not vivo, "el conector siguió vivo tras morir Monitor"
+        assert not _vivo(pid), "el conector siguió vivo tras morir Monitor"
     finally:
         if mon.poll() is None:
             mon.kill()
