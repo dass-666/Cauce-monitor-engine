@@ -43,6 +43,8 @@ página. Al volver, «Retomar» te deja en el mismo paso.
 - [ ] Cauce responde y la cabecera dice el entorno correcto.
 - [ ] **Recuperación: Operable** (sin la señal «Bloqueada» en el menú). Si está bloqueada, no se atiende: ver §3.
 - [ ] La copia externa del diario está conectada (USB/otra unidad) y el autodiagnóstico no la marca en rojo.
+  *Provisional (decisión de Diego, 21-nov):* en la MSI se usa el disco D (SSD interno distinto de C, simulacro 52/52)
+  hasta conectar la USB. Protege ante una falla de C, no ante robo, incendio o ransomware: la USB sigue pendiente.
 - [ ] Respaldo de ayer hecho y verificado (lo cubre el respaldo externo del hilo de protección de datos).
 - [ ] Carpeta de comprobantes disponible (la que se escribe en «Dónde se guarda el comprobante»).
 
