@@ -117,6 +117,11 @@ def backup(url: str, label: str = "") -> str:
         src_path = make_url(url).database
         if not src_path or src_path == ":memory:":
             raise MigrationError("No se puede respaldar una base en memoria")
+        # Auditoría PR #10: sqlite3.connect CREA el archivo si no existe; sin esta comprobación se «respaldaba»
+        # una base vacía recién creada (p. ej. si la configuración apunta a otra carpeta que la del motor).
+        if not Path(src_path).is_file() or Path(src_path).stat().st_size == 0:
+            raise MigrationError(f"No existe la base de datos {src_path} (o está vacía): no hay nada que respaldar. "
+                                 "Comprueba MONITOREO_DB_URL / la carpeta desde la que ejecutas el respaldo.")
         dest = dest_dir / f"monitoreo-{stamp}{('-' + label) if label else ''}.db"
         src = sqlite3.connect(src_path, timeout=60)
         dst = sqlite3.connect(dest)

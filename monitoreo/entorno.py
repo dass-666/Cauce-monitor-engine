@@ -31,6 +31,11 @@ CLAVES_DE_EJEMPLO = {"", "cambiame", "changeme", "secret", "secreto", "clave", "
                      "clave-de-pruebas", "caida"}
 
 
+# Contraseñas de laboratorio y demostración que están escritas en el repositorio (instalar_cauce.bat,
+# ventanilla_laboratorio.py, versiones anteriores de piloto_asistido.py). Nunca valen en producción.
+CONTRASENAS_DE_LABORATORIO = {"admin-laboratorio-2026", "admin-piloto-lab-2026", "operador-piloto-lab-2026"}
+
+
 class ConfigError(Exception):
     """Configuración insegura o inválida: el servidor no debe arrancar."""
 
@@ -97,6 +102,9 @@ def review(env: dict | None = None) -> Revision:
             problems.append("en producción, mínimo 12 caracteres")
         if problems:
             bad("MONITOREO_ADMIN_PASSWORD es débil: " + ", ".join(problems))
+        if prod and pwd.strip().lower() in CONTRASENAS_DE_LABORATORIO:
+            r.errores.append("MONITOREO_ADMIN_PASSWORD es una contraseña de laboratorio publicada en el código: "
+                             "en producción define una propia.")
     if prod and env.get("MONITOREO_DATOS_DEMO", "").strip().lower() in ("1", "true", "si", "sí", "yes"):
         r.errores.append("MONITOREO_DATOS_DEMO=1 no está permitido en producción (ponlo en 0).")
     tg_api = env.get("MONITOREO_TELEGRAM_API", "")

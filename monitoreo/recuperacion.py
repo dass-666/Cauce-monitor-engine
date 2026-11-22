@@ -1125,8 +1125,22 @@ def resolver(db, user, ref: int, tipo: str, accion: str, motivo: str, folio: str
             clave, estado_r, contrato_r = r.clave, r.estado, r.contrato
         if accion == "registrar_folio":
             folio = (folio or "").strip()
+            if contrato_r == "oficial_asistido":
+                # Mismo normalizado y validación que al registrar la cita (asistida._normalizar): sin espacios y
+                # en mayúsculas. Si no, el folio conciliado no coincidía con el índice único ni se podía anular.
+                from .captura import asistida as _asi
+                folio = _asi.normalizar_folio(folio)
+                if not _asi.FOLIO_RE.match(folio):
+                    raise ErrorRecuperacion(422, "Folio no válido: 4 a 32 letras, números o guiones, tal como lo "
+                                                 "muestra el portal", {"codigo": "FOLIO_NO_VALIDO"})
             if not folio or len(folio) > 32:
                 raise ErrorRecuperacion(422, "Escribe el folio que muestra el portal")
+            with db.session() as s:
+                from sqlalchemy import select as _select
+                otra = s.scalar(_select(Reservacion.id).where(Reservacion.folio == folio, Reservacion.id != rid))
+            if otra is not None:
+                raise ErrorRecuperacion(409, "Ese folio ya está registrado en otra cita: compruébalo en el portal",
+                                        {"codigo": "FOLIO_DUPLICADO", "reservacion": otra})
             if disc.get("folio_en_diario"):
                 esperado = _folio_en_diario(k, ref)
                 if esperado and not hmac.compare_digest(seud(k, "folio", folio), esperado):

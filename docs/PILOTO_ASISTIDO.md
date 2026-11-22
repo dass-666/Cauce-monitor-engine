@@ -9,11 +9,16 @@ comprueba** el folio: la cita queda como «declarada por una persona».
 
 **Estado de esta versión (sin adornos).**
 - Demostrado en pruebas automáticas (SQLite y PostgreSQL) y en un recorrido con navegador en modo piloto: ver
-  `tests/test_piloto_asistido.py` y `scripts/piloto_asistido.py --recorrido`.
+  `tests/test_piloto_asistido.py` y `scripts/piloto_asistido.py --recorrido` (demostración ficticia).
 - **No** validado todavía en el Windows físico: eso es la validación del domingo (`docs/VALIDAR_PILOTO_WINDOWS.md`).
 - **No** autorizado para datos reales: falta la confirmación de base legal, aviso de privacidad y controles
   (decisión de Diego). Hasta entonces, solo datos ficticios.
 - **No** encendido en producción: `MONITOREO_PRODUCCION_FLUJO_ADMIN` sigue apagado hasta la autorización.
+
+**Cómo se arranca el piloto.** Como una instalación normal e independiente: `preparar_piloto.bat <carpeta externa>`
+una vez, y después `iniciar.bat`. Pasos exactos en [INICIAR_PILOTO_WINDOWS.md](INICIAR_PILOTO_WINDOWS.md).
+`piloto_asistido.bat` es **solo una demostración** con datos ficticios: no se usa para el piloto y los respaldos
+no cubren su carpeta.
 
 ## 1. Recorrido de una cita (operador)
 
@@ -64,8 +69,8 @@ página. Al volver, «Retomar» te deja en el mismo paso.
 | «No se pudo escribir el diario de eventos críticos» (503) al registrar | Anota el folio en papel, avisa al administrador; revisa el autodiagnóstico (disco, copia externa). Al resolverse, registra el folio (la revisión sigue REVISADA). | No vuelvas a agendar en el portal. |
 | «Ese folio ya está registrado en otra cita» | Compruébalo en el portal: puede ser un error de tecleo o un duplicado real. Consulta al administrador. | No inventes otro folio. |
 | «Los datos del expediente cambiaron» | Revoca la revisión con motivo y ábrela de nuevo con los datos correctos. Si la cita ya se agendó con los datos viejos, avisa al administrador. | No registres un folio que no corresponde a los datos. |
-| Tras restaurar un respaldo, falta una cita asistida registrada después | Aparece en «Recuperación» como confirmación ausente: el administrador escribe el folio del comprobante (solo se acepta el que anotó el diario) y la cita vuelve a la base. | No la registres de nuevo como cita nueva. |
-| Se fue la luz o se cerró Cauce justo al pulsar «Registrar la cita» | Al volver, «Recuperación» muestra una confirmación incierta y Cauce queda bloqueado. El operador registra el folio de su comprobante (la revisión sigue REVISADA); después el administrador pulsa «Levantar bloqueo». | No agendes otra vez en el portal ni pongas un folio distinto. |
+| Tras restaurar un respaldo, falta una cita asistida registrada después | Depende de lo que tuviera el respaldo. **Caso habitual (respaldo del cierre anterior, la revisión se abrió después):** en «Recuperación» aparece «confirmación sin reservación», **sin nombre de expediente** (Cauce sabe cuántas citas faltan, no de quién) y con una sola acción: **Reconocer**. El administrador las reconoce, levanta el bloqueo y cada cita **se vuelve a registrar por el flujo normal** (abrir revisión → frase → folio del comprobante). La carpeta de comprobantes y la hoja del día dicen de quién era cada folio. **Caso raro (el respaldo se hizo con la revisión ya abierta):** aparece «confirmación ausente» y el administrador escribe el folio del comprobante; solo se acepta el que anotó el diario. | No agendes otra vez en el portal: la cita ya existe allí; solo se vuelve a anotar en Cauce. La cita recuperada por conciliación queda sin fecha ni sucursal: complétalas en tu hoja con el comprobante. |
+| Se fue la luz o se cerró Cauce justo al pulsar «Registrar la cita» | Al volver, «Recuperación» muestra una confirmación incierta y Cauce queda bloqueado. El operador registra el folio de su comprobante (la revisión sigue REVISADA); después el administrador pulsa «Levantar bloqueo». Si lo concilia el administrador desde «Recuperación», el folio se guarda igual que al registrar (sin espacios, en mayúsculas) y se rechaza si no es válido o ya está en otra cita. | No agendes otra vez en el portal ni pongas un folio distinto. |
 | «Operaciones bloqueadas: recuperación pendiente» al abrir | Se restauró un respaldo: el administrador concilia en «Recuperación» antes de agendar nuevas citas. Una cita YA hecha sí se puede registrar. | No agendes a nadie mientras tanto (riesgo de duplicar). |
 | La persona cancela una cita ya registrada | El administrador cancela la cita en el portal oficial y, en la ficha del expediente, abre «La persona canceló esta cita»: teclea el folio, el motivo y marca la declaración. La cita queda ANULADA y el expediente CERRADO (CANCELADO). | No reutilices el folio (Cauce lo rechaza). No la anules en Cauce sin cancelarla antes en el portal. |
 | Cauce no responde | Atiende en papel (folio, fecha, sucursal, quién) y registra todo al volver. | No reinicies el equipo sin avisar. |
