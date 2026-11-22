@@ -31,18 +31,19 @@ Anota el número de pruebas y si alguna falla (copia el texto completo del fallo
 ```
 piloto_asistido.bat --recorrido
 ```
-Arranca Cauce **en modo piloto** (producción + flujo administrativo, sin portal) en
-`resultados\piloto_asistido`, crea un operador y un expediente ficticio y recorre la interfaz: revisión,
+Arranca una **demostración** de Cauce en modo piloto (producción + flujo administrativo, sin portal) en
+`resultados\demo_asistido_recorrido` (carpeta propia del recorrido; nunca borra otras), crea un operador y un expediente ficticio y recorre la interfaz: revisión,
 cierre del navegador sin aprobar nada, frase exacta, folio tecleado dos veces, cita registrada y atención
 cerrada; después el administrador anula la cita (la persona canceló) y el expediente queda cerrado.
 Esperado: `RESULTADO: 24/24 comprobaciones`.
-Evidencia: `resultados\piloto_asistido\recorrido_asistido.json` y `resultados\piloto_asistido\capturas\`.
+Evidencia: `resultados\demo_asistido_recorrido\recorrido_asistido.json` y `resultados\demo_asistido_recorrido\capturas\`.
 
 ## 4. Recorrido a mano, como lo haría el operador (20 min)
 ```
 piloto_asistido.bat
 ```
-Abre la dirección que imprime y entra como **operador1** (la clave aparece en la consola). Hay un expediente
+Es una demostración en `resultados\demo_asistido` (no es el piloto: ese se abre con `iniciar.bat`, ver
+`INICIAR_PILOTO_WINDOWS.md`). Abre la dirección que imprime y entra como **operador1** (la clave, aleatoria, aparece en la consola). Hay un expediente
 ficticio ya tomado en Ventanilla. Comprueba con tus propios ojos:
 
 | # | Acción | Resultado esperado | ✔ |
@@ -66,7 +67,7 @@ Termina con **Ctrl+C** en la consola.
 
 ## 5. Qué enviar de vuelta
 - Resultado del paso 2 (número de pruebas, fallos si los hay).
-- `resultados\piloto_asistido\recorrido_asistido.json`.
+- `resultados\demo_asistido_recorrido\recorrido_asistido.json`.
 - La tabla del paso 4 marcada, y capturas de lo que no se vea como se espera.
 - Versión de Windows, de Python (`.venv\Scripts\python.exe --version`) y de Node (`node --version`).
 

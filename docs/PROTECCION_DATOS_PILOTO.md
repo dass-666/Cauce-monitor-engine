@@ -18,6 +18,12 @@ base. Por eso existe el respaldo externo: copia un respaldo consistente al otro 
 compara su SHA-256, pasa `PRAGMA integrity_check` y deja junto a él un manifiesto (`.json`) con la huella, el
 tamaño, la revisión del esquema y el número de filas por tabla. El manifiesto no lleva datos de personas.
 
+**Qué base se respalda.** `respaldar_externo.bat` respalda la base de la instalación desde la que se ejecuta (la de
+su `.env`; por omisión `data\monitoreo.db`). Por eso el piloto se abre con `iniciar.bat` desde esa misma carpeta
+(ver [INICIAR_PILOTO_WINDOWS.md](INICIAR_PILOTO_WINDOWS.md)). La demostración `piloto_asistido.bat` usa otra carpeta
+y **no** queda respaldada. Si la base no existe, está vacía o no tiene esquema, el respaldo falla con un mensaje
+claro: nunca se da por bueno.
+
 ## Configuración recomendada (una memoria USB fija y cifrada)
 
 ```
@@ -60,6 +66,9 @@ está conectado.
    - Si la huella del archivo no coincide con su manifiesto, **se niega** y no toca nada.
 4. Arranca el motor. Arrancará **bloqueado** (restauración pendiente). En la pantalla «Recuperación», concilia
    cada discrepancia (folio comprobado en el portal, revocaciones reaplicadas) y levanta el bloqueo.
+   Las citas asistidas cuya revisión se abrió **después** del respaldo aparecen como «confirmación sin
+   reservación», sin nombre de expediente y con la única acción «Reconocer»: se reconocen y se vuelven a
+   registrar por el flujo normal con el folio del comprobante (ver `PILOTO_ASISTIDO.md`, §3).
 
 Restaurar dos veces el mismo archivo no duplica discrepancias ni citas: está probado.
 

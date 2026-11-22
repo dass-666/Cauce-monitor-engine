@@ -63,6 +63,13 @@ CAMPOS_HUELLA = ("codigo", "nombre", "fecha_nacimiento", "telefono", "correo", "
                  "fecha_solicitada", "fechas_desde", "fechas_hasta")
 
 
+def normalizar_folio(folio: str | None) -> str:
+    """Forma única del folio en la base: sin espacios (tampoco en medio) y en mayúsculas. La usan el registro,
+    la anulación y la conciliación tras restaurar: si cada una normalizara distinto, el mismo folio podría
+    guardarse dos veces o no reconocerse al anular."""
+    return re.sub(r"\s+", "", folio or "").upper()
+
+
 class ErrorAsistida(Exception):
     def __init__(self, http: int, mensaje: str, detalle: dict | None = None):
         super().__init__(mensaje)
@@ -225,8 +232,8 @@ def revisar(db: Database, exp_id: int, user, frase: str, huella_vista: str, now:
 def _normalizar(folio: str, folio_confirmacion: str, fecha: str, hora: str | None, sucursal: str | None,
                 comprobante_sha256: str | None, comprobante_ref: str | None, now: datetime) -> dict:
     errores: dict[str, str] = {}
-    f1 = re.sub(r"\s+", "", folio or "").upper()
-    f2 = re.sub(r"\s+", "", folio_confirmacion or "").upper()
+    f1 = normalizar_folio(folio)
+    f2 = normalizar_folio(folio_confirmacion)
     if not FOLIO_RE.match(f1):
         errores["folio"] = "Folio no válido: 4 a 32 letras, números o guiones, tal como lo muestra el portal"
     elif f1 != f2:
@@ -400,7 +407,7 @@ def anular(db: Database, exp_id: int, user, folio: str, motivo: str, declaro: bo
         raise ErrorAsistida(422, "Marca que cancelaste la cita en el portal oficial: sin eso no se anula",
                             {"codigo": "SIN_DECLARACION"})
     actor = _actor(user)
-    folio = (folio or "").strip().upper()
+    folio = normalizar_folio(folio)
     with db.session() as s:
         e = _exp(s, exp_id, user)
         c = s.scalar(select(ConfirmacionHumana).where(ConfirmacionHumana.expediente_id == exp_id,
@@ -408,7 +415,7 @@ def anular(db: Database, exp_id: int, user, folio: str, motivo: str, declaro: bo
                      .order_by(ConfirmacionHumana.id.desc()).limit(1))
         if c is None:
             raise ErrorAsistida(409, "Este expediente no tiene una cita asistida registrada", {"codigo": "SIN_CITA"})
-        if folio != (c.folio or ""):
+        if folio != normalizar_folio(c.folio):     # tolera un folio antiguo guardado sin normalizar
             raise ErrorAsistida(422, "El folio no coincide con el de la cita registrada", {"codigo": "FOLIO_NO_COINCIDE"})
         if c.estado == ANULADA:
             return {"confirmacion": vista(c), "repetida": True}

@@ -124,6 +124,26 @@ def _revision(ruta: Path) -> str | None:
         c.close()
 
 
+TABLAS_MINIMAS = ("alembic_version", "users", "expedientes", "reservaciones", "settings")
+
+
+def esquema_valido(ruta: Path) -> str | None:
+    """None si el archivo es una base de Cauce con esquema; si no, el motivo. Un respaldo de una base vacía o sin
+    revisión de esquema no protege nada: nunca debe darse por bueno."""
+    try:
+        if _revision(ruta) is None:
+            return "sin revisión de esquema (alembic_version)"
+        c = sqlite3.connect(f"{ruta.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            tablas = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            c.close()
+    except sqlite3.DatabaseError as e:
+        return f"{type(e).__name__}: {e}"
+    faltan = [t for t in TABLAS_MINIMAS if t not in tablas]
+    return f"faltan tablas: {', '.join(faltan)}" if faltan else None
+
+
 def _proteger(p: Path) -> None:
     from .captura.retencion import proteger
     proteger(p)
@@ -233,10 +253,22 @@ def respaldar(carpeta: str | Path | None = None, url: str | None = None, conserv
     if not rev["apta"]:
         raise ErrorRespaldo("El destino no es apto: " + "; ".join(rev["problemas"]))
     destino_dir = Path(rev["carpeta"]).resolve()
+    base = _ruta_base(url)
+    if not base.is_file() or base.stat().st_size == 0:
+        raise ErrorRespaldo(f"No existe la base de datos {base} (o está vacía): NO se hizo ningún respaldo. Ejecuta el "
+                            "respaldo desde la carpeta de la instalación cuyo motor usas (su .env decide la base).")
     try:
         local = Path(migrate.backup(url, "externo"))      # copia consistente (API de respaldo de SQLite) + integridad
     except migrate.MigrationError as e:
         raise ErrorRespaldo(str(e)) from e
+    problema = esquema_valido(local)
+    if problema:
+        try:
+            local.unlink()
+        except OSError:
+            pass
+        raise ErrorRespaldo(f"La base {base} no es una base de Cauce utilizable ({problema}): NO se hizo ningún "
+                            "respaldo externo.")
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     destino = destino_dir / f"{PREFIJO}{stamp}.db"
     huella = _copiar_verificado(local, destino)
@@ -296,6 +328,10 @@ def verificar(archivo: str | Path, exigir_manifiesto: bool = True) -> dict:
     out["integridad"] = ok
     if ok != "ok":
         out["problemas"].append(f"La base del respaldo no pasa PRAGMA integrity_check: {ok[:200]}")
+    else:
+        problema = esquema_valido(a)
+        if problema:
+            out["problemas"].append(f"El respaldo no contiene una base de Cauce utilizable: {problema}")
     out["ok"] = not out["problemas"]
     return out
 
