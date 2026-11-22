@@ -761,12 +761,14 @@ jobs:
           exit $LASTEXITCODE
       - name: Piloto · Simulacro de protección con medio externo en OTRA unidad (copia del diario, respaldo verificado, ensayo y restauración desde el medio)
         run: |
-          $ws = (Get-Location).Drive.Name
-          Write-Host "Repositorio en la unidad $($ws):"
-          if ($ws -ne "C") {
-            python scripts/recorrido_integral.py --externa "C:\cauce-simulacro-ci" --salida resultados/simulacro_proteccion
+          # El laboratorio va en la carpeta temporal del sistema (TEMP); el medio externo, en otra unidad.
+          $lab = [System.IO.Path]::GetTempPath().Substring(0, 1)
+          $med = $env:RUNNER_TEMP.Substring(0, 1)
+          Write-Host "Laboratorio en $($lab): · medio externo en $($med):"
+          if ($lab -ne $med) {
+            python scripts/recorrido_integral.py --externa "$env:RUNNER_TEMP\simulacro" --salida resultados/simulacro_proteccion
           } else {
-            Write-Host "::warning::el repositorio está en C: — el simulacro usa la misma unidad (--laboratorio-misma-unidad)"
+            Write-Host "::warning::TEMP y RUNNER_TEMP en la misma unidad: el simulacro usa --laboratorio-misma-unidad"
             python scripts/recorrido_integral.py --externa "$env:RUNNER_TEMP\simulacro" --laboratorio-misma-unidad --salida resultados/simulacro_proteccion
           }
           exit $LASTEXITCODE

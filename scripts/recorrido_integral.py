@@ -113,7 +113,9 @@ class Recorrido:
     # ------------------------------------------------------------ utilidades
     def check(self, nombre, ok, detalle=None):
         self.ck.append({"comprobacion": nombre, "ok": bool(ok), "detalle": detalle})
-        print(("OK    " if ok else "FALLA ") + nombre + ("" if ok else f"  {str(detalle)[:400]}"), flush=True)
+        linea = ("OK    " if ok else "FALLA ") + nombre + ("" if ok else f"  {str(detalle)[:400]}")
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        print(linea.encode(enc, errors="replace").decode(enc, errors="replace"), flush=True)   # cp1252 no se detiene
         return ok
 
     def env_bd(self) -> dict:
@@ -129,8 +131,9 @@ class Recorrido:
 
     def respaldo_externo(self, *args) -> tuple[int, dict]:
         extra = ["--laboratorio"] if self.misma_unidad else []
+        env = {**self.env_bd(), "PYTHONIOENCODING": "utf-8"}     # Windows: la salida del hijo no va en cp1252
         r = subprocess.run([sys.executable, "-m", "monitoreo.respaldo_externo", *args, *extra], capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", env=self.env_bd(), cwd=str(ROOT), timeout=300)
+                           text=True, encoding="utf-8", errors="replace", env=env, cwd=str(ROOT), timeout=300)
         try:
             return r.returncode, json.loads(r.stdout)
         except ValueError:
