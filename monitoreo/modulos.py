@@ -34,6 +34,7 @@ FLUJO_ADMIN = [
     ("monitoreo.api.proveedor", "router", "Identidad del proveedor de esta instancia"),
     ("monitoreo.api.planificador", "router", "Plan del día, observador y coincidencias"),
     ("monitoreo.api.administracion", "router", "Mesa de control e importación por lotes"),
+    ("monitoreo.api.asistida", "router", "Piloto asistido: confirmación humana de citas del portal oficial"),
 ]
 SOLO_LABORATORIO = [
     ("monitoreo.api.routes", "lab_router", "Laboratorio de simulación (/api/lab)"),

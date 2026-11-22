@@ -665,6 +665,8 @@ jobs:
         run: python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
       - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
         run: python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
+      - name: Piloto asistido · modo piloto sin portal (revisión, cierre del navegador, folio dos veces, cita registrada)
+        run: python scripts/piloto_asistido.py --recorrido --carpeta resultados/piloto_asistido
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -766,6 +768,10 @@ jobs:
       - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
         run: |
           python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
+          exit $LASTEXITCODE
+      - name: Piloto asistido · modo piloto sin portal (revisión, cierre del navegador, folio dos veces, cita registrada)
+        run: |
+          python scripts/piloto_asistido.py --recorrido --carpeta resultados/piloto_asistido
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |

@@ -183,6 +183,10 @@ async function pintarFlujo(box, e, viva, conf, pasoPrevio) {
     await act(() => api(`/api/expedientes/${e.id}/cancelar`, { method: "POST" }), "Expediente cancelado"); reabrir(); } }, "Cancelar expediente");
   const revalidar = () => h("button", { class: "btn small", id: "btn-revalidar", onclick: async () => {
     await act(() => api(`/api/expedientes/${e.id}/revalidar`, { method: "POST" }), (r) => `Expediente ${r.estado.replace(/_/g, " ")}`); reabrir(); } }, "Volver a validar");
+  if (conf && conf.evidencia && conf.evidencia.fuente === "PERSONA_PORTAL_OFICIAL") {
+    pintarCitaAsistida(box, conf);
+    return;
+  }
   if (conf) {
     box.replaceChildren(paso(4, "Reservación confirmada",
       h("p", {}, "Folio: ", h("b", { id: "folio", "data-folio": conf.folio }, conf.folio)),
@@ -213,18 +217,30 @@ async function pintarFlujo(box, e, viva, conf, pasoPrevio) {
   if (["CERRADO", "CANCELADO", "FALLIDO"].includes(e.estado)) {
     box.replaceChildren(h("p", { class: "muted" }, `Expediente cerrado${e.motivo_cierre ? " · " + e.motivo_cierre.toLowerCase() : ""}.`)); return;
   }
+  // Piloto asistido: la cita la agenda una persona en el portal oficial (Cauce no se conecta a él).
+  const asis = ["ASIGNADO", "CAPTURA_EN_PROCESO"].includes(e.estado)
+    ? await api(`/api/expedientes/${e.id}/asistida`).catch(() => null) : null;
+  if (asis && asis.viva) { await pintarAsistida(box, e, asis.viva, reabrir); return; }
   // 1) preparar (también retoma un intento abierto)
   if (!viva || viva.estado === "PREPARADA") {
     const btn = h("button", { class: "btn primary", id: "btn-preparar" }, "Preparar formulario");
-    box.replaceChildren(paso(1, "Preparación del formulario", h("p", { class: "muted" },
-      "El motor lee el expediente y llena los campos del portal según el contrato. Revísalos antes de enviarlos."), btn),
+    const btnAsis = asis ? h("button", { class: "btn" + (labOn() ? "" : " primary"), id: "btn-asistida-abrir", onclick: async () => {
+      try { await api(`/api/expedientes/${e.id}/asistida/abrir`, { method: "POST" }); reabrir(); }
+      catch (err) { toast("⚠ " + err.message, 6000); }
+    } }, "Agendar a mano en el portal oficial") : null;
+    box.replaceChildren(
+      labOn() ? paso(1, "Preparación del formulario", h("p", { class: "muted" },
+        "El motor lee el expediente y llena los campos del portal según el contrato. Revísalos antes de enviarlos."), btn) : null,
+      btnAsis ? paso(labOn() ? "1b" : 1, "Cita en el portal oficial (modo asistido)", h("p", { class: "muted" },
+        "Tú agendas la cita en el portal oficial con la persona presente. Cauce guarda tu revisión de los datos y el folio que te dé el portal. ",
+        h("b", {}, "Cauce no se conecta al portal ni comprueba el folio.")), btnAsis) : null,
       ["ASIGNADO", "CAPTURA_EN_PROCESO"].includes(e.estado) ? rechazoForm(e, reabrir) : null,
       h("div", { class: "actions section" }, cancelarExp()));
     btn.addEventListener("click", async () => {
       try { const r = await api(`/api/expedientes/${e.id}/preparar`, { method: "POST" }); mostrarRevision(box, e, r); }
       catch (err) { toast("⚠ " + err.message, 5000); }
     });
-    if (pasoPrevio === "preparar") btn.click();
+    if (pasoPrevio === "preparar" && labOn()) btn.click();   // en producción no hay formulario de laboratorio
     return;
   }
   if (viva.estado === "DATOS_ENVIADOS") {
@@ -621,4 +637,119 @@ async function tabDias(f) {
       { t: "Día", f: (c) => c.fecha ? `${c.sucursal} · ${c.tramite} · ${c.fecha}` : "—" },
       { t: "Antes → después", f: (c) => c.antes ? `${c.antes} → ${c.despues}` : "" }, { t: "Por", f: (c) => c.mecanismo === "EVENTOS" ? "evento" : "consulta" }],
       cambios.cambios.slice().reverse())));
+}
+
+// ================================================================ piloto asistido · confirmación humana persistente
+// Cada paso es una acción explícita de la persona, guardada en el servidor. Cerrar el navegador o perder la red
+// no aprueba nada: al volver, la ficha muestra el mismo paso en el que se quedó.
+function revocarAsistida(e, reabrir) {
+  const motivo = h("input", { id: "asis-motivo", maxlength: 200, placeholder: "Motivo (sin datos personales)", autocomplete: "off" });
+  const errs = h("div", { class: "error", role: "alert" });
+  const btn = h("button", { class: "btn small danger", id: "btn-asistida-revocar", onclick: async () => {
+    errs.textContent = "";
+    try { await api(`/api/expedientes/${e.id}/asistida/revocar`, { method: "POST", body: { motivo: motivo.value } }); toast("Revisión revocada", 4000); reabrir(); }
+    catch (err) { errs.textContent = err.message; }
+  } }, "Revocar esta revisión");
+  return h("details", { class: "section" }, h("summary", {}, "No voy a agendar ahora / hay un error en los datos"),
+    h("div", { class: "form" }, field("Motivo", motivo), btn, errs));
+}
+
+async function sha256Archivo(file) {
+  if (!(window.crypto && crypto.subtle)) return null;     // sin contexto seguro: se pega la huella a mano
+  const buf = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Los datos que la persona teclea en el portal oficial, completos (la consulta queda registrada en el servidor).
+function datosParaTeclear(d) {
+  const fila = (t, v, k) => v ? [h("dt", {}, t), h("dd", { class: "mono", "data-dato": k }, v)] : null;
+  return h("div", { class: "section", id: "asis-datos" }, h("h3", {}, "Datos para teclear en el portal oficial"),
+    h("dl", { class: "kv" },
+      fila("Titular", d.nombre, "nombre"), fila("Nacimiento", d.fecha_nacimiento, "fecha_nacimiento"),
+      fila("Teléfono", d.telefono, "telefono"), fila("Correo", d.correo, "correo"),
+      fila("Registro previo", d.id_registro_previo, "id_registro_previo"),
+      fila("Trámite", `${TRAMITES[d.tipo_tramite] || d.tipo_tramite} · ${d.operacion}`, "tipo_tramite"),
+      fila("Región · sucursal", d.region + (d.sucursal ? " · " + d.sucursal : ""), "region"),
+      fila("Alternativas", (d.sucursales_alternativas || []).join(", "), "sucursales_alternativas"),
+      fila("Folio anterior", d.folio_anterior, "folio_anterior"),
+      fila("Fechas aceptables", d.fechas_desde ? `${d.fechas_desde} a ${d.fechas_hasta || "—"}` : d.fecha_solicitada, "fechas")),
+    d.datos_completos ? null : h("p", { class: "error" }, "No tienes acceso a los datos completos de este expediente."));
+}
+
+async function pintarAsistida(box, e, c, reabrir) {
+  const d = await api(`/api/expedientes/${e.id}`).catch(() => ({}));
+  const corta = c.huella_datos.slice(0, 12);
+  if (c.estado === "ABIERTA") {
+    const frase = h("input", { id: "asis-frase", maxlength: 64, autocomplete: "off", spellcheck: "false", placeholder: c.frase });
+    const errs = h("div", { class: "error", role: "alert" });
+    const btn = h("button", { class: "btn primary", id: "btn-asistida-revisar", onclick: async () => {
+      errs.textContent = "";
+      try { await api(`/api/expedientes/${e.id}/asistida/revisar`, { method: "POST", body: { frase: frase.value, huella: c.huella_datos } }); reabrir(); }
+      catch (err) { errs.textContent = err.message; }
+    } }, "Confirmar revisión");
+    box.replaceChildren(paso(1, "Revisa los datos que vas a teclear en el portal oficial",
+      h("p", {}, "Comprueba con la persona presente estos datos. ",
+        "Si algo está mal, corrígelo antes: si los datos cambian, esta revisión deja de valer."), datosParaTeclear(d),
+      h("dl", { class: "kv" }, h("dt", {}, "Abierta por"), h("dd", {}, c.persona), h("dt", {}, "Desde"), h("dd", {}, fmtTime(c.abierta_en)),
+        h("dt", {}, "Huella de los datos"), h("dd", { class: "mono", id: "asis-huella", "data-huella": c.huella_datos }, corta + "…")),
+      field(`Escribe exactamente «${c.frase}» (mínimo ${c.min_revision_s} s con la revisión abierta)`, frase, "full"),
+      h("div", { class: "actions" }, btn), errs), revocarAsistida(e, reabrir));
+    return;
+  }
+  // REVISADA: la persona agenda en el portal oficial y registra aquí el resultado
+  const inp = (name, attrs) => h("input", { name, id: "asis-" + name, autocomplete: "off", spellcheck: "false", ...attrs });
+  const folio2 = inp("folio_confirmacion", { required: true, maxlength: 32 });
+  folio2.addEventListener("paste", (ev) => { ev.preventDefault(); errs.textContent = "Teclea el folio otra vez mirando el portal (no lo pegues)."; });
+  const sha = inp("comprobante_sha256", { maxlength: 64, placeholder: "se calcula al elegir el archivo" });
+  const archivo = h("input", { type: "file", id: "asis-archivo", accept: ".pdf,.png,.jpg,.jpeg" });
+  archivo.addEventListener("change", async () => {
+    const f = archivo.files && archivo.files[0];
+    if (!f) return;
+    const hx = await sha256Archivo(f);
+    if (hx) sha.value = hx; else toast("Este navegador no calcula la huella aquí: pégala a mano o deja solo la referencia", 6000);
+  });
+  const errs = h("div", { class: "error", role: "alert", id: "asis-error" });
+  const form = h("form", { class: "form", id: "form-asistida-registrar", onsubmit: async (ev) => {
+    ev.preventDefault(); errs.textContent = "";
+    const d = formData(ev.target);
+    d.declaro = !!ev.target.querySelector("[name=declaro]").checked;
+    for (const k of ["hora", "sucursal", "comprobante_sha256", "comprobante_ref"]) if (!d[k]) d[k] = null;
+    try {
+      const r = await api(`/api/expedientes/${e.id}/asistida/registrar`, { method: "POST", body: d });
+      toast(`Cita registrada con folio ${r.confirmacion.folio}`, 5000); S.dirty = false; reabrir();
+    } catch (err) {
+      const det = err.detalle && err.detalle.errores;
+      errs.replaceChildren(err.message, det ? h("ul", {}, Object.entries(det).map(([k, v]) => h("li", {}, v))) : "");
+    }
+  } },
+    field("Folio que muestra el portal", inp("folio", { required: true, maxlength: 32 })),
+    field("Vuelve a teclear el folio", folio2),
+    field("Fecha de la cita", inp("fecha", { type: "date", required: true })),
+    field("Hora (si la hay)", inp("hora", { type: "time" })),
+    field("Sucursal (si la hay)", inp("sucursal", { maxlength: 32, value: e.sucursal || "" })),
+    field("Comprobante (PDF o captura): no se sube, solo se calcula su huella", archivo),
+    field("Huella SHA-256 del comprobante", sha),
+    field("Dónde se guarda el comprobante", inp("comprobante_ref", { maxlength: 64, placeholder: "Carpeta PILOTO-01" })),
+    h("label", { class: "full check" }, h("input", { type: "checkbox", name: "declaro", id: "asis-declaro" }),
+      " El portal oficial me mostró este folio al terminar (sin folio no hay cita)"),
+    h("button", { class: "btn primary", id: "btn-asistida-registrar" }, "Registrar la cita"), errs);
+  box.replaceChildren(paso(2, "Agenda en el portal oficial y registra el folio",
+    h("p", {}, "Revisión confirmada por ", h("b", {}, c.persona), ` el ${fmtTime(c.revisada_en)}. Ahora agenda la cita en el portal oficial con la persona presente.`),
+    datosParaTeclear(d),
+    h("p", { class: "muted" }, "Si el portal no te dio un folio, no registres nada: revoca la revisión y deja una nota."), form), revocarAsistida(e, reabrir));
+}
+
+function pintarCitaAsistida(box, conf) {
+  const ev = conf.evidencia || {};
+  const comp = { CON_HUELLA: "con huella del comprobante", SOLO_REFERENCIA: "solo referencia del comprobante", SIN_COMPROBANTE: "sin comprobante" }[ev.comprobante] || "—";
+  box.replaceChildren(paso(3, "Cita agendada por una persona en el portal oficial",
+    h("p", {}, "Folio: ", h("b", { id: "folio", "data-folio": conf.folio }, conf.folio)),
+    h("dl", { class: "kv" }, h("dt", {}, "Fecha"), h("dd", { id: "fecha-confirmada" }, conf.fecha),
+      conf.hora ? [h("dt", {}, "Hora"), h("dd", {}, conf.hora)] : null,
+      conf.sucursal ? [h("dt", {}, "Sucursal"), h("dd", {}, conf.sucursal)] : null,
+      h("dt", {}, "Registrada por"), h("dd", {}, conf.confirmada_por || "—"),
+      h("dt", {}, "Revisada"), h("dd", {}, `${ev.revisada_por || "—"} · ${fmtTime(ev.revisada_en)}`),
+      h("dt", {}, "Comprobante"), h("dd", { class: "mono", "data-comprobante": ev.comprobante }, comp + (ev.comprobante_ref ? ` · ${ev.comprobante_ref}` : "")),
+      ev.comprobante_sha256 ? [h("dt", {}, "Huella"), h("dd", { class: "mono" }, ev.comprobante_sha256.slice(0, 16) + "…")] : null),
+    h("p", { class: "muted", id: "asis-aviso" }, "Declarada por una persona: Cauce no la comprobó con el proveedor. Si la persona cancela en el portal, avisa al administrador.")));
 }

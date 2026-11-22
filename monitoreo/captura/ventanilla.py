@@ -76,6 +76,9 @@ def _paso(a: Atencion, exp: Expediente | None, res: Reservacion | None) -> dict:
         return {"clave": "datos", "texto": f"El expediente está {exp.estado}: corrige los datos que faltan."}
     if res is None or res.estado not in rs.VIVAS:
         return {"clave": "preparar", "texto": "Prepara el formulario y revisa los datos con la persona."}
+    if res.contrato == "oficial_asistido":        # piloto asistido: la persona agenda en el portal oficial
+        return {"clave": "asistida", "texto": "Revisa los datos con la persona, agenda en el portal oficial y "
+                "registra aquí el folio."}
     if res.estado == rs.PREPARADA:
         return {"clave": "enviar", "texto": "Teclea los campos manuales, marca «He revisado» y envía."}
     if res.estado == rs.DATOS_ENVIADOS:

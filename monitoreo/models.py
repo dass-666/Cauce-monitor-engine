@@ -864,3 +864,40 @@ class ImportacionFila(Base):
     estado_expediente: Mapped[str | None] = mapped_column(String(24), nullable=True)
     errores: Mapped[dict] = mapped_column(JSON, default=dict)
     faltan: Mapped[list] = mapped_column(JSON, default=list)
+
+
+# ====================================================================== piloto asistido · confirmación humana
+class ConfirmacionHumana(Base):
+    """Piloto asistido · Confirmación HUMANA y PERSISTENTE de una cita hecha a mano en el portal oficial.
+
+    Una persona (operador o administrador), desde la interfaz de Cauce, sigue tres pasos explícitos:
+      ABIERTA          abrió la revisión de los datos del expediente (se guarda cuándo y quién)
+      REVISADA         confirmó la revisión: frase exacta, huella de los datos vistos y un tiempo mínimo
+      CITA_REGISTRADA  tras agendar ella misma en el portal oficial, registró folio (tecleado dos veces),
+                       fecha y, si lo hay, la huella SHA-256 del comprobante
+      REVOCADA         la persona (o un administrador) la anuló antes de registrar la cita
+    Cerrar el navegador, perder la red o que pase el tiempo NUNCA cambia el estado: solo las acciones
+    explícitas lo hacen. La cita queda también como `Reservacion` CONFIRMADA con contrato
+    `oficial_asistido`, para que la mesa de control, la retención y el diario de eventos críticos la vean.
+    Sin datos personales: solo huellas, folio, fecha, sucursal y referencias internas.
+    `viva_expediente_id` (UNIQUE) impide dos confirmaciones abiertas sobre el mismo expediente."""
+    __tablename__ = "confirmaciones_humanas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    expediente_id: Mapped[int] = mapped_column(ForeignKey("expedientes.id"), index=True)
+    viva_expediente_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+    reservacion_id: Mapped[int | None] = mapped_column(ForeignKey("reservaciones.id"), nullable=True, index=True)
+    persona: Mapped[str] = mapped_column(String(64))
+    estado: Mapped[str] = mapped_column(String(20), default="ABIERTA", index=True)
+    huella_datos: Mapped[str] = mapped_column(String(64))
+    abierta_en: Mapped[datetime] = mapped_column(DateTime, index=True)
+    revisada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    registrada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revocada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revocada_por: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    folio: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fecha: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    hora: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    sucursal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    comprobante_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    comprobante_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    detalle: Mapped[dict] = mapped_column(JSON, default=dict)
