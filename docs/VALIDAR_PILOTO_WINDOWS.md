@@ -12,8 +12,7 @@ Tiempo estimado: 45 a 60 minutos. Necesitas Internet solo para descargar el cód
 - Ten a mano una USB (o una segunda unidad) solo si vas a probar también el respaldo externo del otro PR.
 
 ## 1. Copia aparte (10 min)
-1. Descarga el ZIP de la rama de la candidata desde GitHub (botón **Code › Download ZIP** en la rama que indica
-   el PR) y descomprímelo en `C:\cauce-piloto-validacion`.
+1. Descarga el ZIP de la rama de la candidata desde GitHub (rama `claude/project-thread-874bbq`, botón **Code › Download ZIP**) y descomprímelo en `C:\cauce-piloto-validacion`.
 2. En esa carpeta, ejecuta `instalar_cauce.bat`. Crea su propio entorno (`.venv`) y, si falta, el navegador en
    `.browsers` **dentro de esa carpeta**. No cambia nada fuera de ella.
 3. Comprueba: `comprobar_equipo.bat` (solo lectura) → anota el resultado.
@@ -58,7 +57,7 @@ ficticio ya tomado en Ventanilla. Comprueba con tus propios ojos:
 | 9 | Elige un PDF cualquiera como comprobante | Se rellena la huella (64 caracteres) | |
 | 10 | Registrar con todo bien | «Cita agendada por una persona en el portal oficial», con folio y comprobante | |
 | 11 | Guardar y cerrar la atención | La atención queda con cita y el contador sube a 1 | |
-| 12 | Entra como admin › Mesa de control | La cita aparece con folio | |
+| 12 | Entra como admin › Mesa de control | La cita aparece con folio y Origen «Declarada por persona (sin verificar)», nunca «Comprobada en el portal» | |
 | 13 | Admin › Recuperación | «Operable», sin discrepancias | |
 
 Termina con **Ctrl+C** en la consola.
