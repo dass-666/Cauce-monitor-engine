@@ -548,6 +548,37 @@ def check_recuperacion(out: list[Item], db: Database, now: datetime, ctx: dict) 
             out.append(Item("Recuperación", AVISO, "Diario de eventos críticos", a, "", "recuperacion:aviso"))
 
 
+def check_respaldo_externo(out: list[Item], db: Database, now: datetime, ctx: dict) -> None:
+    """Piloto: respaldo de la base en OTRA unidad, verificado (monitoreo/respaldo_externo.py)."""
+    from . import respaldo_externo as rx
+    if not db.is_sqlite:
+        return
+    carpeta = rx.carpeta_configurada()
+    if carpeta is None:
+        out.append(Item("Respaldo externo", AVISO if entorno.is_production() else INFO,
+                        "Sin respaldo externo de la base",
+                        "Los respaldos de data\\respaldos están en el mismo disco que la base: se perderían con él.",
+                        "Define MONITOREO_RESPALDO_EXTERNO con una carpeta en un medio cifrado y ejecuta "
+                        "respaldar_externo.bat al cerrar cada día (ver docs/PROTECCION_DATOS_PILOTO.md).",
+                        "respaldo_externo:sin_configurar"))
+        return
+    horas = rx.horas_desde_ultimo()
+    if not carpeta.is_dir():
+        out.append(Item("Respaldo externo", AVISO, "El medio del respaldo externo no está conectado",
+                        f"No se encuentra {carpeta}.", "Conecta el medio y ejecuta respaldar_externo.bat.",
+                        "respaldo_externo:no_conectado"))
+    if horas is None:
+        out.append(Item("Respaldo externo", AVISO, "Aún no hay un respaldo externo verificado",
+                        "", "Ejecuta respaldar_externo.bat.", "respaldo_externo:nunca"))
+    elif horas > 26:
+        out.append(Item("Respaldo externo", AVISO, f"El último respaldo externo verificado tiene {horas:.0f} h",
+                        "Lo convenido para el piloto es un respaldo al cerrar cada día.",
+                        "Ejecuta respaldar_externo.bat.", "respaldo_externo:antiguo"))
+    else:
+        out.append(Item("Respaldo externo", OK, f"Último respaldo externo verificado hace {horas:.1f} h",
+                        str((rx.ultimo() or {}).get("archivo", "")), "", ""))
+
+
 AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "check_schema": "Esquema",
          "check_scheduler": "Planificador", "check_sources": "Conectores", "check_queues": "Cola de tareas",
          "check_notifications": "Notificaciones", "check_maintenance": "Errores persistentes",
@@ -555,11 +586,11 @@ AREAS = {"check_config": "Configuración", "check_database": "Base de datos", "c
          "check_operaciones": "Operaciones pendientes", "check_expedientes": "Expedientes",
          "check_retencion": "Retención", "check_reparaciones": "Reparaciones", "check_conexiones": "Conectividad",
          "check_proveedor": "Proveedor", "check_observador": "Observador", "check_recuperacion": "Recuperación",
-         "check_consentimientos": "Consentimiento"}
+         "check_consentimientos": "Consentimiento", "check_respaldo_externo": "Respaldo externo"}
 CHECKS = [check_config, check_database, check_schema, check_scheduler, check_sources, check_queues,
           check_notifications, check_maintenance, check_resources, check_integrity, check_eventos,
           check_operaciones, check_expedientes, check_retencion, check_reparaciones, check_conexiones,
-          check_proveedor, check_observador, check_consentimientos, check_recuperacion]
+          check_proveedor, check_observador, check_consentimientos, check_recuperacion, check_respaldo_externo]
 
 
 def run(db: Database, scheduler=None, now: datetime | None = None, deep: bool = False,

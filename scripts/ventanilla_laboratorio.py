@@ -60,6 +60,7 @@ class Laboratorio:
         self.rc1 = rc1                  # RC1: el administrador también opera (y registros de la lista demo)
         self.portal: PortalProceso | None = None
         self.motor: Server | None = None
+        self.env_extra: dict[str, str] = {}   # p. ej. MONITOREO_DIARIO_COPIA en el recorrido con medio externo
 
     @staticmethod
     def _puerto_disponible(p: int) -> bool:
@@ -115,6 +116,7 @@ class Laboratorio:
                     "MONITOREO_PORTAL_TOKEN_CONTROL": self.cfg["token_control"]})
         if os.environ.get("MONITOREO_PUERTO_LAB"):
             env["MONITOREO_PUERTO"] = os.environ["MONITOREO_PUERTO_LAB"]
+        env.update(self.env_extra)
         self.motor = Server("motor-lab", env, c)
         self.motor.start()
         self.motor.wait_ready()

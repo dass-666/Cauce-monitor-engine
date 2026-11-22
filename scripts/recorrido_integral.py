@@ -95,8 +95,14 @@ def huella_proyecto() -> dict:
 
 
 class Recorrido:
-    def __init__(self, carpeta: Path):
+    def __init__(self, carpeta: Path, externa: Path | None = None, misma_unidad: bool = False):
         self.lab = Laboratorio(carpeta, nuevo=True)
+        # Piloto: con --externa el diario se copia y la base se respalda en OTRO medio (USB) y se restaura desde él.
+        self.externa, self.misma_unidad = externa, misma_unidad
+        if externa is not None:
+            (externa / "diario").mkdir(parents=True, exist_ok=True)
+            (externa / "respaldos").mkdir(parents=True, exist_ok=True)
+            self.lab.env_extra["MONITOREO_DIARIO_COPIA"] = str(externa / "diario")
         self.ck: list[dict] = []
         self.res: dict = {"version": "2.4", "plataforma": platform.platform(), "python": platform.python_version(),
                           "inicio": time.strftime("%Y-%m-%dT%H:%M:%S"), "confirmacion_humana": "SIMULADA por el script",
@@ -116,7 +122,19 @@ class Recorrido:
         env.update({"MONITOREO_DB_URL": f"sqlite:///{(c / 'cauce_lab.db').as_posix()}",
                     "MONITOREO_DATA_DIR": str(c / "datos"), "MONITOREO_SECRET_KEY": self.lab.cfg["secret"],
                     "MONITOREO_IGNORAR_DOTENV": "1"})
+        if self.externa is not None:
+            env["MONITOREO_DIARIO_COPIA"] = str(self.externa / "diario")
+            env["MONITOREO_RESPALDO_EXTERNO"] = str(self.externa / "respaldos")
         return env
+
+    def respaldo_externo(self, *args) -> tuple[int, dict]:
+        extra = ["--laboratorio"] if self.misma_unidad else []
+        r = subprocess.run([sys.executable, "-m", "monitoreo.respaldo_externo", *args, *extra], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", env=self.env_bd(), cwd=str(ROOT), timeout=300)
+        try:
+            return r.returncode, json.loads(r.stdout)
+        except ValueError:
+            return r.returncode, {"salida": (r.stdout + r.stderr)[-400:]}
 
     def migrate(self, *args) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, "-m", "monitoreo.migrate", *args], capture_output=True, text=True,
@@ -323,10 +341,22 @@ class Recorrido:
         # 4. respaldo -----------------------------------------------------------------
         h_respaldo = self.estado_bd()
         portal_respaldo = self.portal_reservas()
-        r = self.migrate("respaldar")
-        archivo = r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else None
-        ck("respaldo con el motor en marcha", bool(archivo) and Path(archivo).is_file()
-           and Path(archivo).resolve().is_relative_to(lab.carpeta.resolve()), {"rc": r.returncode, "salida": (r.stdout + r.stderr)[-300:]})
+        if self.externa is None:
+            r = self.migrate("respaldar")
+            archivo = r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else None
+            ck("respaldo con el motor en marcha", bool(archivo) and Path(archivo).is_file()
+               and Path(archivo).resolve().is_relative_to(lab.carpeta.resolve()), {"rc": r.returncode, "salida": (r.stdout + r.stderr)[-300:]})
+        else:
+            rc_, rj = self.respaldo_externo("respaldar")
+            archivo = rj.get("archivo")
+            ck("respaldo EXTERNO con el motor en marcha: copia releída del medio, SHA-256 y manifiesto",
+               rc_ == 0 and bool(archivo) and Path(archivo).is_file()
+               and Path(archivo).resolve().is_relative_to(self.externa.resolve()), rj)
+            rc_, rv = self.respaldo_externo("ensayar", archivo or "-")
+            ck("ensayo de restauración en carpeta temporal (sin tocar la base del laboratorio)", rc_ == 0 and rv.get("ok"),
+               rv.get("problemas") or rv.get("salida"))
+            self.res["respaldo_externo"] = {"sha256": rj.get("sha256"), "bytes": rj.get("bytes"),
+                                            "avisos": rj.get("avisos"), "ensayo_filas": rv.get("filas")}
         self.res["respaldo"] = archivo and Path(archivo).name
 
         # 5. cambios posteriores -------------------------------------------------------
@@ -349,6 +379,12 @@ class Recorrido:
             r = self.migrate("restaurar", archivo)
         ck("restauración con el motor detenido (y respaldo previo automático)", r.returncode == 0,
            (r.stdout + r.stderr)[-400:])
+        if self.externa is not None:
+            copia = self.externa / "diario" / "eventos-criticos.jsonl"
+            principal = lab.carpeta / "datos" / "diario" / "eventos-criticos.jsonl"
+            ck("la copia externa del diario es idéntica al principal tras restaurar (incluida la marca de restauración)",
+               copia.is_file() and principal.is_file() and copia.read_bytes() == principal.read_bytes(),
+               {"copia": copia.is_file(), "principal": principal.is_file()})
         lab.motor.start()
         lab.motor.wait_ready()
         self.conectar()
@@ -461,11 +497,20 @@ class Recorrido:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", default=str(ROOT / "resultados" / "recorrido_integral"))
+    ap.add_argument("--externa", help="carpeta en OTRO medio (USB): copia del diario y respaldo externo de la base; "
+                                      "se crea dentro una subcarpeta del simulacro que se borra al terminar")
+    ap.add_argument("--laboratorio-misma-unidad", action="store_true",
+                    help="solo CI: acepta que --externa esté en la misma unidad (queda escrito en el resultado)")
     a = ap.parse_args()
     out = Path(a.salida)
     out.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="integral-"))
-    rec = Recorrido(tmp / "lab")
+    externa = None
+    if a.externa:
+        externa = Path(a.externa) / f"cauce-simulacro-{time.strftime('%Y%m%d-%H%M%S')}"
+    rec = Recorrido(tmp / "lab", externa=externa, misma_unidad=a.laboratorio_misma_unidad)
+    if externa is not None:
+        rec.res["medio_externo"] = {"carpeta": str(externa), "misma_unidad_aceptada": a.laboratorio_misma_unidad}
     try:
         rec.run()
     except Exception as e:  # noqa: BLE001
@@ -478,6 +523,8 @@ def main() -> int:
         rec.res["aprobadas"], rec.res["total"] = sum(x["ok"] for x in rec.ck), len(rec.ck)
         (out / "recorrido_integral.json").write_text(json.dumps(rec.res, ensure_ascii=False, indent=2), "utf-8")
         shutil.rmtree(tmp, ignore_errors=True)
+        if externa is not None:
+            shutil.rmtree(externa, ignore_errors=True)
     print(f"\nRESULTADO: {rec.res['aprobadas']}/{rec.res['total']} comprobaciones · evidencia en {out / 'recorrido_integral.json'}")
     return 0 if rec.ck and all(x["ok"] for x in rec.ck) else 1
 

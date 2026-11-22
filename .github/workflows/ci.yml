@@ -759,6 +759,17 @@ jobs:
         run: |
           python scripts/recorrido_integral.py --salida resultados/recorrido_integral
           exit $LASTEXITCODE
+      - name: Piloto · Simulacro de protección con medio externo en OTRA unidad (copia del diario, respaldo verificado, ensayo y restauración desde el medio)
+        run: |
+          $ws = (Get-Location).Drive.Name
+          Write-Host "Repositorio en la unidad $($ws):"
+          if ($ws -ne "C") {
+            python scripts/recorrido_integral.py --externa "C:\cauce-simulacro-ci" --salida resultados/simulacro_proteccion
+          } else {
+            Write-Host "::warning::el repositorio está en C: — el simulacro usa la misma unidad (--laboratorio-misma-unidad)"
+            python scripts/recorrido_integral.py --externa "$env:RUNNER_TEMP\simulacro" --laboratorio-misma-unidad --salida resultados/simulacro_proteccion
+          }
+          exit $LASTEXITCODE
       - name: RC1 · Flujo administrativo con la interfaz
         run: |
           python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
