@@ -69,7 +69,7 @@ Por eso el router está en `modulos.SOLO_LABORATORIO` (nunca se monta en producc
 | `tests/test_autorrelleno_forms.py` con **Forms real** (`FORMS_REPO=…`, Chromium sin ventana) | 2/2: 8 campos y 2 confirmaciones verificados; revocación a mitad termina Forms y Chromium (0 procesos restantes) |
 | `tests/test_lanzador_lab.py` (del PR #4) | 8/8 |
 | `scripts/recorrido_autorrelleno.py --con-ventana` (Forms real con ventana en pantalla virtual, interfaz con clics) | 18/18 |
-| Suite completa de Monitor | ver informe del PR |
+| Suite completa de Monitor (SQLite) | 761 aprobadas, 11 omitidas, 1 fallo ajeno: `test_database_down_is_reported_without_crashing` necesita `psycopg`, no instalado en el contenedor |
 | Suite de Forms en aa1bb02 | 128 aprobadas, 1 omitida |
 
 Las pruebas espía demuestran qué sale de Monitor: los 8 valores salen de la base, sin nombre ni campos manuales;

@@ -1,0 +1,333 @@
+{
+  "recorrido": "autorrelleno_forms_laboratorio",
+  "plataforma": "Linux-6.18.44-fc-v726-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-22T22:24:56",
+  "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
+  "forms_con_ventana": true,
+  "forms": {
+    "commit": "aa1bb02",
+    "perfil_sha256": "0aea85d742776553aa90bb737210ab0eb0a385136b855037cd7274dafed2a6a3",
+    "firma": "v2:999e7578132dc7b1",
+    "url": "http://127.0.0.1:35191/cita"
+  },
+  "navegador": {
+    "pasos": [
+      {
+        "paso": "1_ventanilla",
+        "ok": true,
+        "detalle": "Ventanilla del operador cargada"
+      },
+      {
+        "paso": "2_expediente_con_consentimiento",
+        "ok": true,
+        "detalle": {
+          "consentimiento": "CON-000001"
+        }
+      },
+      {
+        "paso": "3_boton_disponible",
+        "ok": true,
+        "detalle": null
+      },
+      {
+        "paso": "4_forms_lanzado",
+        "ok": true,
+        "detalle": null
+      },
+      {
+        "paso": "5_resultado",
+        "ok": true,
+        "detalle": {
+          "estado": "CADUCADA",
+          "campos": [
+            {
+              "campo": "correo",
+              "ok": true
+            },
+            {
+              "campo": "correo_confirmacion",
+              "ok": true
+            },
+            {
+              "campo": "fecha_nacimiento",
+              "ok": true
+            },
+            {
+              "campo": "identificador",
+              "ok": true
+            },
+            {
+              "campo": "operacion",
+              "ok": true
+            },
+            {
+              "campo": "telefono",
+              "ok": true
+            },
+            {
+              "campo": "telefono_confirmacion",
+              "ok": true
+            },
+            {
+              "campo": "tramite",
+              "ok": true
+            }
+          ],
+          "confirmaciones": [
+            {
+              "campo": "telefono_confirmacion",
+              "ok": true
+            },
+            {
+              "campo": "correo_confirmacion",
+              "ok": true
+            }
+          ],
+          "texto_sin_null": true
+        }
+      },
+      {
+        "paso": "6_revocado",
+        "ok": true,
+        "detalle": "sin botón tras revocar"
+      },
+      {
+        "paso": "7_sin_consentimiento_sin_boton",
+        "ok": true,
+        "detalle": null
+      }
+    ],
+    "errores_js": [],
+    "http_errores": [],
+    "atencion": 1,
+    "consentimiento": "CON-000001",
+    "resultado": {
+      "estado": "CADUCADA",
+      "campos": [
+        {
+          "campo": "correo",
+          "ok": true
+        },
+        {
+          "campo": "correo_confirmacion",
+          "ok": true
+        },
+        {
+          "campo": "fecha_nacimiento",
+          "ok": true
+        },
+        {
+          "campo": "identificador",
+          "ok": true
+        },
+        {
+          "campo": "operacion",
+          "ok": true
+        },
+        {
+          "campo": "telefono",
+          "ok": true
+        },
+        {
+          "campo": "telefono_confirmacion",
+          "ok": true
+        },
+        {
+          "campo": "tramite",
+          "ok": true
+        }
+      ],
+      "confirmaciones": [
+        {
+          "campo": "telefono_confirmacion",
+          "ok": true
+        },
+        {
+          "campo": "correo_confirmacion",
+          "ok": true
+        }
+      ],
+      "texto_sin_null": true
+    },
+    "atencion_sin": 2
+  },
+  "comprobaciones": [
+    {
+      "comprobacion": "Forms aprobó el perfil del formulario /cita del portal de laboratorio",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · 1_ventanilla",
+      "ok": true,
+      "detalle": "Ventanilla del operador cargada"
+    },
+    {
+      "comprobacion": "interfaz · 2_expediente_con_consentimiento",
+      "ok": true,
+      "detalle": {
+        "consentimiento": "CON-000001"
+      }
+    },
+    {
+      "comprobacion": "interfaz · 3_boton_disponible",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · 4_forms_lanzado",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · 5_resultado",
+      "ok": true,
+      "detalle": {
+        "estado": "CADUCADA",
+        "campos": [
+          {
+            "campo": "correo",
+            "ok": true
+          },
+          {
+            "campo": "correo_confirmacion",
+            "ok": true
+          },
+          {
+            "campo": "fecha_nacimiento",
+            "ok": true
+          },
+          {
+            "campo": "identificador",
+            "ok": true
+          },
+          {
+            "campo": "operacion",
+            "ok": true
+          },
+          {
+            "campo": "telefono",
+            "ok": true
+          },
+          {
+            "campo": "telefono_confirmacion",
+            "ok": true
+          },
+          {
+            "campo": "tramite",
+            "ok": true
+          }
+        ],
+        "confirmaciones": [
+          {
+            "campo": "telefono_confirmacion",
+            "ok": true
+          },
+          {
+            "campo": "correo_confirmacion",
+            "ok": true
+          }
+        ],
+        "texto_sin_null": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · 6_revocado",
+      "ok": true,
+      "detalle": "sin botón tras revocar"
+    },
+    {
+      "comprobacion": "interfaz · 7_sin_consentimiento_sin_boton",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · recorrido completo sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · sin errores de JavaScript",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · sin respuestas HTTP de error",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "servidor · tras revocar, el autorrellenado se NIEGA (409 CONSENTIMIENTO_REVOCADO)",
+      "ok": true,
+      "detalle": "{\"detail\":{\"mensaje\":\"La persona revocó su consentimiento (CON-000001, 2026-11-22 22:25 UTC): no se permiten nuevas operaciones\",\"codigo\":\"CONSENTIMIENTO_REVOCADO\"}}"
+    },
+    {
+      "comprobacion": "servidor · sin consentimiento, el autorrellenado se NIEGA (409 SIN_CONSENTIMIENTO)",
+      "ok": true,
+      "detalle": "{\"detail\":{\"mensaje\":\"El expediente no tiene consentimiento registrado\",\"codigo\":\"SIN_CONSENTIMIENTO\"}}"
+    },
+    {
+      "comprobacion": "historial · AUTORRELLENO_SOLICITADO y AUTORRELLENO_TERMINADO en el expediente",
+      "ok": true,
+      "detalle": [
+        "FORMULARIO_PREPARADO",
+        "AUTORRELLENO_SOLICITADO",
+        "AUTORRELLENO_TERMINADO",
+        "CONSENTIMIENTO_REVOCADO",
+        "RESERVACION_DESCARTADA",
+        "ESTADO",
+        "CONSENTIMIENTO_REVOCADO",
+        "SOLICITUD_CANCELADO"
+      ]
+    },
+    {
+      "comprobacion": "historial · 8 campos correctos, 2 confirmaciones, sin envío por Forms, 0 procesos restantes",
+      "ok": true,
+      "detalle": {
+        "solicitud_id": "sol_416ec05a6a5d05c6d7e1d9c6",
+        "estado": "CADUCADA",
+        "codigo": "revision_caducada",
+        "campos_correctos": 8,
+        "campos_total": 8,
+        "confirmaciones_coinciden": 2,
+        "envio_por_conector": false,
+        "envio_humano_observado": false,
+        "procesos_restantes": 0,
+        "diagnostico": []
+      }
+    },
+    {
+      "comprobacion": "historial · la solicitud usó el consentimiento real del expediente",
+      "ok": true,
+      "detalle": {
+        "solicitud_id": "sol_416ec05a6a5d05c6d7e1d9c6",
+        "consentimiento": "CON-000001",
+        "formulario_id": "frm_cauce_lab_cita",
+        "campos": [
+          "correo",
+          "correo_confirmacion",
+          "fecha_nacimiento",
+          "identificador",
+          "operacion",
+          "telefono",
+          "telefono_confirmacion",
+          "tramite"
+        ],
+        "sin_dato": []
+      }
+    },
+    {
+      "comprobacion": "registros · auditoría e historial sin los datos personales ficticios",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "registros · los .log del motor y del portal no contienen teléfono ni correo",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "ok": true,
+  "fin": "2026-11-22T22:25:42"
+}
