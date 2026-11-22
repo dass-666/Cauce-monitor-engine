@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "commonjs",
+  "description": "Solo para los scripts de navegador (scripts/*.js): CommonJS aunque el repo esté dentro de una carpeta con un package.json ESM"
+}
