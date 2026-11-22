@@ -1,6 +1,6 @@
 # Validación física de la protección de datos (Windows, entorno aislado)
 
-Para la ventana del domingo. Unos **40 minutos**. Solo **datos ficticios**.
+Para la ventana del domingo. Unos **50 minutos**. Solo **datos ficticios**.
 
 **No se toca `C:\cauce-msi` ni `C:\cauce-respaldos`.** Todo ocurre en una carpeta nueva,
 `C:\cauce-piloto-prueba`, y en una memoria USB sin datos reales. En los ejemplos la USB es `E:`. Si es otra
@@ -47,7 +47,28 @@ mkdir E:\CaucePrueba\diario, E:\CaucePrueba\respaldos
 Esperado: las dos dicen **apta**, con `"misma_unidad": false`. Si alguna dice «MISMA unidad» siendo la USB,
 **anótalo**: es el caso de `st_dev` que aún no se ha verificado.
 
-Opcional: `manage-bde -status E:` (como administrador) indica si la USB tiene BitLocker.
+## 3b. Cifrado BitLocker To Go y su recuperación (10 min)
+
+El equipo del piloto tiene Windows 11 Pro, así que puede cifrar. Haz esta prueba con la USB de prueba. **Antes de
+guardar datos reales, repítela con la USB del piloto.**
+
+1. En el Explorador, haz clic derecho sobre `E:` y elige «Activar BitLocker». Elige «Usar una contraseña».
+2. Guarda la **clave de recuperación** (48 dígitos) en un lugar **distinto** de la USB y del equipo: impresa
+   en un sobre cerrado o en la cuenta Microsoft de la empresa. **No** la guardes junto a la clave exportada del
+   diario.
+3. Elige «Cifrar solo el espacio usado» y «Modo compatible». Espera a que termine.
+4. Comprueba, en PowerShell como administrador: `manage-bde -status E:`. Esperado: `Estado de protección:
+   Protección activada` y `Porcentaje cifrado: 100%`.
+5. Retira la USB y vuelve a conectarla. Esperado: Windows **pide la contraseña** y sin ella no se ve el contenido.
+6. **Prueba de recuperación:** desbloquéala con la clave de recuperación en lugar de la contraseña («Más
+   opciones» → «Escribir clave de recuperación»). Esperado: se abre. Si la clave guardada no funciona, **para**:
+   esa USB no sirve para datos reales hasta tener una clave de recuperación que funcione.
+7. Ya desbloqueada, repite el paso 3 (`revisar`). Esperado: sigue siendo **apta** y con `"misma_unidad": false`.
+
+**Importante para el día a día:** si el equipo se reinicia, la USB queda bloqueada hasta que alguien escriba la
+contraseña. Mientras tanto, el motor marca `COPIA_NO_DISPONIBLE` y bloquea las operaciones con el portal (es lo
+esperado). Puedes activar «Desbloquear automáticamente en este equipo»: la USB se abre sola en ese equipo, pero
+sigue cifrada si se pierde o se la llevan. Es la opción recomendada para el piloto.
 
 ## 4. Simulacro completo con la USB (8 min)
 
@@ -90,6 +111,7 @@ Repite los comandos del paso 0. Esperado: el mismo número de archivos, el mismo
 
 - `resultados\simulacro_proteccion\recorrido_integral.json`
 - La salida de los pasos 2 y 3. Basta con copiar el texto.
+- La salida de `manage-bde -status E:` (paso 3b.4) y si funcionó la clave de recuperación (paso 3b.6).
 - Las capturas de los pasos 5.5 y 5.7.
 - Cualquier diferencia con lo esperado, tal cual aparezca.
 
