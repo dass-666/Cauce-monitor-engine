@@ -37,7 +37,8 @@ function progresoMeta(d) {
     h("div", { class: "meta-cifras" }, h("b", { id: "citas-hoy" }, num(d.citas_confirmadas_hoy)), ` de ${d.meta_citas_dia} citas confirmadas hoy`,
       d.citas_confirmadas_hoy >= d.meta_citas_dia ? h("span", { class: "badge b-ok" }, "Meta cumplida") : null),
     bar(pct),
-    h("div", { class: "muted" }, "Solo cuentan las citas con folio comprobado en el portal."));
+    h("div", { class: "muted" }, labOn() ? "Solo cuentan las citas con folio comprobado en el portal."
+      : "Cuentan las citas con folio registrado: comprobadas en el portal o declaradas por una persona (portal oficial)."));
 }
 
 function pasosAtencion(clave) {
@@ -53,11 +54,12 @@ async function viewVentanilla() {
   const m = d.mias;
   const cabecera = [
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Ventanilla"),
-      h("div", { class: "muted" }, "Atención presencial. Laboratorio: portal de prueba propio y datos ficticios."))),
+      h("div", { class: "muted" }, labOn() ? "Atención presencial. Laboratorio: portal de prueba propio y datos ficticios."
+        : "Atención presencial. La cita se agenda a mano en el portal oficial y aquí se registra el folio."))),
     h("div", { class: "grid cols-2" }, progresoMeta(d),
       h("div", { class: "grid kpis" },
         kpi("Atenciones hoy", num(m.atenciones), "tuyas"),
-        kpi("Con cita", num(m.con_cita), "folio comprobado"),
+        kpi("Con cita", num(m.con_cita), labOn() ? "folio comprobado" : "con folio"),
         kpi("Sin cita", num(m.sin_cita), "sin días, error o retiro"),
         kpi("Tiempo medio", m.tiempo_medio_s ? fmtDur(Math.round(m.tiempo_medio_s)) : "—", "por atención cerrada"))),
   ];

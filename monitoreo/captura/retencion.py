@@ -71,9 +71,11 @@ def candidatos(s, now: datetime, params: dict) -> list[dict]:
 
 
 def _referenciado(s, exp_id: int) -> bool:
-    from ..models import Atencion, CapturaManual, Consentimiento, ConsentimientoEvento, PlanElemento
+    from ..models import (Atencion, CapturaManual, ConfirmacionHumana, Consentimiento, ConsentimientoEvento,
+                          PlanElemento)
     return any(s.scalar(select(m.id).where(m.expediente_id == exp_id).limit(1)) is not None
-               for m in (Atencion, CapturaManual, PlanElemento, Consentimiento, ConsentimientoEvento))
+               for m in (Atencion, CapturaManual, PlanElemento, Consentimiento, ConsentimientoEvento,
+                         ConfirmacionHumana))
 
 
 def aplicar(db: Database, now: datetime, actor: str = "motor", simular: bool = False) -> dict:

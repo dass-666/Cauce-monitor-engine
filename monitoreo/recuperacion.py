@@ -1122,7 +1122,7 @@ def resolver(db, user, ref: int, tipo: str, accion: str, motivo: str, folio: str
         with db.session() as s:
             r = s.get(Reservacion, rid)
             d["res"] = ident_res(k, r)
-            clave, estado_r = r.clave, r.estado
+            clave, estado_r, contrato_r = r.clave, r.estado, r.contrato
         if accion == "registrar_folio":
             folio = (folio or "").strip()
             if not folio or len(folio) > 32:
@@ -1132,10 +1132,16 @@ def resolver(db, user, ref: int, tipo: str, accion: str, motivo: str, folio: str
                 if esperado and not hmac.compare_digest(seud(k, "folio", folio), esperado):
                     raise ErrorRecuperacion(422, "Ese folio no es el que el portal entregó según el diario. "
                                                  "Compruébalo en el portal.", {"codigo": "FOLIO_NO_COINCIDE"})
-            if estado_r not in ("CONFIRMANDO", "EN_VERIFICACION", "RETENIDA", "FECHA_ELEGIDA", "CONFIRMADA"):
+            if estado_r not in ("CONFIRMANDO", "EN_VERIFICACION", "RETENIDA", "FECHA_ELEGIDA", "CONFIRMADA") and not (
+                    estado_r == "PREPARADA" and contrato_r == "oficial_asistido"):
                 raise ErrorRecuperacion(409, f"La reservación está {estado_r}: no se puede marcar confirmada")
-            rp = {"estado": "CONFIRMADA", "clave": clave, "folio": folio}
-            v = rs._finalizar(db, rid, rp, "conciliacion_manual", user.username[:64], now)
+            # Piloto asistido: la cita la registró una persona después del respaldo; en la base restaurada su
+            # reservación sigue PREPARADA. Se recupera con el folio validado contra el diario.
+            from .captura import asistida
+            v = asistida.conciliar_folio(db, rid, folio, user.username[:64], now) if estado_r == "PREPARADA" else None
+            if v is None:
+                rp = {"estado": "CONFIRMADA", "clave": clave, "folio": folio}
+                v = rs._finalizar(db, rid, rp, "conciliacion_manual", user.username[:64], now)
             if v.get("estado") != "CONFIRMADA" or v.get("folio") != folio:
                 raise ErrorRecuperacion(409, "No se pudo registrar la cita (¿folio de otra reservación?)",
                                         {"reservacion": v})
@@ -1182,6 +1188,11 @@ def _cancelar_local(db, rid: int, actor: str, now) -> None:
             evidencia={**(r.evidencia or {}), "cancelada_en_portal": "conciliacion_manual"}))
         exp = s.get(Expediente, r.expediente_id)
         ex.evento(s, exp.id, "RESERVACION_CANCELADA", actor, now, reservacion_id=rid, evidencia="conciliacion_manual")
+        if r.contrato == "oficial_asistido":          # piloto asistido: la confirmación humana refleja la anulación
+            from .models import ConfirmacionHumana
+            tc = ConfirmacionHumana.__table__
+            s.execute(update(tc).where(tc.c.reservacion_id == rid, tc.c.estado == "CITA_REGISTRADA").values(
+                estado="ANULADA", revocada_en=now, revocada_por=actor))
         if exp.estado != ex.CERRADO:
             ex.cerrar(s, exp, "CANCELADO", actor, now, nota="cancelación conciliada tras restaurar")
 

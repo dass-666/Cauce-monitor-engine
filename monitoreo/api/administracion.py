@@ -134,7 +134,9 @@ def _situacion(s, e: Expediente, el: PlanElemento | None, now, cache: dict) -> t
     if e.estado == ex.RES_CONFIRMADA or (res and res.estado == "CONFIRMADA"):
         conf = res if res and res.estado == "CONFIRMADA" else None
         if conf:
-            det.update(folio=conf.folio, fecha_confirmada=conf.fecha, sucursal_confirmada=conf.sucursal)
+            det.update(folio=conf.folio, fecha_confirmada=conf.fecha, sucursal_confirmada=conf.sucursal,
+                       # piloto asistido: declarada por una persona, NO comprobada con el portal
+                       origen="PERSONA" if (conf.evidencia or {}).get("fuente") == "PERSONA_PORTAL_OFICIAL" else "PORTAL")
         return "CONFIRMADA", det
     if e.estado == ex.CERRADO:
         return ("REVOCADO" if e.motivo_cierre == cs.MOTIVO_CIERRE else "CERRADO"), {"motivo": e.motivo_cierre}
@@ -313,6 +315,8 @@ def panel(request: Request, user: CurrentUser = Depends(require_admin), db: Data
             Atencion.cerrada_en.is_(None), Atencion.resultado == "VERIFICACION")) or 0
         confirmadas_folio = s.scalar(select(func.count()).select_from(Reservacion).where(
             Reservacion.estado == "CONFIRMADA", Reservacion.folio.is_not(None))) or 0
+        declaradas_persona = s.scalar(select(func.count()).select_from(Reservacion).where(
+            Reservacion.estado == "CONFIRMADA", Reservacion.contrato == "oficial_asistido")) or 0
         ult_vista = s.scalar(select(func.max(ObservacionVista.actualizado_en)))
         ult_dia = s.scalar(select(func.max(ObservacionDia.actualizado_en)))
         ult_evento = s.scalar(select(func.max(ObservacionEvento.registrado_en)))
@@ -351,7 +355,7 @@ def panel(request: Request, user: CurrentUser = Depends(require_admin), db: Data
                    "revision_duplicados": sum(1 for x in problemas if x["tipo"] == "REVISION" and "DUPLICADO" in x["texto"].upper()),
                    "en_plan": sit.get("EN_PLAN", 0) + sit.get("COINCIDENCIA", 0) + sit.get("EN_OPERACION", 0),
                    "coincidencias": sit.get("COINCIDENCIA", 0), "operaciones_pendientes": operaciones + en_verif,
-                   "confirmadas_con_folio": confirmadas_folio, "problemas": len(problemas)},
+                   "confirmadas_con_folio": confirmadas_folio, "declaradas_por_persona": declaradas_persona, "problemas": len(problemas)},
         "por_situacion": sit, "situaciones": SITUACIONES, "coincidencias": coincidencias[:20],
         "confirmadas": confirmadas[-10:][::-1], "problemas": problemas[:30], "plan_hoy": plan_hoy, "lotes": lotes,
         "observador": {"configurados": configs, "activos": len(activos_cfg), "en_este_proceso": obs_vivos,

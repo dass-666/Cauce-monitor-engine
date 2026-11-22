@@ -68,6 +68,9 @@ def _paso(a: Atencion, exp: Expediente | None, res: Reservacion | None) -> dict:
     if exp is None:
         return {"clave": "expediente", "texto": "Busca el expediente de la persona o crea uno nuevo."}
     if res is not None and res.estado == rs.CONFIRMADA:
+        if res.contrato == "oficial_asistido":
+            return {"clave": "cerrar", "texto": f"Cita registrada con folio {res.folio}, declarada por una persona "
+                    "(no verificada con el portal). Cierra la atención."}
         return {"clave": "cerrar", "texto": f"Cita confirmada con folio {res.folio}. Cierra la atención."}
     if res is not None and res.estado in (rs.CONFIRMANDO, rs.EN_VERIFICACION):
         return {"clave": "verificacion", "texto": "La confirmación no tuvo respuesta clara: el motor la verifica "
@@ -76,6 +79,9 @@ def _paso(a: Atencion, exp: Expediente | None, res: Reservacion | None) -> dict:
         return {"clave": "datos", "texto": f"El expediente está {exp.estado}: corrige los datos que faltan."}
     if res is None or res.estado not in rs.VIVAS:
         return {"clave": "preparar", "texto": "Prepara el formulario y revisa los datos con la persona."}
+    if res.contrato == "oficial_asistido":        # piloto asistido: la persona agenda en el portal oficial
+        return {"clave": "asistida", "texto": "Revisa los datos con la persona, agenda en el portal oficial y "
+                "registra aquí el folio."}
     if res.estado == rs.PREPARADA:
         return {"clave": "enviar", "texto": "Teclea los campos manuales, marca «He revisado» y envía."}
     if res.estado == rs.DATOS_ENVIADOS:

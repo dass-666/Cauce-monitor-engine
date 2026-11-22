@@ -665,6 +665,8 @@ jobs:
         run: python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
       - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
         run: python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
+      - name: Piloto asistido · modo piloto sin portal (revisión, cierre del navegador, folio dos veces, cita registrada)
+        run: python scripts/piloto_asistido.py --recorrido --carpeta resultados/piloto_asistido
       - name: v1.7 · Laboratorio con operadores sin respuesta, errores de captura, confirmaciones inciertas y canal lento
         run: python scripts/laboratorio_dias.py --v17 --mecanismo A --expedientes 600 --operadores 10 --noche-s 240 --salida resultados/laboratorio_v17
       - name: Carga con varios operadores (SQLite)
@@ -759,6 +761,19 @@ jobs:
         run: |
           python scripts/recorrido_integral.py --salida resultados/recorrido_integral
           exit $LASTEXITCODE
+      - name: Piloto · Simulacro de protección con medio externo en OTRA unidad (copia del diario, respaldo verificado, ensayo y restauración desde el medio)
+        run: |
+          # El laboratorio va en la carpeta temporal del sistema (TEMP); el medio externo, en otra unidad.
+          $lab = [System.IO.Path]::GetTempPath().Substring(0, 1)
+          $med = $env:RUNNER_TEMP.Substring(0, 1)
+          Write-Host "Laboratorio en $($lab): · medio externo en $($med):"
+          if ($lab -ne $med) {
+            python scripts/recorrido_integral.py --externa "$env:RUNNER_TEMP\simulacro" --salida resultados/simulacro_proteccion
+          } else {
+            Write-Host "::warning::TEMP y RUNNER_TEMP en la misma unidad: el simulacro usa --laboratorio-misma-unidad"
+            python scripts/recorrido_integral.py --externa "$env:RUNNER_TEMP\simulacro" --laboratorio-misma-unidad --salida resultados/simulacro_proteccion
+          }
+          exit $LASTEXITCODE
       - name: RC1 · Flujo administrativo con la interfaz
         run: |
           python scripts/recorrido_rc1.py --salida resultados/recorrido_rc1
@@ -766,6 +781,10 @@ jobs:
       - name: v2.4 · Recuperación desde la interfaz (restaurar, conciliar con clics y levantar el bloqueo)
         run: |
           python scripts/recorrido_recuperacion_ui.py --salida resultados/recorrido_recuperacion_ui
+          exit $LASTEXITCODE
+      - name: Piloto asistido · modo piloto sin portal (revisión, cierre del navegador, folio dos veces, cita registrada)
+        run: |
+          python scripts/piloto_asistido.py --recorrido --carpeta resultados/piloto_asistido
           exit $LASTEXITCODE
       - name: v1.7 · Laboratorio reducido con los fallos de la v1.7
         run: |
