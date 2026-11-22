@@ -380,3 +380,39 @@ def revocar(db: Database, exp_id: int, user, motivo: str, now: datetime, ip: str
                                                                                  "motivo": motivo[:200]}, ip)
         s.refresh(c)
         return {"confirmacion": vista(c)}
+
+
+# ---------------------------------------------------------------- conciliación tras restaurar un respaldo
+def conciliar_folio(db: Database, res_id: int, folio: str, actor: str, now: datetime) -> dict | None:
+    """La llama `recuperacion.resolver` (administrador, ya validado el folio contra el diario) cuando la cita
+    asistida se registró DESPUÉS del respaldo restaurado: en la base restaurada la reservación sigue PREPARADA.
+    Devuelve la vista de la reservación, o None si no es una reservación asistida en ese estado."""
+    with db.session() as s:
+        res = s.get(Reservacion, res_id)
+        if res is None or res.contrato != CONTRATO or res.estado != rs.PREPARADA:
+            return None
+        c = s.scalar(select(ConfirmacionHumana).where(ConfirmacionHumana.reservacion_id == res_id)
+                     .order_by(ConfirmacionHumana.id.desc()))
+        e = s.get(Expediente, res.expediente_id)
+        evid = {"fuente": "PERSONA_PORTAL_OFICIAL", "estado_portal": "DECLARADA_POR_PERSONA",
+                "confirmacion_humana": c.id if c else None, "revisada_por": c.persona if c else None,
+                "registrada_en": None, "conciliada_en": now.isoformat() + "Z", "conciliada_por": actor,
+                "verificada_en": None, "verificada_con_proveedor": False, "comprobante": "CONCILIADA_TRAS_RESTAURAR"}
+        t = Reservacion.__table__
+        if s.execute(update(t).where(t.c.id == res_id, t.c.estado == rs.PREPARADA).values(
+                estado=rs.CONFIRMADA, folio=folio, evidencia=evid, confirmada_por=(c.persona if c else actor),
+                updated_at=now)).rowcount != 1:
+            return None
+        if c is not None and c.estado in VIVAS:
+            tc = ConfirmacionHumana.__table__
+            s.execute(update(tc).where(tc.c.id == c.id).values(
+                estado=CITA_REGISTRADA, viva_expediente_id=None, registrada_en=now, folio=folio,
+                detalle={**(c.detalle or {}), "comprobante": "CONCILIADA_TRAS_RESTAURAR", "conciliada_por": actor}))
+        ex.evento(s, e.id, "RESERVACION_CONFIRMADA", actor, now, reservacion_id=res_id, folio=folio,
+                  evidencia="conciliacion_asistida")
+        if e.estado != ex.RES_CONFIRMADA:
+            if e.estado == ex.ASIGNADO:
+                ex.cambiar_estado(s, e, ex.CAPTURA, actor, now, canal="conciliacion")
+            ex.confirmar(s, e, actor, now, folio)
+        s.refresh(res)
+        return rs.vista(res)

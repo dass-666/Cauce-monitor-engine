@@ -20,6 +20,7 @@ datos, y el folio registrado. Datos FICTICIOS. Lo que se demuestra:
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 import uuid
 from datetime import date, timedelta
 
@@ -316,5 +317,56 @@ def test_produccion_con_flujo_admin_recorrido_de_ventanilla_asistido(prod_flujo,
         assert r.json()["estado"] == "CONFIRMADA" and r.json()["folio"] == "FON-PILOTO-0001"
         with db.session() as s:
             assert ex.coherencia(s) == []
-        assert c.get("/api/admin/panel", headers=h).status_code == 200
+        # la mesa de control NO la presenta como comprobada con el portal
+        panel = c.get("/api/admin/panel", headers=h)
+        assert panel.status_code == 200
+        conf = [x for x in panel.json()["confirmadas"] if x["folio"] == "FON-PILOTO-0001"]
+        assert conf and conf[0]["origen"] == "PERSONA", panel.json()["confirmadas"]
+        assert panel.json()["cifras"]["declaradas_por_persona"] == 1
         assert modulos.VARIABLE
+
+
+# ---------------------------------------------------------------- respaldo externo + confirmación humana, juntos
+def test_respaldo_externo_y_cita_asistida_tras_restaurar_se_detecta_y_concilia(lab, tmp_path_factory, monkeypatch):
+    """Respaldo externo (PR #9) ANTES de registrar una cita asistida -> restaurar ese respaldo: la cita
+    desaparece de la base, el diario la recuerda, Cauce se BLOQUEA y solo el folio correcto la recupera."""
+    if not lab.db.is_sqlite:
+        pytest.skip("migrate.restore solo restaura SQLite")
+    from monitoreo import migrate
+    from monitoreo import respaldo_externo as rx
+    usb = tmp_path_factory.mktemp("usb_externa")       # fuera de la carpeta de datos de Cauce
+    real = rx._volumen
+    monkeypatch.setattr(rx, "_volumen", lambda p: "USB" if str(Path(p).resolve()).startswith(str(usb.resolve()))
+                        else real(Path(p)))
+    eid, u, h = asignado(lab)
+    hasta_revisada(lab, eid, h)
+    archivo = rx.respaldar(usb, lab.db.url)["archivo"]
+    assert rx.verificar(archivo)["ok"]
+    assert lab.c.post(_url(eid, "registrar"), headers=h, json=cita("FON-RESP-0001")).status_code == 200
+    lab.c.__exit__(None, None, None)
+    lab.db.engine.dispose()
+    rep = migrate.restore(lab.db.url, archivo)
+    assert "RECUPERACION_PENDIENTE" in rep["diario"]
+    lab.c = TestClient(create_app(lab.db.url, start_engine=False, seed_demo=False))
+    lab.c.__enter__()
+    lab.db = lab.c.app.state.db
+    lab.h = lab.login("admin", ADMIN_PWD)
+    h = lab.login(u, OP_PWD)
+    est = lab.c.get("/api/recuperacion", headers=lab.h).json()
+    disc = [d for d in est["discrepancias"] if d["tipo"] == "CONFIRMACION_AUSENTE"]
+    assert est["bloqueado"] and len(disc) == 1, est
+    # la revisión restaurada sigue REVISADA (nada se dio por registrado) y no se abren revisiones nuevas
+    e2, u2, h2 = asignado(lab)
+    r = lab.c.post(_url(e2, "abrir"), headers=h2)
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "RECUPERACION_PENDIENTE"
+    # un folio que no es el del diario se rechaza; el correcto recupera la cita
+    url_res = f"/api/recuperacion/discrepancias/{disc[0]['ref']}/resolver"
+    r = lab.c.post(url_res, headers=lab.h, json={"tipo": "CONFIRMACION_AUSENTE", "accion": "registrar_folio", "motivo": "folio del comprobante",
+                                                 "folio": "FON-FALSO-01"})
+    assert r.status_code == 422 and r.json()["detail"]["codigo"] == "FOLIO_NO_COINCIDE"
+    r = lab.c.post(url_res, headers=lab.h, json={"tipo": "CONFIRMACION_AUSENTE", "accion": "registrar_folio", "motivo": "folio del comprobante",
+                                                 "folio": "FON-RESP-0001"})
+    assert r.status_code == 200, r.text
+    with lab.db.session() as s:
+        assert s.get(Expediente, eid).estado == ex.RES_CONFIRMADA
+        assert ex.coherencia(s) == []

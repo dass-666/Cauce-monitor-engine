@@ -154,7 +154,9 @@ def recorrido(p: Piloto, out: Path) -> dict:
     ck("API · recuperación operable (el diario anotó la cita sin discrepancias)", rec.get("bloqueado") is False,
        {k: rec.get(k) for k in ("bloqueado", "pendientes")})
     panel = p.adm.get("/api/admin/panel")
-    ck("API · la mesa de control responde", panel.status_code == 200, panel.status_code)
+    conf = [x for x in (panel.json().get("confirmadas") or []) if x.get("folio") == entrada["folio"]] if panel.status_code == 200 else []
+    ck("API · la mesa de control la muestra como «declarada por persona», no como comprobada en el portal",
+       bool(conf) and conf[0].get("origen") == "PERSONA", conf)
     return res
 
 

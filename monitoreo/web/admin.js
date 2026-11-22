@@ -83,6 +83,10 @@ async function viewPanel() {
       { t: "Expediente", f: (x) => h("b", {}, x.codigo) },
       { t: "Folio", f: (x) => h("b", { class: "mono", "data-folio": x.folio }, x.folio) },
       { t: "Fecha confirmada", f: (x) => `${x.fecha_confirmada || "—"} · ${x.sucursal_confirmada || ""}` },
+      // Piloto asistido: una cita declarada por una persona NUNCA se presenta como comprobada con el portal.
+      { t: "Origen", f: (x) => x.origen === "PERSONA"
+        ? h("span", { class: "badge b-info", "data-origen": "PERSONA" }, "Declarada por persona (sin verificar)")
+        : h("span", { class: "badge b-ok", "data-origen": "PORTAL" }, "Comprobada en el portal") },
       { t: "", f: (x) => h("button", { class: "btn ghost small", onclick: async () => openDrawer(await historialExpediente(x.expediente_id, true)) }, "Historial") }],
     d.confirmadas)));
   const problemas = card("Requiere intervención", h("div", { id: "panel-problemas", "data-n": d.problemas.length },
@@ -111,13 +115,14 @@ async function viewPanel() {
       k("en_plan", "Incorporados al plan", c.en_plan, d.plan_hoy ? `plan de hoy: ${d.plan_hoy.vivos} de ${d.plan_hoy.capacidad}` : "sin plan hoy", { situacion: "EN_PLAN" }),
       k("coincidencias", "Coincidencias de fecha", c.coincidencias, "día visto, sin reservar", { situacion: "COINCIDENCIA" }),
       k("operaciones", "Operaciones por revisar", c.operaciones_pendientes, "en curso o en verificación", { situacion: "EN_OPERACION" }, true),
-      k("confirmadas", "Citas confirmadas con folio", c.confirmadas_con_folio, "folio comprobado en el portal", { situacion: "CONFIRMADA" }),
+      k("confirmadas", "Citas confirmadas con folio", c.confirmadas_con_folio, c.declaradas_por_persona
+        ? `${c.declaradas_por_persona} declaradas por persona (sin verificar)` : "folio comprobado en el portal", { situacion: "CONFIRMADA" }),
       k("problemas", "Requieren intervención", c.problemas, "ver la lista de abajo", null, true),
       kpi("Observador", h("span", { id: "kpi-observador", "data-activos": obs.activos }, obsTexto),
         obs.ultima_vista ? `última lectura ${fmtTime(obs.ultima_vista)}` : "sin lecturas todavía"),
       await tarjetaRecuperacion()),
     h("div", { class: "section" }, h("h3", {}, "Situación de los expedientes"), leyenda,
-      h("p", { class: "muted" }, "Registrado ≠ listo para planificar ≠ coincidencia ≠ cita confirmada. Solo «Cita confirmada» tiene folio del portal.")),
+      h("p", { class: "muted" }, "Registrado ≠ listo para planificar ≠ coincidencia ≠ cita confirmada. Solo «Cita confirmada» tiene folio (del portal, o declarado por una persona en el piloto asistido).")),
     errs,
     h("div", { class: "grid cols-2 section" }, coincid, problemas),
     h("div", { class: "section" }, confirmadas),

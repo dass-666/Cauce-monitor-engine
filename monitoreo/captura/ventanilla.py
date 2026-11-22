@@ -68,6 +68,9 @@ def _paso(a: Atencion, exp: Expediente | None, res: Reservacion | None) -> dict:
     if exp is None:
         return {"clave": "expediente", "texto": "Busca el expediente de la persona o crea uno nuevo."}
     if res is not None and res.estado == rs.CONFIRMADA:
+        if res.contrato == "oficial_asistido":
+            return {"clave": "cerrar", "texto": f"Cita registrada con folio {res.folio}, declarada por una persona "
+                    "(no verificada con el portal). Cierra la atención."}
         return {"clave": "cerrar", "texto": f"Cita confirmada con folio {res.folio}. Cierra la atención."}
     if res is not None and res.estado in (rs.CONFIRMANDO, rs.EN_VERIFICACION):
         return {"clave": "verificacion", "texto": "La confirmación no tuvo respuesta clara: el motor la verifica "
