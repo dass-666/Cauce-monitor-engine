@@ -3,10 +3,10 @@
 Solo diagnóstico: **no corrige nada**, no cambia aserciones, criterios de éxito ni tiempos. Contexto: informe A (`informe-A-ci-reservaciones.md`).
 Marcas: **[V]** verificado · **[P]** pendiente.
 
-## Qué añade (2 archivos)
-- `scripts/recorrido_ventanilla_v23.js`: si el recorrido falla, antes de cerrar el navegador consulta a la página del administrador (con plazos de 10 s y 20 s para no colgarse) y guarda en el JSON `diagnostico`.
-- `scripts/recorrido_ventanilla_v23.py`: si hay `diagnostico`, imprime las dos líneas de abajo.
-En ejecución normal no se ejecuta nada nuevo [V: 21/21 comprobaciones, sin líneas DIAGNOSTICO].
+## Qué añade
+- **Módulos compartidos** (para no duplicar): `scripts/diagnostico_ci.js` (`diagnosticarCalendario`: consulta a la página del administrador con plazos de 10 s y 20 s para no colgarse) y `scripts/diagnostico_ci.py` (`estados_sockets`, `imprimir`).
+- **v2.3** (`recorrido_ventanilla_v23.js/.py`, PR #7) y **RC1** (`recorrido_rc1.js/.py`, 4 de los 8 rojos históricos) los usan en su bloque de fallo: guardan el resultado en `diagnostico` del JSON e imprimen las dos líneas de abajo. RC1 es el cambio nuevo; v2.3 solo pasó de código propio a los módulos compartidos (misma salida más el campo nuevo `ultimo_paso_ok`).
+- En ejecución normal no se ejecuta nada nuevo [V: v2.3 21/21 y RC1 27/27 sin líneas DIAGNOSTICO].
 
 ## Cómo identificarlo en los logs
 En el paso «v2.3 · Recorrido de Ventanilla…» del job (o con `gh api repos/<repo>/actions/jobs/<id>/logs | grep DIAGNOSTICO`):
@@ -23,12 +23,17 @@ FALLA interfaz · recorrido completo sin interrupciones  page.waitForSelector: T
 | `celda_en_servidor` | estado que **contesta ahora** el servidor para ese día (o `servidor`: error/«sin respuesta en 10 s») |
 | `repintando` | `true` = un repintado quedó colgado (la bandera `rendering` de `app.js` impide los siguientes) |
 | `error_en_pantalla`, `tarjeta_error` | si la interfaz mostraba un error visible |
+| `ultimo_paso_ok` | último paso del recorrido que sí pasó (p. ej. `7a_observador_activo` en RC1) |
 | `DIAGNOSTICO_SOCKETS` | conteo de sockets TCP por estado (no direcciones) |
 
 **Cómo leerlo:** servidor ≠ `DISPONIBLE` ⇒ el día no se abrió (acción POST); servidor = `DISPONIBLE` y pantalla ≠ ⇒ la interfaz no se actualizó (revisar `repintando`); `servidor` con error ⇒ el motor no respondió.
 
 ## Privacidad [V]
 Solo estados, banderas y contadores; el texto de errores se corta a 160 caracteres y proviene del calendario del laboratorio (fechas y estados). Sin datos personales, tokens ni direcciones (netstat se resume por estado, sin IP ni puertos).
+
+## Qué está demostrado y qué no
+- [V] El diagnóstico se imprime en v2.3 y en RC1 ante un fallo (forzado en copias temporales) y no aparece en ejecución normal. RC1 forzado: `16/20 comprobaciones`, la misma forma que el fallo histórico.
+- [P] **Sin explicar**: por qué la celda no llega a `DISPONIBLE` en CI. El diagnóstico no corrige nada; solo permitirá distinguir «el servidor no abrió el día» de «la interfaz no se actualizó» cuando ocurra de nuevo.
 
 ## Comprobado
 - Ejecución normal local (Linux): 21/21, sin líneas de diagnóstico; `tests/test_recorrido_v23.py` 9 pruebas verdes.

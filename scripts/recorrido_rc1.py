@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from demo_rc1_datos import filas as filas_demo  # noqa: E402
 from demo_rc1_datos import generar  # noqa: E402
+from diagnostico_ci import imprimir as imprimir_diagnostico  # noqa: E402
 from ventanilla_laboratorio import ADMIN_PWD, Laboratorio  # noqa: E402
 
 from monitoreo import navegador  # noqa: E402
@@ -82,6 +83,7 @@ def main() -> int:
             return 3 if "Cannot find module" in p.stderr else 1
         nav = json.loads(linea[len("RESULTADO "):])
         res["navegador"] = nav
+        imprimir_diagnostico(nav)
         for x in nav["pasos"]:
             check(f"interfaz · {x['paso']}", x["ok"], x["detalle"])
         check("interfaz · recorrido completo sin interrupciones", not nav.get("fallo"), nav.get("fallo"))
