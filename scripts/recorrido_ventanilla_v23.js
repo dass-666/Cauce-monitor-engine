@@ -11,6 +11,7 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { diagnosticarCalendario } = require("./diagnostico_ci.js");
 const [base, outDir, entradaPath] = process.argv.slice(2);
 const E = JSON.parse(fs.readFileSync(entradaPath, "utf-8"));
 fs.mkdirSync(outDir, { recursive: true });
@@ -243,24 +244,7 @@ const CLAVE = "QXZ482915";      // campo manual ficticio que el operador teclea
     await shot(O, "operador_ventanilla_final");
   } catch (e) {
     res.fallo = String(e.message || e).slice(0, 400);
-    // DIAGNÓSTICO (no cambia ninguna aserción): qué veía la pantalla y qué contestaba el servidor al fallar.
-    // Solo estados, códigos y nombres de campos; nunca datos de personas.
-    res.diagnostico = await Promise.race([A.evaluate(async (dia) => {
-      const d = { vista: S.view, repintando: typeof rendering !== "undefined" ? rendering : null,
-        pendiente: S.pendingForce || false, sucio: S.dirty || false, sin_conexion: !!S.offline };
-      const c = document.querySelector(`#calendario-lab-mes [data-fecha="${dia}"]`);
-      d.celda_en_pantalla = c ? c.getAttribute("data-estado") : "NO_HAY_CELDA";
-      const er = document.querySelector("#calendario-lab-error");
-      d.error_en_pantalla = er ? er.textContent.slice(0, 160) : null;
-      d.tarjeta_error = !!document.querySelector("#view .error:not(#calendario-lab-error)");
-      try {
-        const r = await Promise.race([api("/api/laboratorio/portal/calendario?sucursal=NOR-1&tramite=alta&mes=" + dia.slice(0, 7)),
-          new Promise((_, no) => setTimeout(() => no(new Error("sin respuesta en 10 s")), 10000))]);
-        const x = r.dias.find((z) => z.fecha === dia); d.celda_en_servidor = x ? x.estado : "SIN_DATO";
-      } catch (err) { d.servidor = String(err.message || err).slice(0, 160); }
-      return d;
-    }, E.dia), new Promise((_, no) => setTimeout(() => no(new Error("la página no respondió al diagnóstico (20 s)")), 20000))])
-      .catch((err) => ({ diagnostico_fallido: String(err.message || err).slice(0, 160) }));
+    res.diagnostico = await diagnosticarCalendario(A, E.dia, res.pasos);     // solo observa (ver docs/CI_RESERVACIONES_DIAGNOSTICO.md)
     await shot(O, "ZZ_fallo_operador").catch(() => {});
     await shot(A, "ZZ_fallo_admin").catch(() => {});
   }

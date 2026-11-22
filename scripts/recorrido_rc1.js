@@ -9,6 +9,7 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { diagnosticarCalendario } = require("./diagnostico_ci.js");
 const [base, outDir, entradaPath] = process.argv.slice(2);
 const E = JSON.parse(fs.readFileSync(entradaPath, "utf-8"));
 fs.mkdirSync(outDir, { recursive: true });
@@ -218,6 +219,7 @@ const CLAVE = "QXZ482915";      // campo manual ficticio que se teclea en el for
     await shot("mesa_de_control_final");
   } catch (e) {
     res.fallo = String(e.message || e).slice(0, 400);
+    res.diagnostico = await diagnosticarCalendario(A, E.dia, res.pasos);     // solo observa (ver docs/CI_RESERVACIONES_DIAGNOSTICO.md)
     await shot("ZZ_fallo").catch(() => {});
   }
   await browser.close();
