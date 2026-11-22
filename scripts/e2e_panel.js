@@ -73,7 +73,13 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   for (let intento = 1; ; intento++) {
     await page.locator("tr.clickable").first().click();
     try { await page.waitForSelector(".timeline", { timeout: 10000 }); break; }
-    catch (e) { if (intento >= 3) throw e; log(`detalle no abrió (intento ${intento}); se repite el clic`); }
+    catch (e) {
+      if (intento >= 3) throw e;
+      log(`detalle no abrió (intento ${intento}); se repite el clic`);
+      // si el cajón llegó a abrirse sin historial, se cierra antes de repetir: si no, tapa la fila
+      await page.keyboard.press("Escape");
+      await page.waitForSelector("#drawer", { state: "hidden", timeout: 5000 }).catch(() => {});
+    }
   }
   await page.screenshot({ path: `${outDir}/05_detalle_solicitud.png` });
   await page.keyboard.press("Escape");
