@@ -452,6 +452,7 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
     sid = sol["solicitud_id"]
     parar = threading.Event()
     resp = None
+    estado, codigo = "ERROR", "ERROR_INTERNO_MONITOR"
     try:
         lz = LanzadorLab(modo_laboratorio=True)
         corrida.lanzador = lz
@@ -478,16 +479,17 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
             reg = _REGISTRO.recibir(sol, resp, ahora, res.codigo_salida)
             if reg["estado"] == "INCIERTA":
                 resp = None              # una respuesta que no pasa el contrato no se muestra
-        corrida.estado, corrida.codigo = reg["estado"], reg["codigo"]
+        estado, codigo = reg["estado"], reg["codigo"]
     except Exception as e:  # noqa: BLE001 - fallo seguro: sin texto de la excepción
         log.error("autorrelleno %s: fallo interno %s", sid, type(e).__name__)
-        corrida.estado, corrida.codigo, resp = "ERROR", "ERROR_INTERNO_MONITOR", None
+        estado, codigo, resp = "ERROR", "ERROR_INTERNO_MONITOR", None
     finally:
         parar.set()
-        corrida.terminada_en = utcnow()
-    corrida.informe = informe_sin_valores(resp, ctx) if resp else None
-    inf = corrida.informe or {}
-    detalle = {"solicitud_id": sid, "estado": corrida.estado, "codigo": corrida.codigo,
+    # El estado final se publica en la corrida DESPUÉS de guardar el historial: así quien ve el resultado (la
+    # tarjeta, una prueba o el apagado de Monitor) sabe que AUTORRELLENO_TERMINADO ya está escrito.
+    informe = informe_sin_valores(resp, ctx) if resp else None
+    inf = informe or {}
+    detalle = {"solicitud_id": sid, "estado": estado, "codigo": codigo,
                "campos_correctos": sum(1 for c in inf.get("campos", []) if c["correcto"]),
                "campos_total": len(inf.get("campos", [])),
                "confirmaciones_coinciden": sum(1 for c in inf.get("confirmaciones", []) if c["coinciden"]),
@@ -499,9 +501,13 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
             ex.evento(s, corrida.expediente_id, "AUTORRELLENO_TERMINADO", f"{corrida.username} (ventanilla)",
                       utcnow(), **detalle)
             security.audit(s, corrida.username, "autorrelleno_terminado", corrida.expediente_codigo,
-                           {"solicitud_id": sid, "estado": corrida.estado, "codigo": corrida.codigo})
+                           {"solicitud_id": sid, "estado": estado, "codigo": codigo})
     except Exception:  # noqa: BLE001
         log.exception("no se pudo registrar el fin del autorrellenado %s", sid)
+    finally:
+        corrida.informe, corrida.terminada_en = informe, utcnow()
+        corrida.codigo = codigo
+        corrida.estado = estado              # el último: deja de estar «en curso»
 
 
 def reiniciar_para_pruebas() -> None:
