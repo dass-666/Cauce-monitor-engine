@@ -23,6 +23,14 @@ Qué hace, en este orden, cada vez que el operador pulsa «Autorrellenar formula
 `conector.aislamiento.puede_lanzar()` sigue en False: este camino existe solo en laboratorio porque el
 proceso de Forms corre con el mismo usuario de Windows que Monitor (podría leer su base). Con datos reales
 eso no es aceptable sin el aislamiento descrito en docs/CONECTOR_CONTRATO_v1.md §4.
+
+Perfil EXTERNO (docs/PERFIL_FORMULARIO_EXTERNO.md): el mismo flujo puede preparar un formulario de un sitio
+externo AUTORIZADO, pero solo si se cumplen a la vez: laboratorio activo (no producción), el perfil aprobado
+declara `externo: true` con una autorización escrita vigente (referencia, huella SHA-256 del documento y fecha),
+el host del perfil está en `MONITOREO_AUTORRELLENO_HOSTS_EXTERNOS` (lo escribe quien abre el laboratorio, no
+el perfil) y la URL es https (http solo para la simulación en 127.0.0.2-127.255.255.254). Los códigos de Monitor
+se traducen con las tablas de equivalencias APROBADAS del perfil; un código sin fila no viaja: lo completa la
+persona. Sigue sin aislamiento: solo datos ficticios.
 """
 from __future__ import annotations
 
@@ -71,7 +79,7 @@ _ENV_SISTEMA = ("PATH", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHE
 # el suyo (<Forms>\.pw-browsers, el que instala su instalar_windows.bat).
 
 MENSAJES = {
-    "LANZADA": "Forms está rellenando el formulario del portal de laboratorio en una ventana del navegador. "
+    "LANZADA": "Forms está rellenando el formulario en una ventana del navegador. "
                "Revísalo con la persona, completa los campos manuales y cierra la ventana al terminar. "
                "Forms no envía nada.",
     "PREPARADO": "Forms rellenó y verificó el formulario; la ventana se cerró sin envío.",
@@ -111,6 +119,58 @@ def _es_local(url: str) -> bool:
     return (urlsplit(url).hostname or "") in ("127.0.0.1", "localhost")
 
 
+VARIABLE_HOSTS = "MONITOREO_AUTORRELLENO_HOSTS_EXTERNOS"
+_HOST = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def _loopback_simulado(host: str) -> bool:
+    """127.x.y.z distinto de 127.0.0.1: un «sitio externo» simulado en este equipo (pruebas)."""
+    partes = host.split(".")
+    return (len(partes) == 4 and partes[0] == "127" and all(p.isdigit() and 0 <= int(p) <= 255 for p in partes)
+            and host != "127.0.0.1")
+
+
+# Lo que admite el contrato cauce.conector.v1 (fijado): sin consulta (?), sin fragmento (#), ruta corta.
+_URL_CONTRATO = re.compile(r"^https?://[A-Za-z0-9.-]{1,100}(:[0-9]{2,5})?(/[A-Za-z0-9._~/-]{0,100})?$")
+
+
+def url_externa_valida(url: str) -> bool:
+    """https a un dominio, o http solo a un loopback simulado. Nunca 127.0.0.1/localhost (eso es el laboratorio).
+    Además debe caber en el contrato: una URL con «?» o «#» no se puede usar sin cambiar el contrato."""
+    if not isinstance(url, str) or not _URL_CONTRATO.match(url):
+        return False
+    try:
+        u = urlsplit(url)
+        host = (u.hostname or "").lower()
+    except ValueError:
+        return False
+    if not host or host in ("127.0.0.1", "localhost") or u.username or u.password:
+        return False
+    if _loopback_simulado(host):
+        return u.scheme in ("http", "https")
+    return u.scheme == "https" and bool(_HOST.match(host))
+
+
+def _autorizacion_externa_valida(a) -> bool:
+    if not isinstance(a, dict):
+        return False
+    try:
+        datetime.strptime(a["vigente_hasta"], "%Y-%m-%d")
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (bool(re.fullmatch(r"autext_[a-z0-9_]{1,40}", str(a.get("ref", ""))))
+            and bool(_HEX64.match(str(a.get("documento_sha256", ""))))
+            and 3 <= len(str(a.get("otorgada_por", "")).strip()) <= 120)
+
+
+def _equivalencias_validas(eq, campos) -> bool:
+    if eq is None:
+        return True
+    return (isinstance(eq, dict) and set(eq) <= set(campos)
+            and all(isinstance(t, dict) and t and all(isinstance(k, str) and isinstance(v, str) and v
+                                                     for k, v in t.items()) for t in eq.values()))
+
+
 def _env_forms(perfil: dict, env: dict, forms_dir: Path | None = None) -> dict:
     """Entorno mínimo para el proceso de Forms: variables del sistema y las CAUCE_* que él entiende."""
     out = {k: env[k] for k in _ENV_SISTEMA if env.get(k)}
@@ -122,6 +182,8 @@ def _env_forms(perfil: dict, env: dict, forms_dir: Path | None = None) -> dict:
         out["CAUCE_STATE_DIR"] = str(perfil["state_dir"])
     if env.get("MONITOREO_FORMS_BROWSER_PATH"):
         out["CAUCE_BROWSER_PATH"] = env["MONITOREO_FORMS_BROWSER_PATH"]
+    if perfil.get("externo") is True and perfil.get("allowed_hosts_file"):
+        out["CAUCE_ALLOWED_HOSTS_FILE"] = str(perfil["allowed_hosts_file"])
     out["CAUCE_HEADLESS"] = "1" if (env.get("MONITOREO_FORMS_HEADLESS") or "").strip().lower() in _SI else "0"
     out["PYTHONIOENCODING"] = "utf-8"
     return out
@@ -140,7 +202,13 @@ def leer_perfil(ruta: Path) -> dict:
               and re.fullmatch(r"[a-z0-9_]{1,40}", p["perfil"]) and _HEX64.match(p["perfil_sha256"])
               and re.fullmatch(r"v2:[0-9a-f]{16}", p["firma_estructura_esperada"])
               and isinstance(p["campos"], list) and p["campos"] and p.get("modo") in ("POR_DIA", "POR_HORARIO")
-              and re.fullmatch(r"rev_[a-z0-9_]{1,40}", p["aprobado_por"]) and _es_local(p["url"]))
+              and re.fullmatch(r"rev_[a-z0-9_]{1,40}", p["aprobado_por"]))
+        if ok and p.get("externo") is True:
+            ok = (url_externa_valida(p["url"]) and _autorizacion_externa_valida(p.get("autorizacion"))
+                  and _equivalencias_validas(p.get("equivalencias"), p["campos"])
+                  and isinstance(p.get("allowed_hosts_file"), str) and bool(p["allowed_hosts_file"]))
+        elif ok:
+            ok = _es_local(p["url"]) and "equivalencias" not in p
     except (OSError, ValueError, KeyError, TypeError):
         ok = False
     if not ok:
@@ -164,10 +232,21 @@ def configuracion(env: dict | None = None) -> Config:
     if not ruta:
         raise Negado("PERFIL_NO_APROBADO", "Falta el perfil aprobado del formulario (MONITOREO_AUTORRELLENO_PERFIL).")
     perfil = leer_perfil(Path(ruta))
-    a, b = urlsplit(perfil["url"]), urlsplit(url_portal)
-    if (a.scheme, a.hostname, a.port) != (b.scheme, b.hostname, b.port):
-        raise Negado("PERFIL_DE_OTRO_PORTAL", "El perfil aprobado es de otro portal (otro puerto): vuelve a "
-                     "aprobarlo abriendo el laboratorio con Forms.")
+    if perfil.get("externo") is True:
+        host = (urlsplit(perfil["url"]).hostname or "").lower()
+        permitidos = {h.strip().lower() for h in (env.get(VARIABLE_HOSTS) or "").split(",") if h.strip()}
+        if host not in permitidos:
+            raise Negado("HOST_EXTERNO_NO_AUTORIZADO", f"El sitio del perfil ({host}) no está en la lista de sitios "
+                         f"externos autorizados de este laboratorio ({VARIABLE_HOSTS}).", 403)
+        hasta = datetime.strptime(perfil["autorizacion"]["vigente_hasta"], "%Y-%m-%d").date()
+        if hasta < datetime.now(timezone.utc).date():
+            raise Negado("AUTORIZACION_EXTERNA_CADUCADA", "La autorización escrita del sitio externo ya no está "
+                         "vigente: no se autorrellena nada.", 403)
+    else:
+        a, b = urlsplit(perfil["url"]), urlsplit(url_portal)
+        if (a.scheme, a.hostname, a.port) != (b.scheme, b.hostname, b.port):
+            raise Negado("PERFIL_DE_OTRO_PORTAL", "El perfil aprobado es de otro portal (otro puerto): vuelve a "
+                         "aprobarlo abriendo el laboratorio con Forms.")
     try:
         espera = max(30, min(int(env.get("MONITOREO_AUTORRELLENO_ESPERA_S") or ESPERA_POR_OMISION_S), 900))
     except ValueError:
@@ -197,7 +276,8 @@ def estado_configuracion() -> dict:
     except Negado as n:
         return {"habilitado": False, "codigo": n.codigo, "motivo": n.mensaje}
     return {"habilitado": True, "codigo": "", "motivo": "", "formulario_id": cfg.perfil["formulario_id"],
-            "espera_revision_s": cfg.espera_s}
+            "espera_revision_s": cfg.espera_s, "externo": cfg.perfil.get("externo") is True,
+            "sitio": (urlsplit(cfg.perfil["url"]).hostname or "") if cfg.perfil.get("externo") is True else ""}
 
 
 # ---------------------------------------------------------------- reglas de Monitor
@@ -218,6 +298,7 @@ class Contexto:
     sin_dato: list = field(default_factory=list)
     manuales: list = field(default_factory=list)
     etiquetas: dict = field(default_factory=dict)
+    sin_equivalencia: list = field(default_factory=list)   # códigos sin fila en la tabla aprobada: los pone la persona
 
 
 def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Contexto:
@@ -273,8 +354,22 @@ def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Context
                     sin_dato.append(campo.nombre)
                 continue
             valores[campo.nombre] = v
+        sin_equivalencia: list[str] = []
+        for nombre, tabla in (cfg.perfil.get("equivalencias") or {}).items():
+            if nombre in valores:
+                traducido = tabla.get(valores[nombre])
+                if traducido is None:            # sin fila aprobada: no se adivina, lo completa la persona
+                    del valores[nombre]
+                    sin_equivalencia.append(nombre)
+                else:
+                    valores[nombre] = traducido
+        # las confirmaciones viajan con el mismo valor (ya traducido) que su campo
+        for campo in contrato.automaticos:
+            if campo.confirmacion_de and campo.nombre in valores and campo.confirmacion_de in valores:
+                valores[campo.nombre] = valores[campo.confirmacion_de]
         ctx = Contexto(a.id, exp.id, exp.codigo, c.id, c.codigo, c.vigente_hasta, valores, sin_dato,
-                       [m.etiqueta for m in contrato.manuales], {x.nombre: x.etiqueta for x in contrato.campos})
+                       [m.etiqueta for m in contrato.manuales], {x.nombre: x.etiqueta for x in contrato.campos},
+                       sin_equivalencia)
     verif = cs.verificar(db, ctx.consentimiento_id)
     if not verif["ok"]:
         raise Negado("CONSENTIMIENTO_NO_VERIFICABLE", "La cadena de eventos del consentimiento no cuadra: un "
@@ -291,6 +386,8 @@ def construir_solicitud(ctx: Contexto, cfg: Config, user, ahora: datetime | None
     if ctx.consentimiento_hasta is not None:
         hasta = min(hasta, ctx.consentimiento_hasta.date())
     p = cfg.perfil
+    if p.get("externo") is True:
+        hasta = min(hasta, datetime.strptime(p["autorizacion"]["vigente_hasta"], "%Y-%m-%d").date())
     return {
         "contrato": C.VERSION, "tipo": "preparar_formulario", "solicitud_id": "sol_" + secrets.token_hex(12),
         "emitida_en": f(ahora - timedelta(seconds=1)), "caduca_en": f(ahora + timedelta(seconds=300)),
@@ -381,6 +478,7 @@ def informe_sin_valores(resp: dict, ctx: Contexto) -> dict:
                                 "coinciden": bool(c["coinciden"])} for c in resp.get("confirmaciones", [])],
             "errores": [e["codigo"] for e in resp.get("errores", [])],
             "sin_dato": [{"campo": n, "etiqueta": ctx.etiquetas.get(n, n)} for n in ctx.sin_dato],
+            "sin_equivalencia": [{"campo": n, "etiqueta": ctx.etiquetas.get(n, n)} for n in ctx.sin_equivalencia],
             "manuales": ctx.manuales,
             "estructura_coincide": bool(resp.get("formulario", {}).get("estructura_coincide")),
             "envio_realizado_por_conector": bool(resp.get("envio", {}).get("realizado_por_conector")),
@@ -402,7 +500,8 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
             sol = construir_solicitud(ctx, cfg, user)
             ahora = datetime.now(timezone.utc)
             try:
-                _REGISTRO.crear(sol, f"autorrelleno:{ctx.expediente_codigo}:{sol['solicitud_id']}", ahora)
+                _REGISTRO.crear(sol, f"autorrelleno:{ctx.expediente_codigo}:{sol['solicitud_id']}", ahora,
+                                solo_local=cfg.perfil.get("externo") is not True)
                 _REGISTRO.mover(sol["solicitud_id"], "AUTORIZADA", ahora)
             except ErrorRegistro as e:
                 raise Negado("SOLICITUD_INVALIDA", f"La solicitud no cumple el contrato ({e.codigo}).") from e
@@ -413,7 +512,8 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
         _auditar(db, user, "autorrelleno_negado", f"atencion:{aid}", {"codigo": n.codigo})
         raise
     detalle = {"solicitud_id": sol["solicitud_id"], "consentimiento": ctx.consentimiento_codigo,
-               "formulario_id": cfg.perfil["formulario_id"], "campos": sorted(ctx.campos), "sin_dato": ctx.sin_dato}
+               "formulario_id": cfg.perfil["formulario_id"], "campos": sorted(ctx.campos), "sin_dato": ctx.sin_dato,
+               "sin_equivalencia": ctx.sin_equivalencia, "externo": cfg.perfil.get("externo") is True}
     with db.session() as s:
         ex.evento(s, ctx.expediente_id, "AUTORRELLENO_SOLICITADO", vt._actor(user), now, **detalle)
         security.audit(s, user.username, "autorrelleno_solicitado", ctx.expediente_codigo,

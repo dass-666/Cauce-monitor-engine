@@ -36,7 +36,8 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
         exp_id = a.expediente_id
     corrida = ad.corrida_de(exp_id) if exp_id else None
     out = {"habilitado": conf["habilitado"], "disponible": False, "codigo": conf["codigo"], "motivo": conf["motivo"],
-           "corrida": corrida.vista() if corrida else None}
+           "corrida": corrida.vista() if corrida else None,
+           "externo": conf.get("externo", False), "sitio": conf.get("sitio", "")}
     if not conf["habilitado"]:
         return out
     try:

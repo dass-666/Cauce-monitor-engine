@@ -26,9 +26,11 @@ class Registro:
     def _evento(self, id_sol: str, de: str | None, a: str, codigo: str = "") -> None:
         self.diario.append({"solicitud_id": id_sol, "de": de, "a": a, "codigo": codigo})
 
-    def crear(self, solicitud: dict, clave_idempotencia: str, ahora: datetime) -> tuple[dict, bool]:
-        """Devuelve (registro, es_nuevo). Misma clave y mismo contenido = mismo registro, sin duplicar."""
-        errores = C.validar_solicitud(solicitud, ahora)
+    def crear(self, solicitud: dict, clave_idempotencia: str, ahora: datetime,
+              solo_local: bool = True) -> tuple[dict, bool]:
+        """Devuelve (registro, es_nuevo). Misma clave y mismo contenido = mismo registro, sin duplicar.
+        `solo_local=False` solo para un perfil EXTERNO ya comprobado por `autorrelleno.adaptador.configuracion()`."""
+        errores = C.validar_solicitud(solicitud, ahora, solo_local=solo_local)
         if errores:
             raise ErrorRegistro("SOLICITUD_INVALIDA", C.resumen_error_seguro(errores))
         if not 8 <= len(clave_idempotencia) <= 128:

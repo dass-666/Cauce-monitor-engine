@@ -3,7 +3,7 @@
 Lo lanza `validar_autorrelleno_windows.bat`. Usa carpetas temporales nuevas y datos FICTICIOS; no toca data/, ni
 C:\\cauce-msi, ni D:\\cauce-demo-8328e2c, ni bases o respaldos. Ejecuta, en orden:
 
-  0. instalación: Python de Monitor, Forms en ..\\cauce-forms con su .venv y su commit (se espera aa1bb02)
+  0. instalación: Python de Monitor, Forms en ..\\cauce-forms con su .venv y su commit (se espera b698add o aa1bb02)
   1. pruebas automáticas (pytest) del adaptador y del lanzador, con Forms REAL y VENTANA VISIBLE:
      8 campos y 2 confirmaciones, revocación a mitad (Forms y Chromium terminan), cierre de la ventana con la X
      (WM_CLOSE) -> PREPARADO, Monitor detenido con la ventana abierta, Monitor muerto de golpe (Job Object)
@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FORMS_ESPERADO = "aa1bb02"
+FORMS_ESPERADOS = ("b698add", "aa1bb02")   # PR #4 de Forms (equivalencias) o main
 
 
 def main() -> int:
@@ -68,10 +68,10 @@ def main() -> int:
     ok_forms = forms_py.exists() and (forms / "cauce_form_connector").exists()
     fc = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=forms, capture_output=True, text=True).stdout.strip() if forms.exists() else ""
     anotar("Forms instalado con su .venv", ok_forms, f"{forms} @ {fc or '?'}")
-    if fc and not fc.startswith(FORMS_ESPERADO[:7]):
-        anotar(f"Forms en el commit esperado {FORMS_ESPERADO}", False, f"está en {fc}")
+    if fc and not any(fc.startswith(x[:7]) for x in FORMS_ESPERADOS):
+        anotar(f"Forms en un commit esperado {'/'.join(FORMS_ESPERADOS)}", False, f"está en {fc}")
     if not ok_forms:
-        lineas.append("\nFalta Forms: ejecuta en ..\\cauce-forms  git checkout aa1bb02  y  instalar_windows.bat")
+        lineas.append("\nFalta Forms: ejecuta en ..\\cauce-forms  git checkout b698add  y  instalar_windows.bat")
         (out / "RESUMEN.txt").write_text("\n".join(lineas) + "\n", "utf-8")
         return 3
     node = shutil.which("node")
@@ -81,14 +81,17 @@ def main() -> int:
     # 1. pruebas automáticas
     correr("1. Pruebas automáticas con Forms real y ventana visible (pytest)",
            [py, "-m", "pytest", "-q", "-rA", "--tb=line", "-p", "no:cacheprovider",
-            "tests/test_autorrelleno_forms.py", "tests/test_lanzador_lab.py"], "1_pytest.log", env)
+            "tests/test_autorrelleno_forms.py", "tests/test_lanzador_lab.py", "tests/test_autorrelleno_externo.py"],
+           "1_pytest.log", env)
     txt = (out / "1_pytest.log").read_text("utf-8", errors="replace")
     for prueba in ("test_forms_real_rellena_el_formulario_de_laboratorio",
                    "test_forms_real_revocacion_a_mitad_termina_chromium",
                    "test_forms_real_cerrar_la_ventana_a_mano_da_preparado",
                    "test_detener_monitor_con_la_ventana_abierta_termina_forms",
-                   "test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano"):
-        if f"PASSED tests/test_autorrelleno_forms.py::{prueba}" in txt or f"PASSED tests/test_lanzador_lab.py::{prueba}" in txt:
+                   "test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano",
+                   "test_forms_real_rellena_el_formulario_externo_autorizado"):
+        if any(f"PASSED tests/{m}::{prueba}" in txt for m in
+               ("test_autorrelleno_forms.py", "test_lanzador_lab.py", "test_autorrelleno_externo.py")):
             anotar(f"   {prueba}", True)
         elif prueba in txt and "SKIPPED" in txt.split(prueba)[0][-200:]:
             anotar(f"   {prueba}", None, "omitida")

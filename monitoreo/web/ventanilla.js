@@ -263,7 +263,10 @@ async function tarjetaAutorrelleno(a) {
     caja.dataset.estado = c ? c.estado : "";
     caja.replaceChildren(...[      // replaceChildren escribiría «null» como texto: se filtran los vacíos
       h("h2", {}, "Autorrellenar formulario (Forms · laboratorio)"),
-      h("p", { class: "muted" }, "Abre el formulario del portal de laboratorio en una ventana del navegador y Forms lo rellena con ",
+      est.externo ? h("p", { class: "warn", id: "autorrelleno-externo" }, `Formulario EXTERNO autorizado: ${est.sitio}. `,
+        "Solo datos ficticios en este laboratorio. Los códigos se traducen con la tabla aprobada; lo que no tenga fila lo completas tú.") : null,
+      h("p", { class: "muted" }, est.externo ? "Abre el formulario del sitio externo en una ventana del navegador y Forms lo rellena con "
+        : "Abre el formulario del portal de laboratorio en una ventana del navegador y Forms lo rellena con ",
         "los datos de este expediente. Forms no envía nada: tú revisas, tecleas los campos manuales y decides. ",
         "Solo viajan los campos que pide el formulario; el nombre y los campos manuales no."),
       !est.disponible && est.motivo ? h("p", { class: "error", id: "autorrelleno-motivo" }, est.motivo) : null,
@@ -295,6 +298,8 @@ function resumenAutorrelleno(c) {
     ...i.confirmaciones.map((x) => h("li", { "data-confirmacion": x.campo, class: x.coinciden ? "" : "error" },
       `${x.coinciden ? "✓" : "✗"} ${x.etiqueta}: ${x.coinciden ? "coincide" : "NO coincide"}`)),
     ...i.sin_dato.map((x) => h("li", { class: "muted" }, `— ${x.etiqueta}: el expediente no lo trae; complétalo tú`)),
+    ...(i.sin_equivalencia || []).map((x) => h("li", { class: "muted", "data-sin-equivalencia": x.campo },
+      `— ${x.etiqueta}: el código no está en la tabla aprobada; elígelo tú en el formulario`)),
     ...i.manuales.map((x) => h("li", { class: "muted" }, `— ${x}: captura manual del operador`)),
   ] : [];
   return h("div", { id: "autorrelleno-resultado", "data-estado": c.estado },

@@ -1,0 +1,25 @@
+{
+  "_comentario": "PLANTILLA de perfil EXTERNO (ficticia). Cópiala, cambia url/campos/equivalencias/autorización tras analizar el formulario con Forms (analizar-formulario, solo lectura) y que una persona la revise. Solo campos AUTOMÁTICOS del contrato de Monitor del modo indicado. Ver docs/PERFIL_FORMULARIO_EXTERNO.md.",
+  "version": 1,
+  "externo": true,
+  "formulario_id": "frm_ejemplo_externo",
+  "perfil": "perfil_ejemplo_externo",
+  "modo": "POR_DIA",
+  "url": "https://formulario.ejemplo.invalid/solicitud",
+  "autorizacion": {
+    "ref": "autext_ejemplo_2026",
+    "otorgada_por": "Responsable del sitio (nombre y cargo en el documento firmado)",
+    "documento_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "vigente_hasta": "2026-12-31"
+  },
+  "campos": {
+    "tramite": "solicitud::tipo",
+    "fecha_nacimiento": "solicitud::nacimiento",
+    "telefono": "solicitud::tel",
+    "correo": "solicitud::email",
+    "correo_confirmacion": "solicitud::email2"
+  },
+  "equivalencias": {
+    "tramite": {"alta": "T-ALTA", "renovacion": "T-RENO", "constancia": "T-CONS"}
+  }
+}
