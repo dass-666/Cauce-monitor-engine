@@ -96,6 +96,8 @@ mkdir C:\cauce-autorrelleno; cd C:\cauce-autorrelleno
 git clone -b claude/project-thread-ksm2qd https://github.com/dass-666/Cauce-monitor-engine monitor
 git clone https://github.com/dass-666/CAUCE-UNIVERSAL-CONEXION cauce-forms
 cd cauce-forms; git checkout aa1bb02; .\instalar_windows.bat; cd ..
+# si la MSI no tiene el lanzador «py»: python -m venv .venv; .venv\Scripts\pip install -r requirements-dev.txt;
+#   $env:PLAYWRIGHT_BROWSERS_PATH="$PWD\.pw-browsers"; .venv\Scripts\python -m playwright install chromium
 cd monitor; powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 C:\cauce-autorrelleno\monitor\validar_autorrelleno_windows.bat
 ```
@@ -126,19 +128,24 @@ Recorrido automático opcional (necesita Node.js y Playwright como los otros rec
 
 ## 6. Qué queda sin probar
 
-Estado de los 8 puntos de la validación física (2026-11-22). **Ninguno está verificado en Windows todavía**: la MSI
-estaba sin conexión. En Linux (contenedor) están todos verificados con Forms real:
+Estado de los 8 puntos. **Verificado en la MSI (Windows 11, 2026-11-22, 18:02-18:10 hora de México)** con
+`validar_autorrelleno_windows.py` en `C:\cauce-autorrelleno` (monitor 57c6333, Forms aa1bb02): **TODO OK** (pytest 25/25,
+recorrido 18/18, reinicio 11/11) y comprobación en la interfaz real → `PREPARADO`, 8 ✓, 2 «coincide», «Envío por Forms: no».
 
 | # | Punto | Linux (contenedor) | Windows 11 (MSI) |
 |---|---|---|---|
-| 1 | Instalación de ambos proyectos | n/a (entorno propio) | pendiente: paso 0 del `.bat` |
-| 2 | El botón abre Chromium visible | sí (Xvfb, captura) | pendiente (riesgo: `CREATE_NO_WINDOW`, `.pw-browsers`) |
-| 3 | 8 campos y 2 confirmaciones | sí | pendiente |
-| 4 | Forms no envía | sí (`envio_por_conector` False, sin cita) | pendiente |
-| 5 | Cerrar a mano → `PREPARADO` | sí, 10/10 con `WM_DELETE_WINDOW` | pendiente: prueba con `WM_CLOSE` + comprobación humana |
-| 6 | Revocar cierra Forms y sus procesos | sí, 0 restantes | pendiente (Job Object) |
-| 7 | Reiniciar Monitor sin huérfanos | sí, tras la corrección | pendiente; la CI Windows ejecuta la prueba espía del Job Object |
-| 8 | Sin datos sensibles en registros | sí, todos los archivos de texto | pendiente |
+| 1 | Instalación de ambos proyectos | n/a | sí (Forms: `instalar_windows.bat` falla sin el lanzador `py`; se hicieron sus pasos con `python`) |
+| 2 | El botón abre Chromium visible | sí | sí (ventana «Citas por día (laboratorio)» capturada en el escritorio) |
+| 3 | 8 campos y 2 confirmaciones | sí | sí |
+| 4 | Forms no envía | sí | sí |
+| 5 | Cerrar la ventana → `PREPARADO` | sí, 10/10 | sí, con `WM_CLOSE` (el mensaje de la X); el clic físico de una persona no se probó |
+| 6 | Revocar cierra Forms y sus procesos | sí | sí |
+| 7 | Reiniciar Monitor sin huérfanos | sí | sí (parada ordenada y forzada: 0 procesos) |
+| 8 | Sin datos sensibles en registros | sí | sí |
+
+Protecciones comprobadas en la MSI: `C:\cauce-msi` sin cambios (6158 archivos, misma fecha más reciente); el servicio del
+puerto 8100 es el mismo proceso antes y después; en `D:\cauce-demo-8328e2c` solo escribe su propio servicio (como ya
+hacía antes de empezar).
 
 Otros límites:
 - Cerrar con `WM_CLOSE`/`WM_DELETE_WINDOW` es lo que hace la X, pero no es una persona: por eso queda la comprobación
