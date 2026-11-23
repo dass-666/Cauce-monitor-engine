@@ -15,12 +15,15 @@ Uso directo (normalmente lo llama `ventanilla_laboratorio.py --forms RUTA`):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 MAPEO = ROOT / "monitoreo" / "autorrelleno" / "perfil_portal_laboratorio_dia.json"
@@ -91,9 +94,89 @@ def aprobar(forms: Path, portal: str, carpeta: Path, aprobado_por: str = "rev_la
     return destino
 
 
-def variables_motor(forms: Path, pin: Path, python: Path | None = None) -> dict:
-    return {"MONITOREO_AUTORRELLENO_LAB": "1", "MONITOREO_AUTORRELLENO_PERFIL": str(pin),
-            "MONITOREO_FORMS_DIR": str(forms), "MONITOREO_FORMS_PYTHON": str(python or python_de(forms))}
+def cargar_perfil_externo(ruta: Path) -> dict:
+    """Lee y valida el perfil EXTERNO escrito y revisado por una persona (docs/PERFIL_FORMULARIO_EXTERNO.md)."""
+    sys.path.insert(0, str(ROOT))
+    from monitoreo.autorrelleno import adaptador as ad
+    from monitoreo.captura import portal
+    try:
+        m = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise FormsNoListo(f"No pude leer el perfil externo {ruta}: {type(e).__name__}")
+    errores = []
+    if m.get("version") != 1 or m.get("externo") is not True:
+        errores.append("debe tener version 1 y externo: true")
+    if not re.fullmatch(r"frm_[a-z0-9_]{1,40}", str(m.get("formulario_id", ""))):
+        errores.append("formulario_id debe ser frm_[a-z0-9_]")
+    if not re.fullmatch(r"[a-z0-9_]{1,40}", str(m.get("perfil", ""))):
+        errores.append("perfil debe ser [a-z0-9_]")
+    if m.get("modo") not in ("POR_DIA", "POR_HORARIO"):
+        errores.append("modo debe ser POR_DIA o POR_HORARIO")
+    if not ad.url_externa_valida(str(m.get("url", ""))):
+        errores.append("url debe ser https a un dominio (o http a 127.x simulado), nunca 127.0.0.1/localhost")
+    if not ad._autorizacion_externa_valida(m.get("autorizacion")):
+        errores.append("autorizacion necesita ref autext_..., otorgada_por, documento_sha256 (64 hex) y vigente_hasta")
+    campos = m.get("campos")
+    if not isinstance(campos, dict) or not campos or not all(isinstance(v, str) and v for v in campos.values()):
+        errores.append("campos debe ser {campo_de_monitor: clave_de_forms}")
+    elif m.get("modo") in ("POR_DIA", "POR_HORARIO"):
+        auto = {c.nombre for c in portal.contrato(m["modo"]).automaticos}
+        fuera = sorted(set(campos) - auto)
+        if fuera:
+            errores.append(f"campos que no son automáticos del contrato {m['modo']}: {', '.join(fuera)}")
+        if not ad._equivalencias_validas(m.get("equivalencias"), campos):
+            errores.append("equivalencias debe ser {campo: {codigo_monitor: valor_de_opcion}} sobre campos declarados")
+    if errores:
+        raise FormsNoListo("Perfil externo inválido: " + "; ".join(errores))
+    return m
+
+
+def aprobar_externo(forms: Path, ruta_perfil: Path, carpeta: Path, aprobado_por: str = "rev_laboratorio",
+                    python: Path | None = None) -> Path:
+    """Como `aprobar`, para un formulario de un sitio EXTERNO autorizado. Forms abre la URL una vez (solo lectura)
+    para fijar la firma de su estructura; se declara la autorización (--authorized) y el host se permite SOLO en
+    un allowed_hosts.json propio de esta carpeta (no se toca la configuración de Forms)."""
+    py = comprobar_forms(forms, python)
+    m = cargar_perfil_externo(ruta_perfil)
+    host = urlsplit(m["url"]).hostname.lower()
+    base = carpeta / "forms"
+    perfiles, estado = base / "perfiles", base / "estado"
+    perfiles.mkdir(parents=True, exist_ok=True)
+    estado.mkdir(parents=True, exist_ok=True)
+    hosts = base / "allowed_hosts.json"
+    hosts.write_text(json.dumps({"_comentario": "Solo el sitio del perfil externo aprobado por Monitor.",
+                                 "allowed_hosts": [host]}, indent=2), encoding="utf-8")
+    campos = base / "campos_aprobados.json"
+    campos.write_text(json.dumps(m["campos"], indent=2), encoding="utf-8")
+    env = env_forms(forms, perfiles)
+    env["CAUCE_ALLOWED_HOSTS_FILE"] = str(hosts)
+    r = subprocess.run([str(py), "-m", "cauce_form_connector", "aprobar-perfil", "--url", m["url"], "--authorized",
+                        "--perfil", m["perfil"], "--formulario-id", m["formulario_id"],
+                        "--aprobado-por", aprobado_por, "--campos", str(campos)],
+                       cwd=str(forms), env=env, capture_output=True, text=True, timeout=180)
+    if r.returncode != 0:
+        raise FormsNoListo(f"Forms no pudo aprobar el perfil externo (código {r.returncode}): {r.stderr.strip()[-400:]}")
+    out = json.loads(r.stdout)
+    pin = {"version": 1, "externo": True, "formulario_id": m["formulario_id"], "perfil": out["perfil"],
+           "modo": m["modo"], "url": m["url"], "perfil_sha256": out["perfil_sha256"],
+           "firma_estructura_esperada": out["firma_estructura_esperada"], "campos": sorted(m["campos"]),
+           "equivalencias": m.get("equivalencias") or {}, "autorizacion": m["autorizacion"],
+           "allowed_hosts_file": str(hosts), "aprobado_por": aprobado_por,
+           "aprobado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "perfil_externo_sha256": hashlib.sha256(Path(ruta_perfil).read_bytes()).hexdigest(),
+           "profiles_dir": str(perfiles), "state_dir": str(estado), "forms_dir": str(forms), "forms_commit": commit_de(forms)}
+    destino = base / "perfil_aprobado.json"
+    destino.write_text(json.dumps(pin, indent=2, ensure_ascii=False), encoding="utf-8")
+    return destino
+
+
+def variables_motor(forms: Path, pin: Path, python: Path | None = None, host_externo: str | None = None) -> dict:
+    """`host_externo`: lo escribe quien abre el laboratorio (segunda llave); nunca se toma del perfil."""
+    v = {"MONITOREO_AUTORRELLENO_LAB": "1", "MONITOREO_AUTORRELLENO_PERFIL": str(pin),
+         "MONITOREO_FORMS_DIR": str(forms), "MONITOREO_FORMS_PYTHON": str(python or python_de(forms))}
+    if host_externo:
+        v["MONITOREO_AUTORRELLENO_HOSTS_EXTERNOS"] = host_externo.strip().lower()
+    return v
 
 
 TEXTOS = (".log", ".json", ".jsonl", ".txt", ".csv", ".html", ".md")

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Sitio externo SIMULADO · solicitud (ficticio)</title></head>
+<body>
+<main>
+  <h1>Sitio externo simulado (pruebas de Cauce)</h1>
+  <p>Formulario de PRUEBA servido en 127.0.0.2: hace de sitio externo autorizado. Sus claves y sus códigos de
+    opción NO son los de Monitor (hacen falta tablas de equivalencias). No envía nada.</p>
+  <form id="solicitud" action="#hecho" method="post">
+    <label for="tipo">Tipo de trámite</label>
+    <select id="tipo" name="tipo" required>
+      <option value="">Seleccione…</option>
+      <option value="T-ALTA">Alta</option>
+      <option value="T-RENO">Renovación</option>
+      <option value="T-CONS">Constancia</option>
+    </select>
+    <label for="nacimiento">Fecha de nacimiento</label>
+    <input id="nacimiento" name="nacimiento" type="date" required>
+    <label for="tel">Teléfono</label>
+    <input id="tel" name="tel" type="tel" required pattern="\d{10}" maxlength="10">
+    <label for="email">Correo</label>
+    <input id="email" name="email" type="email" required>
+    <label for="email2">Confirme su correo</label>
+    <input id="email2" name="email2" type="email" required data-confirm="email">
+    <label for="curp">CURP</label>
+    <input id="curp" name="curp" type="text" maxlength="18">
+    <label><input type="checkbox" id="acepto" name="acepto" required> Acepto el aviso de privacidad</label>
+    <button type="submit">Enviar solicitud</button>
+  </form>
+</main>
+<script>document.getElementById('solicitud').addEventListener('submit', function (e) { e.preventDefault(); });</script>
+</body>
+</html>
