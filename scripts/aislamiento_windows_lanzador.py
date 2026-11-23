@@ -174,7 +174,13 @@ def main() -> int:
         servidor.bind(("127.0.0.1", 0))
         servidor.listen(8)
         puerto = servidor.getsockname()[1]
-        threading.Thread(target=lambda: [servidor.accept()[0].close() for _ in range(8)], daemon=True).start()
+        def aceptar():
+            try:
+                for _ in range(8):
+                    servidor.accept()[0].close()
+            except OSError:          # el socket se cierra al terminar la prueba
+                pass
+        threading.Thread(target=aceptar, daemon=True).start()
         env = entorno_hijo(raiz)
         cwd = str(raiz / "conector" / "trabajo")
         sonda = str(raiz / "conector" / "codigo" / "aislamiento_sonda.py")
@@ -242,17 +248,26 @@ def main() -> int:
                     "LOCALAPPDATA": env["TEMP"], "APPDATA": env["TEMP"], "USERPROFILE": env["TEMP"]}
             if (fd / ".pw-browsers").is_dir():
                 envf["PLAYWRIGHT_BROWSERS_PATH"] = str(fd / ".pw-browsers")
+            imp = lz().lanzar([str(py), "-c", "import cauce_form_connector, playwright; print('IMPORT_OK')"], cwd=str(fd),
+                              env=envf, plazo_s=120)
             r = lz().lanzar([str(py), "-m", "cauce_form_connector", "preparar"], entrada="{}", cwd=str(fd), env=envf,
                             plazo_s=120)
             try:
                 resp = json.loads(r.stdout)
             except ValueError:
                 resp = None
-            res["A11"] = {"estado_proceso": r.estado, "codigo": r.codigo_salida,
+            res["A11"] = {"importa_forms_y_playwright": imp.stdout.strip() == "IMPORT_OK", "estado_proceso": r.estado,
+                          "codigo": r.codigo_salida,
                           "respuesta_estado": (resp or {}).get("estado"), "stderr_final": r.stderr[-600:],
                           "procesos_de_la_cuenta": esperar_sin_procesos(CUENTA)}
-            if not isinstance(resp, dict) or not resp.get("estado"):
-                res["fallos"].append("A11: el Forms real no devolvió una respuesta JSON con estado")
+            # Una solicitud vacía es inválida: Forms debe terminar por sí mismo con su código 6 («solicitud inválida»,
+            # tabla del conector) o con una respuesta JSON; un fallo de Python (no puede leer su código o su intérprete)
+            # da 1 con traza en stderr. El recorrido completo con el portal de laboratorio se hace en la fase F2.
+            if not res["A11"]["importa_forms_y_playwright"]:
+                res["fallos"].append("A11: Forms o Playwright no se pueden importar como la cuenta restringida")
+            if r.estado != "TERMINO" or not (r.codigo_salida == 6 or (isinstance(resp, dict) and resp.get("estado"))) \
+                    or "Traceback" in r.stderr:
+                res["fallos"].append(f"A11: el Forms real no respondió como se esperaba (código {r.codigo_salida})")
         res["veredicto"] = "AISLAMIENTO_DEMOSTRADO_EN_ESTE_ENTORNO" if not res["fallos"] else "FALLA"
     except Exception as e:  # noqa: BLE001
         res["fallos"].append(f"{type(e).__name__}: {e}")
