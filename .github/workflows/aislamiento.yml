@@ -1,0 +1,56 @@
+# Prueba de aislamiento de Forms en Windows con el lanzador de Monitor (cuenta restringida + ACL NTFS + Firewall).
+# Corre SOLO en runners efímeros de GitHub: crea y borra una cuenta local de un solo uso, con datos FICTICIOS.
+# Su veredicto dice si la técnica funciona en ese runner; NO demuestra nada sobre la MSI ni sobre una instalación real.
+# No activa aislamiento.puede_lanzar() (sigue en False).
+name: Aislamiento Forms Windows
+
+on:
+  push:
+    branches: ["claude/project-thread-4lnq8h"]
+  pull_request:
+    paths:
+      - "monitoreo/autorrelleno/lanzador_restringido.py"
+      - "scripts/aislamiento_*"
+      - ".github/workflows/aislamiento.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lanzador-restringido:
+    name: Aislamiento con el lanzador · ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dass-666/CAUCE-UNIVERSAL-CONEXION
+          ref: aa1bb0295b32c17ba0435490678adf1ee54c55a0
+          path: conector-universal
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install psutil
+      - name: Forms real en su propio entorno virtual (para A11)
+        shell: pwsh
+        run: |
+          python -m venv conector-universal\.venv
+          conector-universal\.venv\Scripts\python -m pip install -q -r conector-universal\requirements-dev.txt
+      - name: Prueba de aislamiento (A1-A11) como cuenta restringida
+        shell: pwsh
+        env:
+          CAUCE_AISLAMIENTO_EFIMERO: "1"
+        run: python scripts/aislamiento_windows_lanzador.py --salida aislamiento_lanzador.json --forms-dir conector-universal
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aislamiento-lanzador-py${{ matrix.python }}
+          path: aislamiento_lanzador.json
+          if-no-files-found: warn
