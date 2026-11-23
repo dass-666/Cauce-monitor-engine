@@ -18,7 +18,9 @@ carpeta = Path(sys.argv[1])
 modo = sys.argv[2] if len(sys.argv) > 2 else "ok"
 demora = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
 carpeta.mkdir(parents=True, exist_ok=True)
-(carpeta / "pid").write_text(str(os.getpid()))
+_tmp = carpeta / "pid.tmp"                     # escritura atómica: quien lea «pid» nunca lo ve vacío
+_tmp.write_text(str(os.getpid()))
+os.replace(_tmp, carpeta / "pid")
 texto = sys.stdin.read()
 (carpeta / "solicitud.json").write_text(texto, encoding="utf-8")
 (carpeta / "entorno.json").write_text(json.dumps(sorted(os.environ)), encoding="utf-8")
