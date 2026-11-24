@@ -13,6 +13,16 @@ if not exist .venv\Scripts\python.exe (
 )
 set "FORMS=%~1"
 if "%FORMS%"=="" set "FORMS=%~dp0..\cauce-forms"
+.venv\Scripts\python.exe scripts\preparar_navegador.py --comprobar >nul 2>nul
+if errorlevel 1 (
+  echo Falta el navegador del observador: se instala en .browsers y node_modules de esta carpeta ^(requiere Internet^).
+  .venv\Scripts\python.exe scripts\preparar_navegador.py
+  if errorlevel 1 (
+    echo No se pudo preparar el navegador. Revisa el mensaje de arriba.
+    pause
+    exit /b 1
+  )
+)
 .venv\Scripts\python.exe scripts\recorrido_coincidencia_forms.py --forms "%FORMS%" --interfaz %2
 echo.
 echo Envia resultados\recorrido_coincidencia_forms\recorrido_coincidencia_forms.json

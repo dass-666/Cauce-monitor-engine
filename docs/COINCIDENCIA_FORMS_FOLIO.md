@@ -77,6 +77,7 @@ cd cauce-forms; git checkout ff117da
 python -m venv .venv; .venv\Scripts\pip install -r requirements-dev.txt
 $env:PLAYWRIGHT_BROWSERS_PATH="$PWD\.pw-browsers"; .venv\Scripts\python -m playwright install chromium; cd ..
 cd monitor; powershell -ExecutionPolicy Bypass -File .\instalar.ps1
+.venv\Scripts\python.exe scripts\preparar_navegador.py   # Playwright de Node + Chromium del observador, dentro de la carpeta
 C:\cauce-coincidencia\monitor\recorrido_coincidencia_forms.bat C:\cauce-coincidencia\cauce-forms --con-ventana
 ```
 
