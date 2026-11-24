@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from urllib.parse import urlsplit
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -46,7 +47,7 @@ from ..captura.asistida import normalizar_folio
 from ..captura.formularios import contrato as ct
 from ..db import Database
 from ..engine import assignment as asg
-from ..models import Assignment, Expediente, PlanElemento, Reservacion
+from ..models import Assignment, Expediente, ObservacionEvento, ObservadorConfig, PlanElemento, Reservacion
 from ..planificador import operacion as op
 from ..planificador import plan as pl
 
@@ -89,6 +90,49 @@ def operacion_viva(s, exp_id: int, operator_id: int | None) -> dict | None:
             "sucursal": el.sucursal_asignada, "tramite": el.tramite}
 
 
+# ---------------------------------------------------------------- de qué sitio vino el día
+# Un día visto en el sitio A solo puede llevarse al formulario del MISMO sitio A: Monitor no mezcla el calendario de
+# un proveedor con el formulario de otro. El origen es el observador cuyo evento produjo la coincidencia.
+_LOCALES = ("127.0.0.1", "localhost")
+
+
+def _sitio(url: str | None) -> str | None:
+    h = (urlsplit(url).hostname or "").lower() if url else ""
+    return None if not h else ("laboratorio-local" if h in _LOCALES else h)
+
+
+def origen(s, elemento_id: int) -> dict | None:
+    """El observador (y su sitio) cuyo evento asignó este elemento del plan; None si no hay evento."""
+    ev = s.scalar(select(ObservacionEvento).where(ObservacionEvento.plan_elemento_id == elemento_id)
+                  .order_by(ObservacionEvento.id.desc()))
+    if ev is None:
+        return None
+    if ev.observador.startswith("web-"):
+        from ..planificador import fuentes_web as fw
+        c = s.get(ObservadorConfig, fw.PREFIJO + ev.observador[len("web-"):])
+        url = c.url if c is not None else None
+    else:                                    # el observador del calendario mira el portal configurado
+        url = portal.url()
+    return {"observador": ev.observador, "evento_id": ev.id, "sitio": _sitio(url)}
+
+
+def exigir_mismo_sitio(s, coin: dict, url_formulario: str, externo: bool) -> tuple[bool, str, str]:
+    """(ok, código, mensaje). Con un formulario externo el día tiene que venir de ese mismo sitio; con el del
+    laboratorio, de un sitio del laboratorio (o de un evento sin observador registrado, como antes)."""
+    o = origen(s, coin["elemento_id"])
+    destino = _sitio(url_formulario)
+    if o is None:
+        if externo:
+            return False, "ORIGEN_DESCONOCIDO", ("No consta qué sitio publicó este día: no se lleva a un formulario "
+                                                 "externo. Espera a que el observador de ese sitio lo vea.")
+        return True, "", ""
+    if o["sitio"] != destino:
+        return False, "SITIO_DISTINTO", (f"El día se vio en {o['sitio'] or 'un sitio sin dirección'} y el formulario "
+                                         f"aprobado es de {destino}: Monitor no mezcla el calendario de un sitio con "
+                                         "el formulario de otro. No se autorrellena.")
+    return True, "", ""
+
+
 def campos_de(coin: dict, declarados) -> dict:
     """Lo que viaja a Forms de la coincidencia: solo lo que el perfil aprobado declara."""
     out = {}
@@ -118,7 +162,7 @@ def vista(s, exp_id: int, operator_id: int | None) -> dict | None:
     f = (res.evidencia or {}).get("forms") or None
     return {**coin, "estado_plan": pl.PREPARADO, "estado_reservacion": res.estado, "folio": None,
             "lista_para_confirmacion": bool(f and f.get("resultado") == LISTA), "confirmada": False, "forms": f,
-            "verificable": ADAPTADOR_POR_CONTRATO.get(res.contrato) is not None}
+            "verificable": ADAPTADOR_POR_CONTRATO.get(res.contrato) is not None and not (f or {}).get("externo")}
 
 
 # ---------------------------------------------------------------- reintentos controlados
@@ -182,6 +226,7 @@ def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detal
              "envio_por_conector": bool(detalle.get("envio_por_conector")),
              "envio_humano_observado": bool(detalle.get("envio_humano_observado")),
              "fecha_coincidencia": coin["fecha"], "sucursal_coincidencia": coin["sucursal"],
+             "externo": bool(coin.get("externo")), "sitio": coin.get("sitio"),
              "terminado_en": now.isoformat() + "Z"}
     with db.session() as s:
         res = s.get(Reservacion, coin["reservacion_id"])
@@ -230,7 +275,8 @@ def verificar_folio(db: Database, user, res_id: int, folio: str, folio_confirmac
         if forms.get("resultado") != LISTA:
             raise ErrorFolio(409, "FORMS_NO_PREPARO", "Forms no dejó el formulario rellenado y verificado para esta "
                              "operación: vuelve a autorrellenar o usa el flujo de siempre.")
-        nombre_ad = ADAPTADOR_POR_CONTRATO.get(res.contrato)
+        # un formulario externo no se comprueba con el adaptador del laboratorio (sería preguntar a otro proveedor)
+        nombre_ad = None if forms.get("externo") else ADAPTADOR_POR_CONTRATO.get(res.contrato)
         if nombre_ad is None:
             raise ErrorFolio(409, "SIN_VERIFICACION_AUTORIZADA", "Este portal no tiene una vía autorizada para comprobar "
                              "folios: registra la cita con la confirmación asistida (quedará como declarada por ti).")

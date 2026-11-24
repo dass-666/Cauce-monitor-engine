@@ -264,6 +264,32 @@ def main() -> int:
         check("4 · reservación sigue PREPARADA, sin folio", res_ and res_["estado_reservacion"] == "PREPARADA"
               and not res_["folio"] and res_["lista_para_confirmacion"], res_)
 
+        def reservaciones_del_expediente():
+            return [x for x in adm.get("/api/reservaciones").json() if x.get("expediente_id") == exp_id]
+        if a.interfaz:
+            # 4 bis. reintento desde el botón, con motivo obligatorio: misma reservación, ninguna nueva
+            antes = reservaciones_del_expediente()
+            interfaz("reintento", {"atencion": at2["id"], "fecha": fecha, "sucursal": "NOR-1", "espera_s": a.espera_s})
+            esperar(lambda: (lambda c: c if c and not c["en_curso"] else None)(
+                op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["corrida"]), a.espera_s + 180, 0.5)
+            despues = reservaciones_del_expediente()
+            k2 = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["coincidencia"] or {}
+            res["reintento"] = {"reservaciones_antes": [x["id"] for x in antes], "reservaciones_despues": [x["id"] for x in despues],
+                                "reintentos": k2.get("reintentos"), "reservacion": k2.get("reservacion_id")}
+            check("4 bis · el reintento usó la MISMA reservación (no se duplicó) y quedó registrado con su motivo",
+                  [x["id"] for x in antes] == [x["id"] for x in despues] == [rid] and k2.get("reservacion_id") == rid
+                  and k2.get("reintentos") == 1 and k2.get("lista_para_confirmacion"), res["reintento"])
+        # nada aparece como cita confirmada sin folio oficial validado
+        exp = adm.get(f"/api/expedientes/{exp_id}").json()
+        k3 = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["coincidencia"] or {}
+        plan_estado = next((e["estado"] for p in adm.get("/api/planes").json()["planes"]
+                            for e in adm.get(f"/api/planes/{p['id']}").json()["elementos"] if e["expediente_id"] == exp_id), None)
+        res["antes_del_folio"] = {"expediente": exp.get("estado"), "reservacion": k3.get("estado_reservacion"),
+                                  "confirmada": k3.get("confirmada"), "folio": k3.get("folio"), "plan": plan_estado}
+        check("4 · sin folio validado, nada aparece como cita confirmada (expediente, reservación, tarjeta y plan)",
+              exp.get("estado") != "RESERVACION_CONFIRMADA" and not exp.get("folio") and k3.get("estado_reservacion") == "PREPARADA"
+              and not k3.get("confirmada") and not k3.get("folio") and plan_estado != "CONFIRMADO", res["antes_del_folio"])
+
         # 5. la persona (SIMULADA) confirma en el portal de laboratorio
         folio = persona_confirma(d["portal"], persona, fecha, "NOR-1")
         check("5 · el portal de laboratorio mostró un folio a la persona", bool(folio), folio)

@@ -358,7 +358,7 @@ function folioVerificado(k, a) {
       refresh(true, true);
     } catch (err) { errs.textContent = err.message; boton.disabled = false; }
   } }, "Registrar folio");
-  if (!k.verificable) return h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este portal no permite comprobar folios: registra la cita con la confirmación asistida.");
+  if (!k.verificable) return h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este sitio no tiene una vía autorizada para comprobar folios: Cauce no marcará la cita como confirmada desde aquí. Hace falta una vía de verificación autorizada por ese sitio.");
   return h("div", { class: "section", id: "folio-forms-caja" },
     h("h3", {}, "Registrar folio"),
     h("p", { class: "muted" }, `Con la persona, en la ventana del portal: teclea los campos manuales, elige el ${k.fecha} en ${k.sucursal} y confirma. Después escribe aquí el folio dos veces: Monitor lo comprueba con el portal antes de marcar la cita.`),

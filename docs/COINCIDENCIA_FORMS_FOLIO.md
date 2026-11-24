@@ -93,3 +93,17 @@ Después, a mano con `autorrelleno_laboratorio.bat` (Ventanilla): dejar a una pe
 un día en «Calendario del laboratorio», preparar la coincidencia, autorrellenar, completar en la ventana de Forms
 (clave AAA000000, aviso, día de la coincidencia, «Continuar»), y teclear el folio en la tarjeta: debe quedar
 «Cita CONFIRMADA (folio comprobado con el portal)».
+
+## Mismo sitio para el día y el formulario (2026-11-24)
+
+- El día de una coincidencia solo se lleva al formulario **del mismo sitio** que lo publicó. El origen es el
+  observador cuyo evento asignó el elemento del plan (`coincidencia.origen`): fuente web → host de su URL;
+  observador del calendario → portal configurado. Con un perfil externo, origen distinto o desconocido →
+  `SITIO_DISTINTO` / `ORIGEN_DESCONOCIDO` y a Forms no llega nada. En el laboratorio, 127.0.0.1 y localhost cuentan
+  como el mismo sitio.
+- Con un formulario externo, la reservación anota `forms.externo` y `forms.sitio`; el folio **no** se comprueba con
+  el adaptador del laboratorio (`SIN_VERIFICACION_AUTORIZADA`) y nada queda confirmado. Para confirmar citas de un
+  sitio real hace falta un adaptador de verificación autorizado por ese sitio.
+- Recorrido en navegador (`--interfaz`, observador web, Forms real ff117da): **45/45**, con reintento desde el botón
+  (motivo obligatorio, misma reservación, un reintento menos) y comprobación de que sin folio validado nada aparece
+  como cita confirmada. Pruebas: `test_autorrelleno_coincidencia.py` + externo + forms, 61 (SQLite y PostgreSQL).

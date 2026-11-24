@@ -53,7 +53,7 @@ def _atencion(lab, h, **body):
     return r.json()
 
 
-def preparar_coincidencia(lab, h, op="op1"):
+def preparar_coincidencia(lab, h, op="op1", observador="obs-prueba"):
     """Del alta en Ventanilla a la operación preparada desde una coincidencia, como en el recorrido v2.3."""
     r = lab.c.post("/api/planes", headers=lab.h, json={"fecha_jornada": zona.hoy(utcnow()).isoformat(), "capacidad": 6})
     assert r.status_code in (201, 409), r.text
@@ -71,7 +71,7 @@ def preparar_coincidencia(lab, h, op="op1"):
     lab.portal.ctl("POST", "/control/dias/habilitar", sucursal="NOR-1", tramite=tram, fecha=fecha, capacidad=1)
     ev = observaciones.registrar(lab.db, {"tipo": "CELDA", "estrategia": "dom", "fecha": fecha, "estado": "DISPONIBLE",
                                           "ts_ms": utcnow().timestamp() * 1000, "libres": 1},
-                                 {"observador": "obs-prueba", "sucursal": "NOR-1", "tramite": tram}, utcnow())
+                                 {"observador": observador, "sucursal": "NOR-1", "tramite": tram}, utcnow())
     out = coincidencias.atender(lab.db, ev[0]["id"], utcnow())
     assert out["asignado"], out
     elid = out["elemento_id"]
@@ -291,3 +291,48 @@ def test_folio_sin_adaptador_de_verificacion_va_a_confirmacion_asistida(lab):
         s.get(Reservacion, k["rid"]).contrato = "portal_sin_api"
     r = folio(lab, h, k["rid"], "DIA-20991231-99999Z")
     assert r.status_code == 409 and r.json()["detail"]["codigo"] == "SIN_VERIFICACION_AUTORIZADA", r.text
+
+
+# ================================================================ el día y el formulario tienen que ser del MISMO sitio
+def _fuente_web(lab, nombre, url):
+    """Una fuente web ya configurada (como la deja «Páginas observadas»); aquí basta su URL."""
+    from monitoreo.models import ObservadorConfig
+    from monitoreo.planificador import fuentes_web as fw
+    with lab.db.session() as s:
+        s.add(ObservadorConfig(clave=fw.PREFIJO + nombre, sucursal="NOR-1", tramite="*", url=url, activo=False,
+                               estado="DETENIDO", perfil={}, autorizacion={}))
+
+
+def test_dia_del_laboratorio_no_va_al_formulario_externo_de_otro_sitio(lab, monkeypatch):
+    from .test_autorrelleno_externo import _pin_externo
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)                     # el día lo vio el observador del portal de laboratorio
+    monkeypatch.setenv("MONITOREO_AUTORRELLENO_PERFIL", str(_pin_externo(lab.tmp)))
+    monkeypatch.setenv(ad.VARIABLE_HOSTS, "127.0.0.2")
+    r = pulsar(lab, k["aid"], h)
+    assert r.status_code == 409 and "SITIO_DISTINTO" in r.text, r.text
+    assert not (lab.espia / "solicitud.json").exists()   # a Forms no llegó nada
+    st = lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h).json()
+    assert not st["disponible"] and st.get("codigo") == "SITIO_DISTINTO", st
+
+
+def test_dia_visto_en_el_sitio_externo_llega_a_su_formulario_y_el_folio_no_se_da_por_verificado(lab, monkeypatch):
+    from .test_autorrelleno_externo import _pin_externo
+    h = lab.ops["op1"]
+    _fuente_web(lab, "sitio-autorizado", "https://127.0.0.2/turnos")
+    k = preparar_coincidencia(lab, h, observador="web-sitio-autorizado")
+    monkeypatch.setenv("MONITOREO_AUTORRELLENO_PERFIL", str(_pin_externo(lab.tmp)))
+    monkeypatch.setenv(ad.VARIABLE_HOSTS, "127.0.0.2")
+    r = pulsar(lab, k["aid"], h)
+    assert r.status_code == 202, r.text
+    fin = esperar(lab, k["aid"], h)
+    assert fin["resultado_operacion"] == cz.LISTA, fin
+    kk = lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h).json()["coincidencia"]
+    assert kk["lista_para_confirmacion"] and kk["verificable"] is False and kk["forms"]["sitio"] == "127.0.0.2", kk
+    # el folio de un sitio externo NO se comprueba con el adaptador del laboratorio y nada queda confirmado
+    r = folio(lab, h, k["rid"], "DIA-20991231-99999Z")
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "SIN_VERIFICACION_AUTORIZADA", r.text
+    with lab.db.session() as s:
+        assert s.get(Reservacion, k["rid"]).estado == "PREPARADA"
+        assert s.get(PlanElemento, k["elid"]).estado == "OPERACION_PREPARADA"
+        assert s.get(Expediente, k["exp_id"]).estado != "RESERVACION_CONFIRMADA"

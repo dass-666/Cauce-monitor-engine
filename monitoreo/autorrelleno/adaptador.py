@@ -379,6 +379,11 @@ def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config, reintento:
             ok, codigo, mensaje = cz.reintento_permitido(cz.forms_de(s, coin), reintento)
             if not ok:
                 raise Negado(codigo, mensaje)
+            externo = cfg.perfil.get("externo") is True
+            ok, codigo, mensaje = cz.exigir_mismo_sitio(s, coin, cfg.perfil["url"], externo)
+            if not ok:
+                raise Negado(codigo, mensaje)
+            coin = {**coin, "externo": externo, "sitio": cz._sitio(cfg.perfil["url"])}
             valores.update(cz.campos_de(coin, declarados))
         ctx = Contexto(a.id, exp.id, exp.codigo, c.id, c.codigo, c.vigente_hasta, valores, sin_dato,
                        [m.etiqueta for m in contrato.manuales],

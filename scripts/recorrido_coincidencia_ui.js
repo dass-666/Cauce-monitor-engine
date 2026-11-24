@@ -2,6 +2,8 @@
 // Lo lanza scripts/recorrido_coincidencia_forms.py --interfaz en dos fases (datos FICTICIOS, 127.0.0.1):
 //   autorrellenar: el operador retoma la atención, ve la coincidencia («todavía no es una cita»), pulsa
 //                  «Autorrellenar formulario» y espera a que la tarjeta diga LISTA PARA CONFIRMACIÓN SUPERVISADA.
+//   reintento:     con la operación LISTA, abre «¿Hay que volver a abrir el formulario?»: sin motivo el botón no
+//                  funciona; elige un motivo, vuelve a abrir Forms y la tarjeta vuelve a LISTA con un reintento menos.
 //   folio:         (la persona ya confirmó en el portal) el operador teclea un folio inexistente -> error visible y
 //                  nada cambia; después el folio correcto dos veces -> la tarjeta muestra la cita CONFIRMADA.
 // Uso: node scripts/recorrido_coincidencia_ui.js <fase> <motor> <capturas> <entrada.json>
@@ -85,6 +87,28 @@ fs.mkdirSync(outDir, { recursive: true });
         && (await O.getAttribute("#autorrelleno-coincidencia", "data-confirmada")) === "no", res.resultado);
       res.ajustes = await tarjetaLista();
       paso("4_ajustes_aprobados_en_la_tarjeta", Object.entries(res.ajustes).every(([k, v]) => k === "estado_real" || v), res.ajustes);
+    } else if (fase === "reintento") {
+      await O.waitForSelector("#autorrelleno-coincidencia[data-lista=si]", { timeout: 15000 }); await O.waitForSelector("#reintento-forms", { timeout: 15000 });
+      const quedanAntes = Number(await O.getAttribute("#reintento-forms", "data-quedan"));
+      await O.click("#reintento-forms summary");
+      const sinMotivo = await O.$eval("#btn-reintentar-forms", (b) => b.disabled);
+      res.reintento = { quedan_antes: quedanAntes, sin_motivo_desactivado: sinMotivo };
+      paso("1_sin_motivo_no_se_puede_reintentar", sinMotivo && quedanAntes === 2
+        && await O.$eval("#btn-autorrellenar", (b) => b.disabled), res.reintento);
+      await O.selectOption("#reintento-motivo", "VENTANA_CERRADA");
+      paso("2_con_motivo_se_habilita", !(await O.$eval("#btn-reintentar-forms", (b) => b.disabled)), null);
+      await shot("1_reintento_con_motivo");
+      await O.click("#btn-reintentar-forms");
+      await O.waitForSelector("#autorrelleno-resultado[data-estado=LANZADA]", { timeout: 15000 });
+      paso("3_forms_vuelve_a_abrirse", true, null);
+      // durante el reintento la operación sigue LISTA en el servidor (el anterior no se pierde): lo que marca el final
+      // es que la tarjeta deja de estar en curso y vuelve a ofrecer folio y reintento
+      await O.waitForSelector("#reintento-forms", { timeout: (E.espera_s + 180) * 1000 });
+      res.reintento.quedan_despues = Number(await O.getAttribute("#reintento-forms", "data-quedan"));
+      res.reintento.tras = await tarjetaLista();
+      await shot("2_tras_reintento_lista_otra_vez");
+      paso("4_vuelve_a_lista_con_un_reintento_menos_y_sin_confirmar", res.reintento.quedan_despues === 1
+        && Object.entries(res.reintento.tras).every(([k, v]) => k === "estado_real" || v), res.reintento);
     } else if (fase === "folio") {
       // al volver a abrir la atención (otra sesión del navegador) se mantiene igual
       res.ajustes_al_volver = await tarjetaLista();
