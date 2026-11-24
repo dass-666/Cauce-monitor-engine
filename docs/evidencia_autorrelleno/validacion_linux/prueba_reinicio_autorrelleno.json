@@ -1,0 +1,72 @@
+{
+  "prueba": "reinicio_monitor_con_forms_abierto",
+  "plataforma": "Linux-6.18.44-fc-v726-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-22T23:23:18",
+  "datos": "ficticios; portal de laboratorio propio en 127.0.0.1",
+  "comprobaciones": [
+    {
+      "comprobacion": "antes de empezar no hay procesos de Forms",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "A_parada_ordenada · Forms y Chromium abiertos (≥2 procesos)",
+      "ok": true,
+      "detalle": 5
+    },
+    {
+      "comprobacion": "A_parada_ordenada · Monitor se detuvo de forma ordenada",
+      "ok": true,
+      "detalle": "ordenada"
+    },
+    {
+      "comprobacion": "A_parada_ordenada · 0 procesos de Forms/Chromium tras detener Monitor",
+      "ok": true,
+      "detalle": {
+        "antes": 5,
+        "despues": []
+      }
+    },
+    {
+      "comprobacion": "A_parada_ordenada · Monitor vuelve a arrancar y responde",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "A_parada_ordenada · tras reiniciar no figura ninguna corrida en curso",
+      "ok": true,
+      "detalle": "{\"habilitado\":true,\"disponible\":true,\"codigo\":\"\",\"motivo\":\"\",\"corrida\":null}"
+    },
+    {
+      "comprobacion": "B_muerte_forzada · Forms y Chromium abiertos (≥2 procesos)",
+      "ok": true,
+      "detalle": 5
+    },
+    {
+      "comprobacion": "B_muerte_forzada · 0 procesos de Forms/Chromium tras detener Monitor",
+      "ok": true,
+      "detalle": {
+        "antes": 5,
+        "despues": []
+      }
+    },
+    {
+      "comprobacion": "B_muerte_forzada · Monitor vuelve a arrancar y responde",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "B_muerte_forzada · tras reiniciar no figura ninguna corrida en curso",
+      "ok": true,
+      "detalle": "{\"habilitado\":true,\"disponible\":true,\"codigo\":\"\",\"motivo\":\"\",\"corrida\":null}"
+    },
+    {
+      "comprobacion": "final · tras reiniciar, un autorrellenado nuevo arranca y se detiene sin restos",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "ok": true,
+  "fin": "2026-11-22T23:23:47"
+}

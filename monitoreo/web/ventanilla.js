@@ -237,7 +237,171 @@ async function pantallaAtencion(aid) {
   // v2.3: sin operación con el portal todavía, la persona puede quedarse en el plan del día
   const alPlan = !conf && (!viva || viva.estado === "PREPARADA") && ["preparar", "enviar"].includes(a.siguiente.clave)
     && (!a.consentimiento || !a.consentimiento.exigido || a.consentimiento.vigente) ? tarjetaAlPlan(a) : null;
-  return h("div", {}, cab, barraConsentimiento(a), flujo, alPlan, cierre(a, !!conf, viva), hist);
+  const auto = !conf && labOn() ? await tarjetaAutorrelleno(a) : null;
+  const vista = h("div", {}, cab, barraConsentimiento(a), auto, flujo, alPlan, cierre(a, !!conf, viva), hist);
+  if (auto && auto.dataset.vinculada === "si") {
+    ocultarFlujoAnterior(flujo, true);
+    setTimeout(() => ocultarFlujoAnterior(document.getElementById("flujo"), true), 0);   // cabecera ya montada
+  }
+  return vista;
+}
+
+// Cuando la operación del plan ya va por Forms, el flujo anterior («Revisión de campos» + «Enviar datos al portal»)
+// se oculta para no ofrecer dos caminos a la misma cita. Solo es visual: su API sigue igual (compatibilidad).
+function ocultarFlujoAnterior(flujo, vinculada) {
+  if (!flujo) return;
+  flujo.hidden = vinculada;
+  flujo.style.display = vinculada ? "none" : "";
+  flujo.dataset.oculto = vinculada ? "forms" : "";
+  // el «Siguiente» de la cabecera hablaría del flujo oculto («marca He revisado y envía»): se adapta
+  const sig = document.getElementById("siguiente-paso");
+  if (sig && vinculada && ["preparar", "enviar"].includes(sig.dataset.siguiente)) {
+    if (!sig.dataset.textoOriginal) sig.dataset.textoOriginal = sig.textContent;
+    sig.textContent = "Siguiente: con la persona, confirma en el portal el día de la coincidencia y registra el folio.";
+  } else if (sig && !vinculada && sig.dataset.textoOriginal) {
+    sig.textContent = sig.dataset.textoOriginal;
+    delete sig.dataset.textoOriginal;
+  }
+}
+
+// Etiquetas visuales del resultado de Forms. El estado real (data-estado) no cambia.
+const ETIQUETA_FORMS = { CADUCADA: "Tiempo de revisión agotado" };
+const CODIGO_FORMS = { revision_caducada: "tiempo de revisión agotado" };
+
+// ---------------------------------------------------------------- laboratorio · autorrellenado con Forms
+// El botón solo aparece si el motor lo tiene habilitado (MONITOREO_AUTORRELLENO_LAB=1 y Forms instalado).
+// El servidor decide con sus reglas (consentimiento, región, estado): la pantalla solo muestra el motivo.
+async function tarjetaAutorrelleno(a) {
+  let st;
+  try { st = await api(`/api/autorrelleno/atenciones/${a.id}`); } catch (_) { return null; }
+  if (!st || !st.habilitado) return null;
+  const caja = h("div", { class: "card section", id: "autorrelleno", "data-disponible": st.disponible ? "si" : "no",
+    "data-codigo": st.codigo || "" });
+  const pintar = (est, corrida) => {
+    const c = corrida || est.corrida;
+    const enCurso = !!(c && c.en_curso);
+    const k = est.coincidencia;
+    // la operación del plan queda «vinculada» a Forms en cuanto se lanzó el autorrellenado con ella
+    const vinculada = !!(k && !k.confirmada && (k.forms || (c && c.coincidencia)));
+    const lista = !!(k && k.lista_para_confirmacion);
+    caja.dataset.vinculada = vinculada ? "si" : "no";
+    ocultarFlujoAnterior(document.getElementById("flujo"), vinculada);
+    const errs = h("div", { class: "error", role: "alert", id: "autorrelleno-error" });
+    const lanzar = async (cuerpo, btn) => {
+      btn.disabled = true; errs.textContent = "";
+      try {
+        const r = await api(`/api/autorrelleno/atenciones/${a.id}`, { method: "POST", body: cuerpo || {} });
+        pintar({ ...est, coincidencia: k ? { ...k, lista_para_confirmacion: false } : k }, r); seguir();
+      } catch (err) { errs.textContent = err.message; caja.dataset.codigo = (err.detalle && err.detalle.codigo) || ""; btn.disabled = false; }
+    };
+    // con la operación LISTA el botón se desactiva: lo siguiente es registrar el folio
+    const boton = h("button", { class: "btn " + (lista ? "" : "primary"), id: "btn-autorrellenar",
+      disabled: (!est.disponible || enCurso || lista) || null, title: lista ? "Forms ya dejó lista esta operación" : null,
+      onclick: () => lanzar(null, boton) }, lista ? "Autorrellenado completo" : "Autorrellenar formulario");
+    const motivoVisible = !est.disponible && est.motivo && !(lista && est.codigo === "OPERACION_YA_LISTA");
+    caja.dataset.estado = c ? c.estado : "";
+    caja.replaceChildren(...[      // replaceChildren escribiría «null» como texto: se filtran los vacíos
+      h("h2", {}, "Autorrellenar formulario (Forms · laboratorio)"),
+      est.externo ? h("p", { class: "warn", id: "autorrelleno-externo" }, `Formulario EXTERNO autorizado: ${est.sitio}. `,
+        "Solo datos ficticios en este laboratorio. Los códigos se traducen con la tabla aprobada; lo que no tenga fila lo completas tú.") : null,
+      h("p", { class: "muted" }, est.externo ? "Abre el formulario del sitio externo en una ventana del navegador y Forms lo rellena con "
+        : "Abre el formulario del portal de laboratorio en una ventana del navegador y Forms lo rellena con ",
+        "los datos de este expediente. Forms no envía nada: tú revisas, tecleas los campos manuales y decides. ",
+        "Solo viajan los campos que pide el formulario; el nombre y los campos manuales no."),
+      k ? coincidenciaForms(k) : null,
+      motivoVisible ? h("p", { class: "error", id: "autorrelleno-motivo" }, est.motivo) : null,
+      vinculada && !lista && !enCurso ? h("p", { class: "muted", id: "flujo-anterior-oculto" },
+        "Esta operación va por Forms: el envío de datos por el flujo anterior queda oculto.") : null,
+      h("div", { class: "actions" }, boton), errs,
+      c ? resumenAutorrelleno(c) : null,
+      lista && !enCurso ? folioVerificado(k, a) : null,
+      lista && !enCurso ? reintentoForms(k, lanzar) : null].filter((x) => x));
+  };
+  let timer = null;
+  const seguir = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (!document.body.contains(caja)) return;
+      try {
+        const est = await api(`/api/autorrelleno/atenciones/${a.id}`);
+        pintar(est);
+        if (est.corrida && est.corrida.en_curso) seguir();
+      } catch (_) { /* se reintenta al refrescar la pantalla */ }
+    }, 2000);
+  };
+  pintar(st);
+  if (st.corrida && st.corrida.en_curso) seguir();
+  return caja;
+}
+
+// Eslabón coincidencia -> Forms -> folio: la coincidencia del plan viaja con el autorrellenado y el folio que la
+// persona obtuvo en el portal se COMPRUEBA con el portal antes de marcar la cita (nada se confirma solo).
+function coincidenciaForms(k) {
+  const estado = k.confirmada ? "Cita CONFIRMADA (folio comprobado con el portal)"
+    : k.lista_para_confirmacion ? "Lista para confirmación supervisada: todavía NO es una cita"
+      : "Coincidencia preparada: se entregará a Forms al autorrellenar";
+  return h("div", { id: "autorrelleno-coincidencia", "data-lista": k.lista_para_confirmacion ? "si" : "no",
+    "data-confirmada": k.confirmada ? "si" : "no" },
+    h("p", {}, h("b", {}, "Coincidencia del plan: "), `${k.fecha} en ${k.sucursal}. `, h("span", { class: "badge " + (k.confirmada ? "b-ok" : "b-warn") }, estado)),
+    k.folio ? h("p", {}, "Folio: ", h("b", { id: "autorrelleno-folio" }, k.folio)) : null);
+}
+
+function folioVerificado(k, a) {
+  const f1 = h("input", { id: "folio-forms", autocomplete: "off", placeholder: "Folio que muestra el portal" });
+  const f2 = h("input", { id: "folio-forms-2", autocomplete: "off", placeholder: "Vuelve a teclearlo" });
+  const errs = h("div", { class: "error", role: "alert", id: "folio-forms-error" });
+  const boton = h("button", { class: "btn primary", id: "btn-folio-forms", onclick: async () => {
+    boton.disabled = true; errs.textContent = "";
+    try {
+      await api(`/api/autorrelleno/reservaciones/${k.reservacion_id}/folio`, { method: "POST", body: { folio: f1.value, folio_confirmacion: f2.value } });
+      toast("Folio comprobado con el portal: cita confirmada", 4000);
+      refresh(true, true);
+    } catch (err) { errs.textContent = err.message; boton.disabled = false; }
+  } }, "Registrar folio");
+  if (!k.verificable) return h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este sitio no tiene una vía autorizada para comprobar folios: Cauce no marcará la cita como confirmada desde aquí. Hace falta una vía de verificación autorizada por ese sitio.");
+  return h("div", { class: "section", id: "folio-forms-caja" },
+    h("h3", {}, "Registrar folio"),
+    h("p", { class: "muted" }, `Con la persona, en la ventana del portal: teclea los campos manuales, elige el ${k.fecha} en ${k.sucursal} y confirma. Después escribe aquí el folio dos veces: Monitor lo comprueba con el portal antes de marcar la cita.`),
+    h("label", { for: "folio-forms" }, "Folio"), f1, h("label", { for: "folio-forms-2" }, "Confirma el folio"), f2,
+    h("div", { class: "actions" }, boton), errs);
+}
+
+// Volver a abrir el formulario de una operación ya LISTA: solo con motivo y con límite (lo aplica el servidor).
+// Reutiliza la misma operación; no crea otra.
+function reintentoForms(k, lanzar) {
+  const motivos = k.motivos_reintento || {};
+  const quedan = Math.max(0, (k.max_reintentos || 0) - (k.reintentos || 0));
+  if (!Object.keys(motivos).length) return null;
+  const sel = h("select", { id: "reintento-motivo" }, h("option", { value: "" }, "Elige el motivo…"),
+    Object.entries(motivos).map(([c, t]) => h("option", { value: c }, t)));
+  const btn = h("button", { class: "btn", id: "btn-reintentar-forms", disabled: true,
+    onclick: () => lanzar({ reintento: sel.value }, btn) }, "Volver a abrir el formulario");
+  sel.onchange = () => { btn.disabled = !sel.value || quedan === 0; };
+  return h("details", { class: "section", id: "reintento-forms", "data-quedan": quedan },
+    h("summary", {}, "¿Hay que volver a abrir el formulario?"),
+    h("p", { class: "muted" }, quedan ? `Solo si la persona no pudo confirmar con el formulario anterior. Usa la misma operación (no crea otra). Quedan ${quedan} reintento${quedan === 1 ? "" : "s"}.`
+      : "Ya no quedan reintentos: registra el folio o termina la atención sin cita."),
+    h("div", { class: "actions" }, sel, btn));
+}
+
+function resumenAutorrelleno(c) {
+  const i = c.informe;
+  const filas = i ? [
+    ...i.campos.map((x) => h("li", { "data-campo": x.campo, class: x.correcto ? "" : "error" },
+      `${x.correcto ? "✓" : "✗"} ${x.etiqueta}: ${x.correcto ? "escrito y verificado" : x.estado}`)),
+    ...i.confirmaciones.map((x) => h("li", { "data-confirmacion": x.campo, class: x.coinciden ? "" : "error" },
+      `${x.coinciden ? "✓" : "✗"} ${x.etiqueta}: ${x.coinciden ? "coincide" : "NO coincide"}`)),
+    ...i.sin_dato.map((x) => h("li", { class: "muted" }, `— ${x.etiqueta}: el expediente no lo trae; complétalo tú`)),
+    ...(i.sin_equivalencia || []).map((x) => h("li", { class: "muted", "data-sin-equivalencia": x.campo },
+      `— ${x.etiqueta}: el código no está en la tabla aprobada; elígelo tú en el formulario`)),
+    ...i.manuales.map((x) => h("li", { class: "muted" }, `— ${x}: captura manual del operador`)),
+  ] : [];
+  return h("div", { id: "autorrelleno-resultado", "data-estado": c.estado },
+    h("p", {}, ETIQUETA_FORMS[c.estado] ? h("span", { class: "badge b-warn", "data-estado-real": c.estado }, ETIQUETA_FORMS[c.estado]) : badge(c.estado),
+      " ", c.mensaje, c.en_curso ? "" : ` (${CODIGO_FORMS[c.codigo] || ETIQUETA_FORMS[c.estado] || c.codigo || c.estado})`),
+    filas.length ? h("ul", { class: "lista-autorrelleno" }, filas) : null,
+    c.diagnostico && c.diagnostico.length ? h("p", { class: "muted", id: "autorrelleno-diagnostico" }, `Diagnóstico de Forms: ${c.diagnostico.join(" · ")}`) : null,
+    i ? h("p", { class: "muted" }, `Envío por Forms: ${i.envio_realizado_por_conector ? "SÍ" : "no"} · consentimiento ${c.consentimiento}`) : null);
 }
 
 const ESPERA_EXP = ["NUEVO", "INCOMPLETO", "EN_VALIDACION", "REQUIERE_REVISION"];   // no quedan a cargo del operador

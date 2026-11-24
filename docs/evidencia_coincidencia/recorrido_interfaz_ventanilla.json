@@ -1,0 +1,941 @@
+{
+  "recorrido": "coincidencia_forms_folio_laboratorio",
+  "interfaz": {
+    "autorrellenar": {
+      "fase": "autorrellenar",
+      "pasos": [
+        {
+          "paso": "1_coincidencia_visible_no_es_cita",
+          "ok": true,
+          "detalle": {
+            "fecha": true,
+            "sucursal": true
+          }
+        },
+        {
+          "paso": "1b_antes_de_forms_el_flujo_anterior_sigue_disponible",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "2_forms_lanzado_desde_la_tarjeta",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "2b_vinculada_a_forms_el_flujo_anterior_se_oculta",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "3_lista_para_confirmacion_en_pantalla",
+          "ok": true,
+          "detalle": {
+            "estado": "CADUCADA",
+            "campos_ok": 8,
+            "campos": 8,
+            "texto_lista": true,
+            "caja_folio": true,
+            "sin_null": true
+          }
+        },
+        {
+          "paso": "4_ajustes_aprobados_en_la_tarjeta",
+          "ok": true,
+          "detalle": {
+            "flujo_anterior_oculto": true,
+            "etiqueta_ok": true,
+            "estado_real": "CADUCADA",
+            "autorrellenar_desactivado": true,
+            "registrar_folio": true,
+            "reintento_controlado": true,
+            "no_dice_confirmada": true,
+            "siguiente_habla_del_folio": true
+          }
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": [],
+      "coincidencia_visible": {
+        "fecha": true,
+        "sucursal": true
+      },
+      "resultado": {
+        "estado": "CADUCADA",
+        "campos_ok": 8,
+        "campos": 8,
+        "texto_lista": true,
+        "caja_folio": true,
+        "sin_null": true
+      },
+      "ajustes": {
+        "flujo_anterior_oculto": true,
+        "etiqueta_ok": true,
+        "estado_real": "CADUCADA",
+        "autorrellenar_desactivado": true,
+        "registrar_folio": true,
+        "reintento_controlado": true,
+        "no_dice_confirmada": true,
+        "siguiente_habla_del_folio": true
+      }
+    },
+    "reintento": {
+      "fase": "reintento",
+      "pasos": [
+        {
+          "paso": "1_sin_motivo_no_se_puede_reintentar",
+          "ok": true,
+          "detalle": {
+            "quedan_antes": 2,
+            "sin_motivo_desactivado": true,
+            "quedan_despues": 1,
+            "tras": {
+              "flujo_anterior_oculto": true,
+              "etiqueta_ok": true,
+              "estado_real": "CADUCADA",
+              "autorrellenar_desactivado": true,
+              "registrar_folio": true,
+              "reintento_controlado": true,
+              "no_dice_confirmada": true,
+              "siguiente_habla_del_folio": true
+            }
+          }
+        },
+        {
+          "paso": "2_con_motivo_se_habilita",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "3_forms_vuelve_a_abrirse",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "4_vuelve_a_lista_con_un_reintento_menos_y_sin_confirmar",
+          "ok": true,
+          "detalle": {
+            "quedan_antes": 2,
+            "sin_motivo_desactivado": true,
+            "quedan_despues": 1,
+            "tras": {
+              "flujo_anterior_oculto": true,
+              "etiqueta_ok": true,
+              "estado_real": "CADUCADA",
+              "autorrellenar_desactivado": true,
+              "registrar_folio": true,
+              "reintento_controlado": true,
+              "no_dice_confirmada": true,
+              "siguiente_habla_del_folio": true
+            }
+          }
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": [],
+      "coincidencia_visible": {
+        "fecha": true,
+        "sucursal": true
+      },
+      "reintento": {
+        "quedan_antes": 2,
+        "sin_motivo_desactivado": true,
+        "quedan_despues": 1,
+        "tras": {
+          "flujo_anterior_oculto": true,
+          "etiqueta_ok": true,
+          "estado_real": "CADUCADA",
+          "autorrellenar_desactivado": true,
+          "registrar_folio": true,
+          "reintento_controlado": true,
+          "no_dice_confirmada": true,
+          "siguiente_habla_del_folio": true
+        }
+      }
+    },
+    "folio": {
+      "fase": "folio",
+      "pasos": [
+        {
+          "paso": "0_al_volver_la_tarjeta_sigue_igual",
+          "ok": true,
+          "detalle": {
+            "flujo_anterior_oculto": true,
+            "etiqueta_ok": true,
+            "estado_real": "CADUCADA",
+            "autorrellenar_desactivado": true,
+            "registrar_folio": true,
+            "reintento_controlado": true,
+            "no_dice_confirmada": true,
+            "siguiente_habla_del_folio": true
+          }
+        },
+        {
+          "paso": "1_folio_inexistente_muestra_error_y_no_confirma",
+          "ok": true,
+          "detalle": {
+            "error": true
+          }
+        },
+        {
+          "paso": "2_folio_correcto_confirma_en_pantalla",
+          "ok": true,
+          "detalle": {
+            "tarjeta": false,
+            "seccion_confirmada": true,
+            "folio_visible": true,
+            "verificada_con_portal": true,
+            "caja_folio_retirada": true
+          }
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": [
+        "409 POST /api/autorrelleno/reservaciones/1/folio"
+      ],
+      "coincidencia_visible": {
+        "fecha": true,
+        "sucursal": true
+      },
+      "ajustes_al_volver": {
+        "flujo_anterior_oculto": true,
+        "etiqueta_ok": true,
+        "estado_real": "CADUCADA",
+        "autorrellenar_desactivado": true,
+        "registrar_folio": true,
+        "reintento_controlado": true,
+        "no_dice_confirmada": true,
+        "siguiente_habla_del_folio": true
+      },
+      "error_folio_falso": true,
+      "confirmada": {
+        "tarjeta": false,
+        "seccion_confirmada": true,
+        "folio_visible": true,
+        "verificada_con_portal": true,
+        "caja_folio_retirada": true
+      }
+    }
+  },
+  "plataforma": "Linux-6.18.44-fc-v819-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-24T20:30:50",
+  "datos": "FICTICIOS; portal de laboratorio propio en 127.0.0.1; la persona del paso 5 es SIMULADA",
+  "forms": {
+    "commit": "ff117da",
+    "perfil_sha256": "ddb7f4d4abeb2d8b7c7e13a6a63f2020e9f0dc28b79dfd1f242dd6159802e22d",
+    "url": "http://127.0.0.1:37185/cita"
+  },
+  "coincidencia_esperada": {
+    "fecha": "2026-12-17",
+    "sucursal": "NOR-1",
+    "tramite": "constancia"
+  },
+  "observador": "web",
+  "forms_resultado": {
+    "estado": "CADUCADA",
+    "codigo": "revision_caducada",
+    "resultado_operacion": "LISTA_PARA_CONFIRMACION",
+    "mensaje": "Operación preparada para CONFIRMACIÓN SUPERVISADA (todavía no es una cita): Forms rellenó y verificó el formulario para la coincidencia del 2026-12-17 en NOR-1. Con la persona, elige ese día en el portal, confirma y registra aquí el folio: Monitor lo comprobará con el portal."
+  },
+  "reintento": {
+    "reservaciones_antes": [
+      1
+    ],
+    "reservaciones_despues": [
+      1
+    ],
+    "reintentos": 1,
+    "reservacion": 1
+  },
+  "antes_del_folio": {
+    "expediente": "CAPTURA_EN_PROCESO",
+    "reservacion": "PREPARADA",
+    "confirmada": false,
+    "folio": null,
+    "plan": "OPERACION_PREPARADA"
+  },
+  "folio_portal": "DIA-20261217-00001R",
+  "evidencia_confirmacion": {
+    "fuente": "PORTAL_API_FOLIO",
+    "verificada_con_proveedor": true,
+    "comprobado": {
+      "estado_confirmada": true,
+      "folio": true,
+      "fecha": true,
+      "sucursal": true,
+      "titular": true,
+      "tramite": true
+    },
+    "estado_portal": "CONFIRMADA",
+    "fecha_portal": "2026-12-17",
+    "sucursal_portal": "NOR-1"
+  },
+  "linea_de_tiempo": [
+    "CREADO",
+    "ESTADO",
+    "CONSENTIMIENTO_REGISTRADO",
+    "ESTADO",
+    "ESTADO",
+    "SOLICITUD_CREADA",
+    "ESTADO",
+    "TOMADO_EN_VENTANILLA",
+    "ATENCION_INICIADA",
+    "CONSENTIMIENTO_OTORGADO",
+    "SOLICITUD_ELEGIBLE",
+    "SOLICITUD_EN_VENTANILLA",
+    "ESTADO",
+    "PLAN_AGREGADO",
+    "ATENCION_CERRADA",
+    "SOLICITUD_ELEGIBLE",
+    "SOLICITUD_EN_PLAN",
+    "PLAN_COINCIDENCIA",
+    "ESTADO",
+    "TOMADO_EN_VENTANILLA",
+    "ESTADO",
+    "FORMULARIO_PREPARADO",
+    "PLAN_OPERACION_PREPARADA",
+    "SOLICITUD_EN_VENTANILLA",
+    "ATENCION_INICIADA",
+    "FORMULARIO_PREPARADO",
+    "AUTORRELLENO_SOLICITADO",
+    "COINCIDENCIA_ENTREGADA_A_FORMS",
+    "AUTORRELLENO_TERMINADO",
+    "OPERACION_LISTA_CONFIRMACION",
+    "FORMULARIO_PREPARADO",
+    "AUTORRELLENO_SOLICITADO",
+    "AUTORRELLENO_REINTENTO",
+    "COINCIDENCIA_ENTREGADA_A_FORMS",
+    "AUTORRELLENO_TERMINADO",
+    "OPERACION_LISTA_CONFIRMACION",
+    "FORMULARIO_PREPARADO",
+    "FOLIO_RECHAZADO",
+    "RESERVACION_CONFIRMADA",
+    "ESTADO"
+  ],
+  "evento_observado": {
+    "detectado_en": "2026-11-24T20:31:00.097000Z",
+    "registrado_en": "2026-11-24T20:31:00.793564Z",
+    "observador": "web-calendario-lab",
+    "sucursal": "NOR-1",
+    "fecha": "2026-12-17",
+    "estado": "DISPONIBLE",
+    "evidencia": {
+      "sha256": "6e2549ca497426e884aea6abc740ece0e161c2b1ddf4b5448567c12094f125a7",
+      "imagen_sha256": "44520f0f607ce8c4f8a9b1e65a484c5887727c17571558f1d0e2af98ab9d77bf",
+      "url": "http://127.0.0.1:37185/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12"
+    }
+  },
+  "tiempos": {
+    "habilitar_a_coincidencia_s": 1.1,
+    "forms_s": 40.04
+  },
+  "comprobaciones": [
+    {
+      "comprobacion": "1 · plan del día creado",
+      "ok": true,
+      "detalle": "{\"id\":1,\"fecha_jornada\":\"2026-11-24\",\"estado\":\"ABIERTO\",\"capacidad\":6,\"vivos\":0,\"creado_por\":\"admin\",\"elementos\":[]}"
+    },
+    {
+      "comprobacion": "1 · expediente ficticio con consentimiento registrado en Ventanilla",
+      "ok": true,
+      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"EN_PROCESO\",\"estado_nombre\":\"En proceso\",\"resultado\":null,\"folio\":null,\"abierta\":true,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciada_en\":\"2026-11-24T20:30:54.921"
+    },
+    {
+      "comprobacion": "1 · la persona queda en el plan del día con sus fechas aceptables",
+      "ok": true,
+      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"SIN_DISPONIBILIDAD\",\"estado_nombre\":\"Sin disponibilidad\",\"resultado\":\"EN_PLAN_DEL_DIA\",\"folio\":null,\"abierta\":false,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciad"
+    },
+    {
+      "comprobacion": "2 · vista previa del perfil: la página se lee sin código del portal",
+      "ok": true,
+      "detalle": "{\"fuente\":\"calendario-lab\",\"url\":\"http://127.0.0.1:37185/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12\",\"dias\":[{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-01\",\"estado\":\"DISPONIBLE\",\"libres\":2,\"horas\":[]},{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-02\",\"estado\":\"DISPONIBLE\",\"libres\":1,\"horas\":"
+    },
+    {
+      "comprobacion": "2 · el motor lanzó el OBSERVADOR UNIVERSAL (fuente por URL + perfil)",
+      "ok": true,
+      "detalle": "{\"clave\":\"web|calendario-lab\",\"sucursal\":\"NOR-1\",\"tramite\":\"constancia\",\"mes\":null,\"estrategia\":\"ambas\",\"intervalo_visual_ms\":1000,\"activo\":true,\"estado\":\"ACTIVO\",\"motivo\":\"\",\"titular\":null,\"reinicios\":0,\"creado_por\":\"admin\",\"actualizado\":\"2026-11-24T20:30:55.744010Z\",\"nombre\":\"calendario-lab\",\"url\""
+    },
+    {
+      "comprobacion": "2 · calendario abierto y ACTIVO",
+      "ok": true,
+      "detalle": {
+        "configurados": [
+          {
+            "clave": "web|calendario-lab",
+            "sucursal": "NOR-1",
+            "tramite": "constancia",
+            "mes": null,
+            "estrategia": "ambas",
+            "intervalo_visual_ms": 1000,
+            "activo": true,
+            "estado": "ACTIVO",
+            "motivo": "",
+            "titular": "vm:3533:2f3fa9",
+            "reinicios": 0,
+            "creado_por": "admin",
+            "actualizado": "2026-11-24T20:30:55.746550Z"
+          }
+        ],
+        "proceso": {
+          "proceso": "vm:3533:2f3fa9",
+          "ultimo_error": null,
+          "observadores": [
+            {
+              "nombre": "web-calendario-lab",
+              "url": "http://127.0.0.1:37185/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+              "fuente_web": true,
+              "estrategia": "ambas",
+              "vivo": true,
+              "pendientes": 0,
+              "fallo": null,
+              "ultimo_error": null,
+              "errores": [],
+              "stderr_node": [],
+              "lineas": 3,
+              "eventos": 8,
+              "reinicios_navegador": 0,
+              "reaperturas_sesion": 0,
+              "errores_bd": 0,
+              "ultimo_latido": null,
+              "vista": {
+                "dom": "ACTIVA"
+              },
+              "coincidencias": 0,
+              "arranques": 1,
+              "reinicios_por_vigilancia": 0,
+              "errores_navegador": 0,
+              "fuera_de_fuente": 0
+            }
+          ]
+        },
+        "observadores": [
+          {
+            "nombre": "web-calendario-lab",
+            "url": "http://127.0.0.1:37185/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "fuente_web": true,
+            "estrategia": "ambas",
+            "vivo": true,
+            "pendientes": 0,
+            "fallo": null,
+            "ultimo_error": null,
+            "errores": [],
+            "stderr_node": [],
+            "lineas": 3,
+            "eventos": 8,
+            "reinicios_navegador": 0,
+            "reaperturas_sesion": 0,
+            "errores_bd": 0,
+            "ultimo_latido": null,
+            "vista": {
+              "dom": "ACTIVA"
+            },
+            "coincidencias": 0,
+            "arranques": 1,
+            "reinicios_por_vigilancia": 0,
+            "errores_navegador": 0,
+            "fuera_de_fuente": 0
+          }
+        ]
+      }
+    },
+    {
+      "comprobacion": "2 · sin día disponible en sus fechas: el expediente sigue EN ESPERA",
+      "ok": true,
+      "detalle": [
+        "EN_ESPERA"
+      ]
+    },
+    {
+      "comprobacion": "3 · el observador vio el día y el motor asignó la coincidencia al expediente",
+      "ok": true,
+      "detalle": {
+        "id": 1,
+        "plan_id": 1,
+        "expediente_id": 1,
+        "codigo": "EXP-000001",
+        "estado": "ASIGNADO",
+        "prioridad": 3,
+        "tramite": "constancia",
+        "sucursales": [
+          "NOR-1",
+          "NOR-2"
+        ],
+        "fechas_aceptables": [
+          "2026-12-16",
+          "2026-12-17",
+          "2026-12-18"
+        ],
+        "orden": 1,
+        "evento_id": 9,
+        "fecha_asignada": "2026-12-17",
+        "sucursal_asignada": "NOR-1",
+        "reservacion_id": null,
+        "explicacion": {
+          "evento": 9,
+          "tipo_evento": "DIA_DISPONIBLE",
+          "dia": {
+            "fecha": "2026-12-17",
+            "sucursal": "NOR-1",
+            "tramite": "constancia"
+          },
+          "jornada": "2026-11-24",
+          "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
+          "atendido_en": "2026-11-24T20:31:00.797115Z",
+          "unidades": {
+            "libres_vistas": 1,
+            "con_las_que_se_cuenta": 1,
+            "comprometidas": 0,
+            "cupo": 1,
+            "comprometidas_ids": []
+          },
+          "elegidos": [
+            {
+              "elemento_id": 1,
+              "codigo": "EXP-000001",
+              "prioridad": 3,
+              "orden": 1
+            }
+          ],
+          "elegido": {
+            "elemento_id": 1,
+            "codigo": "EXP-000001",
+            "prioridad": 3,
+            "orden": 1
+          },
+          "compatibles_en_espera": [],
+          "descartados": [],
+          "por_que": "1 de 1 unidad(es) con cupo: EXP-000001 (prioridad 3, alta n.º 1); 0 compatible(s) más quedan en espera"
+        },
+        "version": 2
+      }
+    },
+    {
+      "comprobacion": "3 · una coincidencia detectada NO es una cita (sin folio, sin reservación confirmada)",
+      "ok": true,
+      "detalle": "LISTO"
+    },
+    {
+      "comprobacion": "4 · el operador preparó la operación",
+      "ok": true,
+      "detalle": "{\"elemento\":{\"id\":1,\"plan_id\":1,\"expediente_id\":1,\"codigo\":null,\"estado\":\"OPERACION_PREPARADA\",\"prioridad\":3,\"tramite\":\"constancia\",\"sucursales\":[\"NOR-1\",\"NOR-2\"],\"fechas_aceptables\":[\"2026-12-16\",\"20"
+    },
+    {
+      "comprobacion": "4 · Ventanilla muestra la coincidencia y el botón disponible",
+      "ok": true,
+      "detalle": {
+        "habilitado": true,
+        "disponible": true,
+        "codigo": "",
+        "motivo": "",
+        "corrida": null,
+        "externo": false,
+        "sitio": "",
+        "coincidencia": {
+          "elemento_id": 1,
+          "reservacion_id": 1,
+          "fecha": "2026-12-17",
+          "sucursal": "NOR-1",
+          "tramite": "constancia",
+          "estado_plan": "OPERACION_PREPARADA",
+          "estado_reservacion": "PREPARADA",
+          "folio": null,
+          "lista_para_confirmacion": false,
+          "confirmada": false,
+          "forms": null,
+          "verificable": true
+        }
+      }
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 1_coincidencia_visible_no_es_cita",
+      "ok": true,
+      "detalle": {
+        "fecha": true,
+        "sucursal": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 1b_antes_de_forms_el_flujo_anterior_sigue_disponible",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 2_forms_lanzado_desde_la_tarjeta",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 2b_vinculada_a_forms_el_flujo_anterior_se_oculta",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 3_lista_para_confirmacion_en_pantalla",
+      "ok": true,
+      "detalle": {
+        "estado": "CADUCADA",
+        "campos_ok": 8,
+        "campos": 8,
+        "texto_lista": true,
+        "caja_folio": true,
+        "sin_null": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · 4_ajustes_aprobados_en_la_tarjeta",
+      "ok": true,
+      "detalle": {
+        "flujo_anterior_oculto": true,
+        "etiqueta_ok": true,
+        "estado_real": "CADUCADA",
+        "autorrellenar_desactivado": true,
+        "registrar_folio": true,
+        "reintento_controlado": true,
+        "no_dice_confirmada": true,
+        "siguiente_habla_del_folio": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · autorrellenar: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "4 · Forms rellenó y verificó 8 campos y 2 confirmaciones sin enviar",
+      "ok": true,
+      "detalle": {
+        "estado": "CADUCADA",
+        "codigo": "revision_caducada",
+        "resultado_operacion": "LISTA_PARA_CONFIRMACION",
+        "mensaje": "Operación preparada para CONFIRMACIÓN SUPERVISADA (todavía no es una cita): Forms rellenó y verificó el formulario para la coincidencia del 2026-12-17 en NOR-1. Con la persona, elige ese día en el portal, confirma y registra aquí el folio: Monitor lo comprobará con el portal."
+      }
+    },
+    {
+      "comprobacion": "4 · la operación queda LISTA PARA CONFIRMACIÓN SUPERVISADA (no es cita)",
+      "ok": true,
+      "detalle": {
+        "estado": "CADUCADA",
+        "codigo": "revision_caducada",
+        "resultado_operacion": "LISTA_PARA_CONFIRMACION",
+        "mensaje": "Operación preparada para CONFIRMACIÓN SUPERVISADA (todavía no es una cita): Forms rellenó y verificó el formulario para la coincidencia del 2026-12-17 en NOR-1. Con la persona, elige ese día en el portal, confirma y registra aquí el folio: Monitor lo comprobará con el portal."
+      }
+    },
+    {
+      "comprobacion": "4 · reservación sigue PREPARADA, sin folio",
+      "ok": true,
+      "detalle": {
+        "elemento_id": 1,
+        "reservacion_id": 1,
+        "fecha": "2026-12-17",
+        "sucursal": "NOR-1",
+        "tramite": "constancia",
+        "estado_plan": "OPERACION_PREPARADA",
+        "estado_reservacion": "PREPARADA",
+        "folio": null,
+        "lista_para_confirmacion": true,
+        "confirmada": false,
+        "forms": {
+          "resultado": "LISTA_PARA_CONFIRMACION",
+          "solicitud_id": "sol_b155dca92d1efde4d0a6a60c",
+          "estado": "CADUCADA",
+          "codigo": "revision_caducada",
+          "campos_correctos": 8,
+          "campos_total": 8,
+          "confirmaciones_coinciden": 2,
+          "envio_por_conector": false,
+          "envio_humano_observado": false,
+          "fecha_coincidencia": "2026-12-17",
+          "sucursal_coincidencia": "NOR-1",
+          "externo": false,
+          "sitio": "laboratorio-local",
+          "terminado_en": "2026-11-24T20:31:39.122511Z"
+        },
+        "verificable": true,
+        "reintentos": 0,
+        "max_reintentos": 2,
+        "motivos_reintento": {
+          "VENTANA_CERRADA": "La ventana del formulario se cerró antes de que la persona confirmara",
+          "TIEMPO_AGOTADO": "Se agotó el tiempo de revisión antes de que la persona confirmara",
+          "DATO_CORREGIDO": "Se corrigió un dato del expediente y hay que rellenar de nuevo"
+        }
+      }
+    },
+    {
+      "comprobacion": "interfaz · reintento · 1_sin_motivo_no_se_puede_reintentar",
+      "ok": true,
+      "detalle": {
+        "quedan_antes": 2,
+        "sin_motivo_desactivado": true,
+        "quedan_despues": 1,
+        "tras": {
+          "flujo_anterior_oculto": true,
+          "etiqueta_ok": true,
+          "estado_real": "CADUCADA",
+          "autorrellenar_desactivado": true,
+          "registrar_folio": true,
+          "reintento_controlado": true,
+          "no_dice_confirmada": true,
+          "siguiente_habla_del_folio": true
+        }
+      }
+    },
+    {
+      "comprobacion": "interfaz · reintento · 2_con_motivo_se_habilita",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · reintento · 3_forms_vuelve_a_abrirse",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · reintento · 4_vuelve_a_lista_con_un_reintento_menos_y_sin_confirmar",
+      "ok": true,
+      "detalle": {
+        "quedan_antes": 2,
+        "sin_motivo_desactivado": true,
+        "quedan_despues": 1,
+        "tras": {
+          "flujo_anterior_oculto": true,
+          "etiqueta_ok": true,
+          "estado_real": "CADUCADA",
+          "autorrellenar_desactivado": true,
+          "registrar_folio": true,
+          "reintento_controlado": true,
+          "no_dice_confirmada": true,
+          "siguiente_habla_del_folio": true
+        }
+      }
+    },
+    {
+      "comprobacion": "interfaz · reintento · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · reintento: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "4 bis · el reintento usó la MISMA reservación (no se duplicó) y quedó registrado con su motivo",
+      "ok": true,
+      "detalle": {
+        "reservaciones_antes": [
+          1
+        ],
+        "reservaciones_despues": [
+          1
+        ],
+        "reintentos": 1,
+        "reservacion": 1
+      }
+    },
+    {
+      "comprobacion": "4 · sin folio validado, nada aparece como cita confirmada (expediente, reservación, tarjeta y plan)",
+      "ok": true,
+      "detalle": {
+        "expediente": "CAPTURA_EN_PROCESO",
+        "reservacion": "PREPARADA",
+        "confirmada": false,
+        "folio": null,
+        "plan": "OPERACION_PREPARADA"
+      }
+    },
+    {
+      "comprobacion": "5 · el portal de laboratorio mostró un folio a la persona",
+      "ok": true,
+      "detalle": "DIA-20261217-00001R"
+    },
+    {
+      "comprobacion": "6 · un folio tecleado distinto las dos veces se rechaza",
+      "ok": true,
+      "detalle": "{\"detail\":{\"mensaje\":\"Teclea el mismo folio dos veces.\",\"codigo\":\"FOLIOS_DISTINTOS\"}}"
+    },
+    {
+      "comprobacion": "interfaz · folio · 0_al_volver_la_tarjeta_sigue_igual",
+      "ok": true,
+      "detalle": {
+        "flujo_anterior_oculto": true,
+        "etiqueta_ok": true,
+        "estado_real": "CADUCADA",
+        "autorrellenar_desactivado": true,
+        "registrar_folio": true,
+        "reintento_controlado": true,
+        "no_dice_confirmada": true,
+        "siguiente_habla_del_folio": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · folio · 1_folio_inexistente_muestra_error_y_no_confirma",
+      "ok": true,
+      "detalle": {
+        "error": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · folio · 2_folio_correcto_confirma_en_pantalla",
+      "ok": true,
+      "detalle": {
+        "tarjeta": false,
+        "seccion_confirmada": true,
+        "folio_visible": true,
+        "verificada_con_portal": true,
+        "caja_folio_retirada": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · folio · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · folio: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "6 · tras los folios tecleados en pantalla, la reservación está CONFIRMADA",
+      "ok": true,
+      "detalle": "CONFIRMADA"
+    },
+    {
+      "comprobacion": "6 · comprobado: estado, folio, titular, trámite, fecha y sucursal",
+      "ok": true,
+      "detalle": {
+        "estado_confirmada": true,
+        "folio": true,
+        "fecha": true,
+        "sucursal": true,
+        "titular": true,
+        "tramite": true
+      }
+    },
+    {
+      "comprobacion": "6 · el plan pasa a CONFIRMADO",
+      "ok": true,
+      "detalle": "CONFIRMADO"
+    },
+    {
+      "comprobacion": "6 · el expediente queda RESERVACION_CONFIRMADA",
+      "ok": true,
+      "detalle": "RESERVACION_CONFIRMADA"
+    },
+    {
+      "comprobacion": "6 · historial en orden: preparada -> entregada a Forms -> lista -> rechazo -> confirmada",
+      "ok": true,
+      "detalle": {
+        "PLAN_OPERACION_PREPARADA": 22,
+        "COINCIDENCIA_ENTREGADA_A_FORMS": 27,
+        "AUTORRELLENO_TERMINADO": 28,
+        "OPERACION_LISTA_CONFIRMACION": 29,
+        "FOLIO_RECHAZADO": 37,
+        "RESERVACION_CONFIRMADA": 38
+      }
+    },
+    {
+      "comprobacion": "6 · el cambio quedó registrado con hora, fuente y evidencia (SHA-256 y captura)",
+      "ok": true,
+      "detalle": [
+        {
+          "id": 9,
+          "tipo": "DIA_DISPONIBLE",
+          "sucursal": "NOR-1",
+          "tramite": "constancia",
+          "fecha": "2026-12-17",
+          "estado_anterior": "AGOTADO",
+          "estado": "DISPONIBLE",
+          "estrategia": "dom",
+          "observador": "web-calendario-lab",
+          "detectado_en": "2026-11-24T20:31:00.097000Z",
+          "registrado_en": "2026-11-24T20:31:00.793564Z",
+          "evidencia": {
+            "html": "<span class=\"dia DISPONIBLE\" data-dia=\"2026-12-17\" data-estado=\"DISPONIBLE\" data-libres=\"1\">17</span>",
+            "sha256": "6e2549ca497426e884aea6abc740ece0e161c2b1ddf4b5448567c12094f125a7",
+            "imagen": "/tmp/coincidencia-forms-7u2rkgbz/lab/datos/evidencia_observador/calendario-lab/cambio-00001.png",
+            "url": "http://127.0.0.1:37185/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "imagen_sha256": "44520f0f607ce8c4f8a9b1e65a484c5887727c17571558f1d0e2af98ab9d77bf",
+            "horas": []
+          },
+          "detecciones": {
+            "dom": "2026-11-24T20:31:00.097000Z"
+          },
+          "consumo": "ASIGNADO",
+          "plan_elemento_id": 1,
+          "explicacion": {
+            "evento": 9,
+            "tipo_evento": "DIA_DISPONIBLE",
+            "dia": {
+              "fecha": "2026-12-17",
+              "sucursal": "NOR-1",
+              "tramite": "constancia"
+            },
+            "jornada": "2026-11-24",
+            "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
+            "atendido_en": "2026-11-24T20:31:00.797115Z",
+            "unidades": {
+              "libres_vistas": 1,
+              "con_las_que_se_cuenta": 1,
+              "comprometidas": 0,
+              "cupo": 1,
+              "comprometidas_ids": []
+            },
+            "elegidos": [
+              {
+                "elemento_id": 1,
+                "codigo": "EXP-000001",
+                "prioridad": 3,
+                "orden": 1
+              }
+            ],
+            "elegido": {
+              "elemento_id": 1,
+              "codigo": "EXP-000001",
+              "prioridad": 3,
+              "orden": 1
+            },
+            "compatibles_en_espera": [],
+            "descartados": [],
+            "por_que": "1 de 1 unidad(es) con cupo: EXP-000001 (prioridad 3, alta n.º 1); 0 compatible(s) más quedan en espera"
+          },
+          "unidades": 1,
+          "unidades_anteriores": null
+        }
+      ]
+    },
+    {
+      "comprobacion": "7 · auditoría e historial sin los datos personales ficticios",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "7 · ningún archivo de texto (motor, portal, Forms, evidencia) contiene los datos ficticios",
+      "ok": true,
+      "detalle": []
+    }
+  ],
+  "ok": true,
+  "fin": "2026-11-24T20:32:22"
+}

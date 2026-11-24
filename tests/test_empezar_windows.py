@@ -58,7 +58,7 @@ def test_menu_agrupado_reparte_todas_las_secciones():
     js = (RAIZ / "monitoreo" / "web" / "app.js").read_text(encoding="utf-8")
     bloque = js[js.index("const VIEWS = {"):js.index("};", js.index("const VIEWS = {"))]
     vistas = re.findall(r'^\s+"?([a-z-]+)"?: \{ t:', bloque, re.M)
-    assert len(vistas) == 17, vistas
+    assert len(vistas) == 18, vistas   # +1: «Páginas observadas» (observador universal)
     principal = re.search(r"const NAV_PRINCIPAL = \[(.*?)\];", js, re.S).group(1)
     grupos = re.findall(r'\["[a-z]+", "[^"]+", \[(.*?)\]\]', js)
     assert len(grupos) == 3, grupos

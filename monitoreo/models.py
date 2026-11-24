@@ -769,6 +769,10 @@ class ObservadorConfig(Base):
     creado_por: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Observador universal (0018): fuente web configurable. NULL = calendario del portal de laboratorio (como antes).
+    url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    perfil: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    autorizacion: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 # ---------------------------------------------------------------- v2.2 · consentimiento

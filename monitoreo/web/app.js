@@ -216,6 +216,7 @@ const VIEWS = {
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
   tramites: { t: "Trámites a mano", f: () => viewTramitesManuales(), lab: true },   // v2.0 · P2: captura manual (ventanilla.js)
   conexiones: { t: "Conexiones", f: () => viewConexiones(), admin: true, lab: true },   // v2.0: gestor de conexiones (ventanilla.js)
+  "fuentes-web": { t: "Páginas observadas", f: () => viewFuentesWeb(), admin: true, flujo: true, noAuto: true },   // observador universal (fuentes.js)
   "laboratorio-calendario": { t: "Calendario lab", f: () => viewCalendarioLab(), admin: true, lab: true },   // v2.3 (ventanilla.js)
   laboratorio: { t: "Laboratorio", f: viewLab, admin: true, lab: true },
   // v2.4: conciliación y desbloqueo tras restaurar (recuperacion.js). Existe también en producción.
@@ -228,7 +229,7 @@ const vistaVisible = (v) => (!v.admin || isAdmin()) && (!v.lab || labOn()) && (!
 // Las de laboratorio («lab») no aparecen en producción porque vistaVisible las filtra antes de agrupar.
 const NAV_PRINCIPAL = ["panel", "importar", "expedientes", "ventanilla", "recuperacion"];
 const NAV_GRUPOS = [
-  ["operacion", "Operación", ["captura", "solicitudes", "alertas", "supervision", "tramites"]],
+  ["operacion", "Operación", ["captura", "solicitudes", "alertas", "supervision", "tramites", "fuentes-web"]],
   ["sistema", "Sistema", ["inicio", "monitor", "salud", "conexiones", "config"]],
   ["laboratorio", "Laboratorio", ["laboratorio-calendario", "laboratorio"]],
 ];

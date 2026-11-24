@@ -1,0 +1,22 @@
+Validación autorrelleno Ventanilla -> Forms · 2026-11-22 23:25:12
+Equipo: Linux-6.18.44-fc-v726-x86_64-with-glibc2.39 · Python 3.13.18
+
+OK    Monitor instalado  (rama claude/project-thread-ksm2qd @ f952a91)
+OK    Forms instalado con su .venv  (/home/claude/forms @ aa1bb02)
+OK    Node.js para el recorrido por la interfaz  (/opt/node22/bin/node)
+OK    1. Pruebas automáticas con Forms real y ventana visible (pytest)  (código 0, 100 s, detalle en 1_pytest.log)
+OK       test_forms_real_rellena_el_formulario_de_laboratorio
+OK       test_forms_real_revocacion_a_mitad_termina_chromium
+OK       test_forms_real_cerrar_la_ventana_a_mano_da_preparado
+OK       test_detener_monitor_con_la_ventana_abierta_termina_forms
+OK       test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano
+OK    2. Recorrido por la interfaz con la ventana de Forms visible  (código 0, 47 s, detalle en 2_recorrido.log)
+OK    3. Reiniciar Monitor con la ventana de Forms abierta (ordenado y forzado)  (código 0, 29 s, detalle en 3_reinicio.log)
+
+RESULTADO: TODO OK
+
+Falta solo una comprobación A MANO (2 minutos):
+  1. Doble clic en autorrelleno_laboratorio.bat; entra como operador1 / Operador-Laboratorio-2026.
+  2. Ventanilla -> Nueva atención -> persona ficticia CON consentimiento -> «Autorrellenar formulario».
+  3. Cuando Forms termine de escribir, cierra TÚ la ventana de Chromium con la X.
+  4. Ventanilla debe decir PREPARADO (no CADUCADA). Anótalo debajo y envía esta carpeta.

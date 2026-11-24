@@ -168,6 +168,72 @@ def detener_observadores(request: Request, user: CurrentUser = Depends(require_a
     return {"detenidos": n}
 
 
+# ------------------------------------------------------------------ observador universal (fuentes web por URL)
+class FuenteWebIn(BaseModel):
+    nombre: str = Field(min_length=2, max_length=41)
+    url: str = Field(min_length=8, max_length=300)
+    tramite: str = Field(min_length=1, max_length=32)
+    sucursal: str | None = Field(default=None, max_length=32)
+    estrategia: str = Field(default="dom", pattern="^(dom|visual|ambas)$")
+    intervalo_visual_ms: int = Field(default=1000, ge=250, le=60_000)
+    perfil: dict
+    autorizacion: dict | None = None
+
+
+def _fuente_invalida(e):
+    raise HTTPException(422, {"mensaje": e.mensaje, "campo": e.campo})
+
+
+@router.get("/fuentes-web")
+def fuentes_web(request: Request, user: CurrentUser = Depends(require_admin), db: Database = Depends(get_db)):
+    from ..planificador import fuentes_web as fw
+    sup = getattr(request.app.state, "supervisor", None)
+    vivos = {o["nombre"]: o for o in (sup.estado()["observadores"] if sup else [])}
+    return {"fuentes": [{**f, "observador": vivos.get("web-" + f["nombre"])} for f in fw.listar(db)]}
+
+
+@router.post("/fuentes-web/probar")
+def probar_fuente_web(body: FuenteWebIn, user: CurrentUser = Depends(require_admin)):
+    """Vista previa: abre la página UNA vez con el perfil y muestra lo que reconocería. No guarda ni asigna nada."""
+    from ..planificador import fuentes_web as fw
+    try:
+        return fw.probar(body.model_dump())
+    except fw.FuenteInvalida as e:
+        _fuente_invalida(e)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)[:200])
+
+
+@router.post("/fuentes-web", status_code=201)
+def crear_fuente_web(body: FuenteWebIn, request: Request, user: CurrentUser = Depends(require_admin),
+                     db: Database = Depends(get_db)):
+    from ..planificador import fuentes_web as fw
+    sup = _sup(request)
+    try:
+        c = fw.configurar(db, body.model_dump(), user.username, utcnow())
+    except fw.FuenteInvalida as e:
+        _fuente_invalida(e)
+    if c["ya_existia"]:
+        raise HTTPException(409, "Ya hay una fuente activa con ese nombre")
+    r = sup.ciclo(utcnow())
+    if c["clave"] in r["fallidos"]:
+        raise HTTPException(503, "no se pudo iniciar el observador de la fuente")
+    o = sup.activos.get(c["clave"])
+    return {**c, "observador": o.estado() if o else None, "en_otro_proceso": c["clave"] in r["de_otro_proceso"]}
+
+
+@router.delete("/fuentes-web/{nombre}")
+def detener_fuente_web(nombre: str, request: Request, user: CurrentUser = Depends(require_admin),
+                       db: Database = Depends(get_db)):
+    from ..planificador import fuentes_web as fw
+    from ..planificador import observador as ob
+    n = ob.desactivar(db, user.username, utcnow(), clave=fw.clave(nombre))
+    sup = getattr(request.app.state, "supervisor", None)
+    if sup is not None:
+        sup.ciclo(utcnow())
+    return {"detenidos": n}
+
+
 # ------------------------------------------------------------------ operación (operador)
 @router.get("/planificador/jornada")
 def jornada(user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):

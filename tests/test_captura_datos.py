@@ -224,7 +224,7 @@ def test_migracion_0006_baja_y_sube_sin_perder_datos_anteriores(tmp_path, monkey
     shutil.copy(Path(__file__).parent / "fixtures" / "bd_v1_4.sqlite", p)
     url = f"sqlite:///{p.as_posix()}"
     rep = migrate.upgrade(url)
-    assert rep.after == migrate.head_revision() == "0017_asistido" and rep.backup     # respaldo antes de migrar
+    assert rep.after == migrate.head_revision() == "0018_fuentes_web" and rep.backup     # respaldo antes de migrar
     d = Database(url)
     with d.session() as s:
         n_req = len(s.scalars(select(Request)).all())

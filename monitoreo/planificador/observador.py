@@ -67,6 +67,7 @@ class Observador:
         self.cfg = {"url": self.url, "estrategia": estrategia, "intervalo_visual_ms": intervalo_visual_ms,
                     "congelado_s": congelado_s, "evidencia_dir": evidencia_dir}
         self.proc: subprocess.Popen | None = None
+        self.script = SCRIPT
         self._stop = threading.Event()
         self._hilo: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -155,7 +156,7 @@ class Observador:
         while not self._stop.is_set():
             self.stats["arranques"] += 1
             self._latido_mono, self._reabrir_pedido = time.monotonic(), None
-            self.proc = subprocess.Popen(["node", str(SCRIPT), self._cfg_file], cwd=ROOT, stdin=subprocess.PIPE,
+            self.proc = subprocess.Popen(["node", str(self.script), self._cfg_file], cwd=ROOT, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                                          errors="replace", bufsize=1, env=navegador.entorno())
             hilo_err = threading.Thread(target=self._leer_stderr, args=(self.proc,), name=f"stderr-{self.nombre}",
@@ -240,6 +241,11 @@ class Observador:
         if tipo in ("INICIAL", "CELDA", "VISTA"):
             self.pendientes.append(obs)
             self._reintentar()
+        if tipo == "VISTA" and obs.get("estado") == "BLOQUEADO_CONTROL":
+            # Observador universal: CAPTCHA, inicio de sesión o 401/403/429. No se reintenta ni se sortea: se detiene.
+            self.stats["vista"][obs.get("estrategia") or "?"] = "BLOQUEADO_CONTROL"
+            self._fallar("control de acceso del sitio: " + sanitizar(obs.get("detalle") or "", 150))
+            return
         if tipo == "VISTA":
             self.stats["vista"][obs.get("estrategia") or "?"] = obs.get("estado")
             if obs.get("estado") == "SESION_CADUCADA" and not self._reabriendo.is_set():
@@ -304,10 +310,41 @@ class Observador:
                     log.warning("coincidencias fallaron: %s", e)
 
     def estado(self) -> dict:
-        return {"nombre": self.nombre, "url": self.url, "estrategia": self.estrategia,
+        return {"nombre": self.nombre, "url": self.url, "fuente_web": isinstance(self, ObservadorWeb), "estrategia": self.estrategia,
                 "vivo": bool(self.proc and self.proc.poll() is None), "pendientes": len(self.pendientes),
                 "fallo": self.fallo, "ultimo_error": self.ultimo_error, "errores": list(self.errores),
                 "stderr_node": list(self.stderr)[-5:], **self.stats}
+
+
+class ObservadorWeb(Observador):
+    """Observador universal: una URL y un perfil de extracción (planificador/fuentes_web.py), con el mismo ciclo de
+    vida, relanzamiento, reapertura, límites y registro que el observador del calendario del laboratorio."""
+
+    def __init__(self, db, c, evidencia_dir: str | None = None, atender: bool = True, jornada=None, **kw):
+        from ..config import settings
+        from . import fuentes_web as fw
+        nombre = c.clave[len(fw.PREFIJO):]
+        # evidencia verificable de cada cambio (captura de la zona con el ruido tapado y su SHA-256)
+        evidencia_dir = evidencia_dir or str(Path(settings.data_dir) / "evidencia_observador" / nombre)
+        super().__init__(db, c.sucursal, c.tramite, None, c.estrategia, c.intervalo_visual_ms,
+                         evidencia_dir=evidencia_dir, nombre=f"web-{nombre}", atender=atender, jornada=jornada, **kw)
+        self.url = c.url
+        self.script = fw.SCRIPT_WEB
+        self.permitidas = fw.sucursales_de(c)
+        self.cfg = {"url": c.url, "perfil": c.perfil, "sucursal": c.sucursal if c.sucursal != "*" else None,
+                    "estrategia": c.estrategia, "intervalo_visual_ms": c.intervalo_visual_ms, "evidencia_dir": evidencia_dir}
+        self.stats["fuera_de_fuente"] = 0
+
+    def _procesar(self, obs: dict) -> None:
+        # Defensa en profundidad: solo se registran sucursales que la fuente declara (tabla de ubicaciones o fija).
+        if obs.get("tipo") == "CELDA" and obs.get("sucursal") not in self.permitidas:
+            self.stats["fuera_de_fuente"] += 1
+            return
+        if obs.get("tipo") == "INICIAL":
+            celdas = [x for x in obs.get("celdas") or [] if x.get("sucursal") in self.permitidas]
+            self.stats["fuera_de_fuente"] += len(obs.get("celdas") or []) - len(celdas)
+            obs = {**obs, "celdas": celdas}
+        super()._procesar(obs)
 
 
 def mantenimiento(db, now) -> dict:
@@ -383,8 +420,8 @@ class Supervisor:
         from ..engine.lease import make_holder_id
         self.db, self.periodo_s = db, periodo_s
         self.holder = holder or make_holder_id()
-        self.fabrica = fabrica or (lambda c: Observador(db, c.sucursal, c.tramite, c.mes, c.estrategia,
-                                                        c.intervalo_visual_ms))
+        self.fabrica = fabrica or (lambda c: ObservadorWeb(db, c) if getattr(c, "url", None) else
+                                   Observador(db, c.sucursal, c.tramite, c.mes, c.estrategia, c.intervalo_visual_ms))
         self.activos: dict[str, Observador] = {}
         self.arriendos: dict = {}
         self._stop = threading.Event()

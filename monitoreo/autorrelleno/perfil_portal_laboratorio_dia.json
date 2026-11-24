@@ -1,0 +1,19 @@
+{
+  "_comentario": "Correspondencia REVISADA (nombre del campo en el contrato de Monitor -> clave del campo que detecta Forms) del formulario de datos del portal de LABORATORIO por día (/cita). Solo campos AUTOMÁTICOS del contrato portal_laboratorio_dia: ni el nombre de la persona, ni clave_identidad, ni acepto_privacidad (son manuales del operador). Cambiarla exige volver a aprobar el perfil.",
+  "version": 1,
+  "formulario_id": "frm_cauce_lab_cita",
+  "perfil": "perfil_cauce_lab_cita",
+  "modo": "POR_DIA",
+  "ruta": "/cita",
+  "campos": {
+    "operacion": "form1::operacion",
+    "tramite": "form1::tramite",
+    "identificador": "form1::identificador",
+    "fecha_nacimiento": "form1::fecha_nacimiento",
+    "telefono": "form1::telefono",
+    "telefono_confirmacion": "form1::telefono_confirmacion",
+    "correo": "form1::correo",
+    "correo_confirmacion": "form1::correo_confirmacion",
+    "folio_anterior": "form1::folio_anterior"
+  }
+}

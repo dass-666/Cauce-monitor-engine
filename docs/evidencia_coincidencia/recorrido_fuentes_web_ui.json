@@ -1,0 +1,394 @@
+{
+  "recorrido": "fuentes_web_interfaz_laboratorio",
+  "plataforma": "Linux-6.18.44-fc-v819-x86_64-with-glibc2.39",
+  "python": "3.13.18",
+  "inicio": "2026-11-24T15:01:01",
+  "datos": "ficticios; motor y sitio de turnos locales en 127.0.0.1",
+  "interfaz": {
+    "configurar": {
+      "fase": "configurar",
+      "pasos": [
+        {
+          "paso": "1_pantalla_en_el_menu",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "2_sin_prueba_no_se_puede_guardar",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "3_vista_previa_dice_que_no_reconoce_y_por_que",
+          "ok": true,
+          "detalle": {
+            "ok": "si",
+            "dias": 1,
+            "no": 2,
+            "muestras": [
+              {
+                "motivo": "ubicacion",
+                "texto": "«Oficina Norte Poniente» — esa ubicación no está en la tabla de ubicaciones: no se adivina la sucursal"
+              },
+              {
+                "motivo": "estado",
+                "texto": "«Sin lugares» — ese texto no está en «Textos de disponible» ni en «Textos de sin lugares»: no se interpreta"
+              }
+            ]
+          }
+        },
+        {
+          "paso": "4_cambiar_el_perfil_invalida_la_prueba",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "5_vista_previa_correcta",
+          "ok": true,
+          "detalle": {
+            "r2": {
+              "ok": "si",
+              "dias": 3,
+              "no": 0,
+              "muestras": []
+            },
+            "dias": [
+              [
+                "NOR-1",
+                "2026-12-24",
+                "Disponible",
+                "2",
+                "09:30"
+              ],
+              [
+                "NOR-2",
+                "2026-12-26",
+                "Disponible",
+                "2",
+                "09:30"
+              ],
+              [
+                "NOR-1",
+                "2026-12-27",
+                "Sin lugares",
+                "—",
+                "—"
+              ]
+            ]
+          }
+        },
+        {
+          "paso": "6_con_prueba_vigente_se_puede_guardar",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "7_guardada_y_el_observador_la_mira",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": []
+    },
+    "detener": {
+      "fase": "detener",
+      "pasos": [
+        {
+          "paso": "1_detener_desde_la_lista",
+          "ok": true,
+          "detalle": null
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": []
+    },
+    "captcha": {
+      "fase": "captcha",
+      "pasos": [
+        {
+          "paso": "1_captcha_detectado_y_no_se_guarda",
+          "ok": true,
+          "detalle": {
+            "r": {
+              "ok": "no",
+              "dias": 0,
+              "no": 0,
+              "muestras": []
+            },
+            "bloqueada": true
+          }
+        },
+        {
+          "paso": "sin_errores_js",
+          "ok": true,
+          "detalle": []
+        }
+      ],
+      "errores_js": [],
+      "http_errores": []
+    }
+  },
+  "publicacion_a_registro_s": 2.15,
+  "comprobaciones": [
+    {
+      "comprobacion": "interfaz · configurar · 1_pantalla_en_el_menu",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · configurar · 2_sin_prueba_no_se_puede_guardar",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · configurar · 3_vista_previa_dice_que_no_reconoce_y_por_que",
+      "ok": true,
+      "detalle": {
+        "ok": "si",
+        "dias": 1,
+        "no": 2,
+        "muestras": [
+          {
+            "motivo": "ubicacion",
+            "texto": "«Oficina Norte Poniente» — esa ubicación no está en la tabla de ubicaciones: no se adivina la sucursal"
+          },
+          {
+            "motivo": "estado",
+            "texto": "«Sin lugares» — ese texto no está en «Textos de disponible» ni en «Textos de sin lugares»: no se interpreta"
+          }
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · configurar · 4_cambiar_el_perfil_invalida_la_prueba",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · configurar · 5_vista_previa_correcta",
+      "ok": true,
+      "detalle": {
+        "r2": {
+          "ok": "si",
+          "dias": 3,
+          "no": 0,
+          "muestras": []
+        },
+        "dias": [
+          [
+            "NOR-1",
+            "2026-12-24",
+            "Disponible",
+            "2",
+            "09:30"
+          ],
+          [
+            "NOR-2",
+            "2026-12-26",
+            "Disponible",
+            "2",
+            "09:30"
+          ],
+          [
+            "NOR-1",
+            "2026-12-27",
+            "Sin lugares",
+            "—",
+            "—"
+          ]
+        ]
+      }
+    },
+    {
+      "comprobacion": "interfaz · configurar · 6_con_prueba_vigente_se_puede_guardar",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · configurar · 7_guardada_y_el_observador_la_mira",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · configurar · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · configurar: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "lo guardado es el perfil probado (tabla de ubicaciones y textos corregidos)",
+      "ok": true,
+      "detalle": {
+        "zona": "#turnos",
+        "elemento": ".turno",
+        "fecha": {
+          "selector": ".dia",
+          "patron": "(\\d{2}/\\d{2}/\\d{4})",
+          "formato": "DD/MM/AAAA"
+        },
+        "estado": {
+          "selector": ".estado",
+          "disponible": [
+            "Disponible"
+          ],
+          "no_disponible": [
+            "Sin lugares",
+            "Agotado"
+          ]
+        },
+        "libres": {
+          "selector": ".cupo",
+          "patron": "(\\d+)"
+        },
+        "hora": {
+          "selector": ".hora",
+          "patron": "(\\d{1,2}:\\d{2})"
+        },
+        "ubicacion": {
+          "selector": ".lugar"
+        },
+        "ubicaciones": {
+          "Oficina Norte Centro": "NOR-1",
+          "Oficina Norte Poniente": "NOR-2"
+        },
+        "ignorar": [
+          ".reloj",
+          ".anuncio",
+          ".spinner"
+        ],
+        "estabilidad_ms": 600,
+        "sesion_perdida": "#sesion-expirada"
+      }
+    },
+    {
+      "comprobacion": "el turno nuevo quedó registrado con fuente, sucursal y huella SHA-256",
+      "ok": true,
+      "detalle": {
+        "id": 4,
+        "tipo": "DIA_DISPONIBLE",
+        "sucursal": "NOR-2",
+        "tramite": "alta",
+        "fecha": "2026-12-29",
+        "estado_anterior": null,
+        "estado": "DISPONIBLE",
+        "estrategia": "dom",
+        "observador": "web-turnos-lab",
+        "detectado_en": "2026-11-24T15:01:09.135000Z",
+        "registrado_en": "2026-11-24T15:01:10.425754Z",
+        "evidencia": {
+          "html": "<article class=\"turno\"><span class=\"lugar\">Oficina Norte Poniente</span> · <span class=\"dia\">Fecha: 29/12/2026</span> · <span class=\"hora\">09:30</span> · <span class=\"estado\">Disponible</span> · <span class=\"cupo\">2 lugares</span></article>",
+          "sha256": "6765cf1575e609deaced383062800e05daa93ca2223a4b64401d7e363456a308",
+          "imagen": "/tmp/fuentes-web-ui-jnbva3ku/lab/datos/evidencia_observador/turnos-lab/cambio-00001.png",
+          "url": "http://127.0.0.1:34625/turnos.html",
+          "imagen_sha256": "a6be05b0e80fa1e5fe49634eeed57fb4abef1b6374db70800bf93689623e2f64",
+          "horas": [
+            "09:30"
+          ]
+        },
+        "detecciones": {
+          "dom": "2026-11-24T15:01:09.135000Z"
+        },
+        "consumo": "SIN_CANDIDATOS",
+        "plan_elemento_id": null,
+        "explicacion": {
+          "evento": 4,
+          "tipo_evento": "DIA_DISPONIBLE",
+          "dia": {
+            "fecha": "2026-12-29",
+            "sucursal": "NOR-2",
+            "tramite": "alta"
+          },
+          "jornada": "2026-11-24",
+          "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
+          "atendido_en": "2026-11-24T15:01:10.428166Z",
+          "unidades": {
+            "libres_vistas": 2,
+            "con_las_que_se_cuenta": 2,
+            "comprometidas": 0,
+            "cupo": 2,
+            "comprometidas_ids": []
+          },
+          "elegidos": [],
+          "elegido": null,
+          "compatibles_en_espera": [],
+          "descartados": [],
+          "por_que": "ningún expediente del plan acepta ese día"
+        },
+        "unidades": 2,
+        "unidades_anteriores": null
+      }
+    },
+    {
+      "comprobacion": "interfaz · detener · 1_detener_desde_la_lista",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "interfaz · detener · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · detener: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "la fuente quedó detenida en el motor",
+      "ok": true,
+      "detalle": "DETENIDO"
+    },
+    {
+      "comprobacion": "interfaz · captcha · 1_captcha_detectado_y_no_se_guarda",
+      "ok": true,
+      "detalle": {
+        "r": {
+          "ok": "no",
+          "dias": 0,
+          "no": 0,
+          "muestras": []
+        },
+        "bloqueada": true
+      }
+    },
+    {
+      "comprobacion": "interfaz · captcha · sin_errores_js",
+      "ok": true,
+      "detalle": []
+    },
+    {
+      "comprobacion": "interfaz · captcha: sin interrupciones",
+      "ok": true,
+      "detalle": null
+    },
+    {
+      "comprobacion": "con CAPTCHA no se guardó ninguna fuente nueva",
+      "ok": true,
+      "detalle": [
+        "turnos-lab"
+      ]
+    },
+    {
+      "comprobacion": "el sitio no recibió ningún envío (observar nunca envía)",
+      "ok": true,
+      "detalle": 0
+    }
+  ],
+  "ok": true,
+  "fin": "2026-11-24T15:01:14"
+}

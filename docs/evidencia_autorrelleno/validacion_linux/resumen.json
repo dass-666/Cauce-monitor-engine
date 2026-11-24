@@ -1,0 +1,60 @@
+{
+  "ok": true,
+  "pasos": [
+    {
+      "paso": "Monitor instalado",
+      "ok": true,
+      "detalle": "rama claude/project-thread-ksm2qd @ f952a91"
+    },
+    {
+      "paso": "Forms instalado con su .venv",
+      "ok": true,
+      "detalle": "/home/claude/forms @ aa1bb02"
+    },
+    {
+      "paso": "Node.js para el recorrido por la interfaz",
+      "ok": true,
+      "detalle": "/opt/node22/bin/node"
+    },
+    {
+      "paso": "1. Pruebas automáticas con Forms real y ventana visible (pytest)",
+      "ok": true,
+      "detalle": "código 0, 100 s, detalle en 1_pytest.log"
+    },
+    {
+      "paso": "   test_forms_real_rellena_el_formulario_de_laboratorio",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "paso": "   test_forms_real_revocacion_a_mitad_termina_chromium",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "paso": "   test_forms_real_cerrar_la_ventana_a_mano_da_preparado",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "paso": "   test_detener_monitor_con_la_ventana_abierta_termina_forms",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "paso": "   test_si_monitor_muere_de_golpe_el_conector_no_queda_huerfano",
+      "ok": true,
+      "detalle": ""
+    },
+    {
+      "paso": "2. Recorrido por la interfaz con la ventana de Forms visible",
+      "ok": true,
+      "detalle": "código 0, 47 s, detalle en 2_recorrido.log"
+    },
+    {
+      "paso": "3. Reiniciar Monitor con la ventana de Forms abierta (ordenado y forzado)",
+      "ok": true,
+      "detalle": "código 0, 29 s, detalle en 3_reinicio.log"
+    }
+  ]
+}

@@ -64,7 +64,10 @@ class AdaptadorLaboratorio(Adaptador):
         return Observacion(Resultado(OK, http=r.status_code), dias,
                            observada_en=datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z")
 
-    def verificar(self, folio: str, fecha: str, sucursal: str | None) -> Verificacion:
+    def verificar(self, folio: str, fecha: str, sucursal: str | None, identificador: str | None = None,
+                  tramite: str | None = None) -> Verificacion:
+        """`identificador` y `tramite` (opcionales) exigen además que el folio sea de ESA persona y ese trámite:
+        lo usa el registro del folio de una operación preparada con Forms. Solo se guardan booleanos."""
         nav = self._nav("verificacion")
         try:
             rp = nav.verificar_folio(folio)
@@ -75,9 +78,17 @@ class AdaptadorLaboratorio(Adaptador):
         if rp is None:
             return Verificacion(Resultado(OK), existe=False, coincide=False)
         f = self.normalizar_fecha(rp["fecha"]) if rp.get("fecha") else None
-        coincide = (rp.get("estado") == "CONFIRMADA" and rp.get("folio") == folio and f == fecha
-                    and (not sucursal or rp.get("sucursal") == sucursal))
+        comprobado = {"estado_confirmada": rp.get("estado") == "CONFIRMADA", "folio": rp.get("folio") == folio,
+                      "fecha": f == fecha}
+        if sucursal:
+            comprobado["sucursal"] = rp.get("sucursal") == sucursal
+        if identificador is not None:
+            comprobado["titular"] = rp.get("identificador") == identificador
+        if tramite is not None:
+            comprobado["tramite"] = rp.get("tramite") == tramite
+        coincide = all(comprobado.values())
         # Evidencia sin datos de la persona (el portal devuelve también su identificador: no se guarda).
         evid = {"fuente": "api_por_folio", "estado_portal": rp.get("estado"), "fecha_portal": f,
-                "sucursal_portal": rp.get("sucursal"), "confirmada_en_portal": rp.get("confirmada_en")}
+                "sucursal_portal": rp.get("sucursal"), "confirmada_en_portal": rp.get("confirmada_en"),
+                "comprobado": comprobado}
         return Verificacion(Resultado(OK), True, coincide, rp.get("estado"), f, rp.get("sucursal"), evid)

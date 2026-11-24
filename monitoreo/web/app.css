@@ -247,3 +247,10 @@ body.is-offline .view .kpi .value::after { content: " ·"; color: var(--bad); }
 
 /* La palabra «BLOQUEADA» no cabe en la tarjeta a 1366 px con el tamaño de cifra normal */
 #kpi-recuperacion { font-size: 20px; letter-spacing: .02em; }
+
+/* Páginas observadas (fuentes.js) */
+.fw-regla { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0; min-width: 0; }
+.fw-regla legend { font-size: 12px; font-weight: 600; padding: 0 4px; }
+.fw-regla p { margin: 0 0 6px; font-size: 12px; }
+#form-fuente-web h3 { margin: 10px 0 0; font-size: 14px; }
+#fw-json { white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
