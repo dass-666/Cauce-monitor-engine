@@ -83,9 +83,25 @@ HTML y SHA-256 de lo extraído, captura de la zona (PNG en `<datos>/evidencia_ob
 - Regresión: `test_observador`, `test_planificador`, `test_captura_datos`, `test_interop_jarvis`,
   `test_plan_unidades_propiedad`, `test_autorrelleno_coincidencia`: 142 aprobadas.
 
+## 4 bis. Pantalla «Páginas observadas» (Operación → Páginas observadas, administrador)
+
+Formulario por campos (zona, elemento, fecha y su formato, textos de disponible / sin lugares, lugares, hora,
+ubicación + tabla «texto = SUCURSAL», ruido, estabilidad, sesión caducada, autorización escrita para sitios externos).
+«Probar» llama a la vista previa y enseña los días reconocidos y, de lo NO reconocido, el texto que se leyó y por qué
+(«Sin lugares» no está en ninguna lista; «Oficina Sur» no está en la tabla). «Guardar y observar» solo se habilita con
+una prueba vigente de exactamente esos datos: cualquier cambio la invalida. Lista con estado («Mirando», «Detenida» +
+motivo), «Detener» y «Usar como base». Sin cambios en el servidor salvo las muestras de la vista previa.
+
+Evidencia: `scripts/recorrido_fuentes_web_ui.py` (Chromium, solo clics) **20/20**
+(`docs/evidencia_coincidencia/recorrido_fuentes_web_ui.json`, capturas en `docs/evidencia_coincidencia/fuentes_web_ui/`):
+perfil con dos errores → la vista previa los señala → corrección → la prueba anterior deja de valer → nueva prueba →
+guardar → «Mirando» → un turno nuevo del sitio queda registrado con huella → detener → con CAPTCHA la vista previa lo
+dice y no deja guardar → 0 envíos al sitio.
+
 ## 5. Lo que NO hace (todavía)
 
-- No hay interfaz para escribir el perfil: hoy es JSON por la API (con vista previa). Siguiente paso razonable.
+- La pantalla permite guardar aunque haya elementos no reconocidos (se ignoran, y la prueba los enseña). Es una
+  decisión: exigir 0 no reconocidos impediría observar páginas con turnos de otras oficinas que no interesan.
 - No se ha probado contra ningún sitio real (no hay uno autorizado). Sitios con iframes, shadow DOM o paginación
   necesitarán más reglas de perfil.
 - Las coincidencias son por día y sucursal; la hora se guarda como evidencia, no se compara con preferencias.
@@ -100,4 +116,4 @@ En la misma carpeta nueva de `docs/COINCIDENCIA_FORMS_FOLIO.md` §5 (`C:\cauce-c
 C:\cauce-coincidencia\monitor\observador_web_laboratorio.bat C:\cauce-coincidencia\cauce-forms
 ```
 
-Esperado: `9 passed` y `26/26 comprobaciones`. Enviar `resultados\recorrido_observador_web\recorrido_coincidencia_forms.json`.
+Esperado: `9 passed`, `33/33 comprobaciones` (con la pantalla de Ventanilla) y `20/20` de la pantalla «Páginas observadas». Enviar los dos JSON que indica la ventana.

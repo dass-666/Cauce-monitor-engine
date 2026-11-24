@@ -11,7 +11,9 @@ if not exist .venv\Scripts\python.exe (
 set "FORMS=%~1"
 if "%FORMS%"=="" set "FORMS=%~dp0..\cauce-forms"
 .venv\Scripts\python.exe -m pytest -q tests\test_observador_web.py
-.venv\Scripts\python.exe scripts\recorrido_coincidencia_forms.py --forms "%FORMS%" --observador web --salida resultados\recorrido_observador_web
+.venv\Scripts\python.exe scripts\recorrido_coincidencia_forms.py --forms "%FORMS%" --observador web --interfaz --salida resultados\recorrido_observador_web
+.venv\Scripts\python.exe scripts\recorrido_fuentes_web_ui.py --salida resultados\recorrido_fuentes_web_ui
 echo.
-echo Envia resultados\recorrido_observador_web\recorrido_coincidencia_forms.json y la salida de las pruebas.
+echo Envia resultados\recorrido_observador_web\recorrido_coincidencia_forms.json,
+echo resultados\recorrido_fuentes_web_ui\recorrido_fuentes_web_ui.json y la salida de las pruebas.
 pause

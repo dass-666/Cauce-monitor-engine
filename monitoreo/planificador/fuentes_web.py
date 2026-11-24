@@ -286,4 +286,5 @@ def probar(d: dict, timeout_s: float = 40.0) -> dict:
     errores = [x.get("mensaje") for x in lineas if x.get("tipo") == "ERROR"]
     return {"fuente": v["nombre"], "url": v["url"], "dias": (ini or {}).get("celdas", []),
             "elementos": (ini or {}).get("elementos"), "no_reconocidos": (ini or {}).get("no_reconocidos", []),
+            "muestras_no_reconocidas": (ini or {}).get("muestras", []), "encontrados": (ini or {}).get("encontrados"),
             "vista": vistas[-1] if vistas else None, "errores": errores[:3]}

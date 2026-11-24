@@ -89,32 +89,37 @@ function extraerEnPagina(p) {
     return !isNaN(t) && t.toISOString().slice(0, 10) === iso ? iso : null;
   };
   const zona = document.querySelector(p.zona);
-  if (!zona) return { zona: false, items: [], no: [] };
+  if (!zona) return { zona: false, items: [], no: [], muestras: [], total: 0 };
   const disp = (p.estado && p.estado.disponible || []).map(clave), nodisp = (p.estado && p.estado.no_disponible || []).map(clave);
   const ubic = {};
   for (const [k, v] of Object.entries(p.ubicaciones || {})) ubic[clave(k)] = v;
-  const items = [], no = [];
+  const items = [], no = [], muestras = [];
+  // muestras: lo que se LEYÓ en los elementos no reconocidos (solo el valor del campo que falló, corto), para que
+  // quien escribe el perfil vea por qué; solo se emite en la vista previa (una_vez)
+  const nore = (motivo, leido) => { no.push(motivo); if (muestras.length < 8) muestras.push({ motivo, leido: (leido || "").slice(0, 80) }); };
   for (const it of zona.querySelectorAll(p.elemento)) {
     if (enRuido(it)) continue;
-    const fecha = fechaIso(leer(it, p.fecha), p.fecha.formato || "ISO");
-    if (!fecha) { no.push("fecha"); continue; }
+    const fechaLeida = leer(it, p.fecha);
+    const fecha = fechaIso(fechaLeida, p.fecha.formato || "ISO");
+    if (!fecha) { nore("fecha", fechaLeida); continue; }
     let estado = "DISPONIBLE";
     if (p.estado) {
-      const e = clave(leer(it, p.estado));
+      const leido = leer(it, p.estado), e = clave(leido);
       estado = disp.includes(e) ? "DISPONIBLE" : nodisp.includes(e) ? "AGOTADO" : null;
-      if (!estado) { no.push("estado"); continue; }
+      if (!estado) { nore("estado", leido); continue; }
     }
     let sucursal = null;
     if (p.ubicacion) {
-      sucursal = ubic[clave(leer(it, p.ubicacion))] || null;
-      if (!sucursal) { no.push("ubicacion"); continue; }
+      const leido = leer(it, p.ubicacion);
+      sucursal = ubic[clave(leido)] || null;
+      if (!sucursal) { nore("ubicacion", leido); continue; }
     }
     let libres = null;
     if (p.libres) { const n = parseInt(leer(it, p.libres), 10); libres = isNaN(n) ? null : n; }
     const hora = p.hora ? leer(it, p.hora) : null;
     items.push({ fecha, estado, sucursal, libres, hora, html: it.outerHTML.slice(0, 300) });
   }
-  return { zona: true, items, no };
+  return { zona: true, items, no, muestras, total: zona.querySelectorAll(p.elemento).length };
 }
 
 function agrupar(items) {
@@ -144,7 +149,7 @@ async function leerDias() {
   const r = await page.evaluate(extraerEnPagina, P);
   stats.extracciones++;
   stats.no_reconocidos = r.no.length;
-  return { zona: r.zona, dias: agrupar(r.items), no: r.no };
+  return { zona: r.zona, dias: agrupar(r.items), no: r.no, muestras: r.muestras, total: r.total };
 }
 
 async function controlPresente() {
@@ -179,11 +184,12 @@ async function abrirSinCandado() {
     await page.waitForSelector(P.zona, { timeout: 15000 });
     await instalarDom();
     await new Promise((r) => setTimeout(r, Math.max(300, estabilidad)));   // que el contenido cargado por JS se asiente
-    const { dias, no } = await leerDias();
+    const { dias, no, muestras, total } = await leerDias();
     confirmados = dias;
     const t = Date.now();
     emit({ tipo: "INICIAL", estrategia: "dom", ts_ms: t, elementos: [...dias.values()].length, no_reconocidos: no,
-           celdas: [...dias.values()].map(({ sucursal, fecha, estado, libres, horas }) => ({ sucursal, fecha, estado, libres, horas })) });
+           celdas: [...dias.values()].map(({ sucursal, fecha, estado, libres, horas }) => ({ sucursal, fecha, estado, libres, horas })),
+           ...(cfg.una_vez ? { muestras, encontrados: total } : {}) });
     if (usaVisual) visualPrevio = (await capturaZona(null).catch(() => null) || {}).sha || null;
     estadoVista = null;
     vista("ACTIVA");

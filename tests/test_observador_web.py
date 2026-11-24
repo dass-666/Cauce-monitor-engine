@@ -144,6 +144,10 @@ def test_vista_previa_reconoce_lo_configurado_e_ignora_lo_demas(entorno):
                                        "horas": ["09:30", "11:00"]}
     assert dias[("NOR-2", _f(33))]["estado"] == "AGOTADO"
     assert len(dias) == 2 and sorted(r["no_reconocidos"]) == ["estado", "ubicacion"]
+    # la vista previa enseña QUÉ se leyó en lo no reconocido, para corregir el perfil sin adivinar
+    assert sorted((m["motivo"], m["leido"]) for m in r["muestras_no_reconocidas"]) == [
+        ("estado", "Por confirmar"), ("ubicacion", "Oficina Sur")]
+    assert r["encontrados"] == 5
     assert r["errores"] == [] and sitio.envios == 0
 
 
