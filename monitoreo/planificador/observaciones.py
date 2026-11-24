@@ -54,7 +54,7 @@ def _evidencia(ev) -> dict:
     if not isinstance(ev, dict):
         return {}
     out = {}
-    for k in ("html", "sha256", "imagen", "caja"):
+    for k in ("html", "sha256", "imagen", "caja", "url", "imagen_sha256", "horas"):
         if k in ev and ev[k] is not None:
             out[k] = ev[k][:300] if isinstance(ev[k], str) else ev[k]
     return out
@@ -195,14 +195,19 @@ def registrar(db, obs: dict, ctx: dict, now: datetime) -> list[dict]:
     tipo, estr = obs.get("tipo"), str(obs.get("estrategia") or "")[:12]
     ts = _ts(obs.get("ts_ms"))
     nuevos: list[ObservacionEvento] = []
+    # Observador universal: una fuente web puede reportar varias sucursales (tabla de ubicaciones del perfil). Quien
+    # llama ya comprobó que la sucursal es de esa fuente; sin ella vale la del contexto (calendario del laboratorio).
+    def con(x: dict) -> dict:
+        return {**ctx, "sucursal": x["sucursal"]} if isinstance(x.get("sucursal"), str) and x["sucursal"] else ctx
     with db.session() as s:
         if tipo == "INICIAL":
             for c in obs.get("celdas") or []:
-                e = _dia(s, ctx, c.get("fecha"), c.get("estado"), _libres(c, estr), estr, ts, {"inicial": True}, now)
+                ev0 = {"inicial": True, **({"horas": c["horas"]} if isinstance(c.get("horas"), list) else {})}
+                e = _dia(s, con(c), c.get("fecha"), c.get("estado"), _libres(c, estr), estr, ts, ev0, now)
                 if e is not None:
                     nuevos.append(e)
         elif tipo == "CELDA":
-            e = _dia(s, ctx, obs.get("fecha"), obs.get("estado"), _libres(obs, estr), estr, ts,
+            e = _dia(s, con(obs), obs.get("fecha"), obs.get("estado"), _libres(obs, estr), estr, ts,
                      _evidencia(obs.get("evidencia")), now)
             if e is not None:
                 nuevos.append(e)

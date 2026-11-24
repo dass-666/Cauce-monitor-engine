@@ -86,6 +86,8 @@ def main() -> int:
     ap.add_argument("--salida", default=str(ROOT / "resultados" / "recorrido_coincidencia_forms"))
     ap.add_argument("--espera-s", type=int, default=5, help="tiempo de revisión de la ventana de Forms")
     ap.add_argument("--con-ventana", action="store_true")
+    ap.add_argument("--observador", choices=("calendario", "web"), default="calendario",
+                    help="web: el OBSERVADOR UNIVERSAL (fuente configurada por URL + perfil, sin código del portal)")
     a = ap.parse_args()
     out = Path(a.salida)
     out.mkdir(parents=True, exist_ok=True)
@@ -155,9 +157,21 @@ def main() -> int:
         check("1 · la persona queda en el plan del día con sus fechas aceptables", r.status_code == 200, r.text[:200])
 
         # 2. observador real sobre el calendario del portal
-        r = adm.post("/api/observador", json={"sucursal": "NOR-1", "tramite": persona["tramite"], "mes": fecha[:7],
-                                              "estrategia": "ambas"})
-        check("2 · el motor lanzó el observador (Chromium) del calendario", r.status_code == 200, r.text[:300])
+        res["observador"] = a.observador
+        if a.observador == "web":
+            from laboratorio_web.servidor import PERFIL_CALENDARIO_PORTAL
+            fuente = {"nombre": "calendario-lab", "tramite": persona["tramite"], "sucursal": "NOR-1",
+                      "url": f"{d['portal']}/observar/calendario?sucursal=NOR-1&tramite={persona['tramite']}&mes={fecha[:7]}",
+                      "perfil": PERFIL_CALENDARIO_PORTAL, "estrategia": "ambas"}
+            pr = adm.post("/api/fuentes-web/probar", json=fuente)
+            check("2 · vista previa del perfil: la página se lee sin código del portal",
+                  pr.status_code == 200 and pr.json()["vista"] and pr.json()["vista"]["estado"] == "ACTIVA", pr.text[:300])
+            r = adm.post("/api/fuentes-web", json=fuente)
+            check("2 · el motor lanzó el OBSERVADOR UNIVERSAL (fuente por URL + perfil)", r.status_code == 201, r.text[:300])
+        else:
+            r = adm.post("/api/observador", json={"sucursal": "NOR-1", "tramite": persona["tramite"], "mes": fecha[:7],
+                                                  "estrategia": "ambas"})
+            check("2 · el motor lanzó el observador (Chromium) del calendario", r.status_code == 200, r.text[:300])
         activo = esperar(lambda: (adm.get("/api/observador").json()["observadores"][0].get("vista") or {}).get("dom") == "ACTIVA", 90)
         check("2 · calendario abierto y ACTIVO", bool(activo), adm.get("/api/observador").json())
         time.sleep(3)
@@ -254,6 +268,16 @@ def main() -> int:
         check("6 · historial en orden: preparada -> entregada a Forms -> lista -> rechazo -> confirmada",
               -1 not in pos and pos == sorted(pos), dict(zip(orden, pos)))
         res["linea_de_tiempo"] = tipos
+        if a.observador == "web":
+            evs = [e for e in adm.get("/api/observaciones").json()["eventos"] if e["tipo"] == "DIA_DISPONIBLE" and e["fecha"] == fecha]
+            ev = (evs or [{}])[0].get("evidencia") or {}
+            check("6 · el cambio quedó registrado con hora, fuente y evidencia (SHA-256 y captura)",
+                  bool(evs) and evs[0]["observador"] == "web-calendario-lab" and len(ev.get("sha256", "")) == 64
+                  and len(ev.get("imagen_sha256", "")) == 64, evs[:1])
+            res["evento_observado"] = {k: (evs or [{}])[0].get(k) for k in ("detectado_en", "registrado_en", "observador",
+                                                                            "sucursal", "fecha", "estado")}
+            res["evento_observado"]["evidencia"] = {k: ev.get(k) for k in ("sha256", "imagen_sha256", "url")}
+            adm.delete("/api/fuentes-web/calendario-lab")
         adm.delete("/api/observador")
 
         # 7. sin datos personales en registros

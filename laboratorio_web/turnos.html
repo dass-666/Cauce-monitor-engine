@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Turnos de laboratorio (ficticio)</title>
+<style>
+ body{font-family:sans-serif;margin:16px} .turno{border:1px solid #ccc;margin:4px;padding:6px}
+ .spinner{display:inline-block;width:14px;height:14px;border:3px solid #999;border-top-color:transparent;border-radius:50%;animation:g 1s linear infinite}
+ @keyframes g{to{transform:rotate(360deg)}}
+</style></head>
+<body>
+<h1>Turnos disponibles (sitio de LABORATORIO, ficticio)</h1>
+<!-- Ruido: reloj, anuncio rotatorio y animación. Cambian todo el tiempo y no son disponibilidad. -->
+<p>Hora del servidor: <span class="reloj" id="reloj"></span> <span class="spinner"></span></p>
+<div class="anuncio" id="anuncio"></div>
+<div id="sesion"></div>
+<section id="turnos" aria-live="polite"><p class="cargando">Cargando…</p></section>
+<form method="post" action="/reservar"><button type="submit" id="reservar">Reservar (no lo usa el observador)</button></form>
+<script>
+const ANUNCIOS = ["Promoción ficticia A", "Promoción ficticia B", "Promoción ficticia C"];
+let n = 0;
+setInterval(() => { document.getElementById("reloj").textContent = new Date().toISOString().slice(11, 23); }, 100);
+setInterval(() => { document.getElementById("anuncio").innerHTML = "<b>" + ANUNCIOS[n++ % 3] + "</b> " + n; }, 300);
+async function cargar() {
+  let d;
+  try { const r = await fetch("/api/turnos.json?t=" + Date.now()); if (r.status !== 200) return; d = await r.json(); }
+  catch (_) { return; }
+  if (d.captcha && !document.querySelector(".g-recaptcha")) {
+    const c = document.createElement("div"); c.className = "g-recaptcha"; c.dataset.sitekey = "ficticia";
+    c.textContent = "Verificación humana (simulada)"; document.body.prepend(c);
+  }
+  document.getElementById("sesion").innerHTML = d.sesion === false ? '<p id="sesion-expirada">Tu sesión expiró</p>' : "";
+  const html = (d.turnos || []).map((t) =>
+    `<article class="turno"><span class="lugar">${t.lugar}</span> · <span class="dia">Fecha: ${t.fecha}</span> · ` +
+    `<span class="hora">${t.hora}</span> · <span class="estado">${t.estado}</span> · <span class="cupo">${t.cupo} lugares</span></article>`).join("");
+  const z = document.getElementById("turnos");
+  if (z.dataset.html !== html) { z.dataset.html = html; z.innerHTML = html || "<p>Sin turnos publicados</p>"; }
+}
+cargar(); setInterval(cargar, 400);
+</script>
+</body></html>
