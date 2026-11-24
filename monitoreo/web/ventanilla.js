@@ -269,9 +269,11 @@ async function tarjetaAutorrelleno(a) {
         : "Abre el formulario del portal de laboratorio en una ventana del navegador y Forms lo rellena con ",
         "los datos de este expediente. Forms no envía nada: tú revisas, tecleas los campos manuales y decides. ",
         "Solo viajan los campos que pide el formulario; el nombre y los campos manuales no."),
+      est.coincidencia ? coincidenciaForms(est.coincidencia) : null,
       !est.disponible && est.motivo ? h("p", { class: "error", id: "autorrelleno-motivo" }, est.motivo) : null,
       h("div", { class: "actions" }, boton), errs,
-      c ? resumenAutorrelleno(c) : null].filter((x) => x));
+      c ? resumenAutorrelleno(c) : null,
+      est.coincidencia && est.coincidencia.lista_para_confirmacion ? folioVerificado(est.coincidencia, a) : null].filter((x) => x));
   };
   let timer = null;
   const seguir = () => {
@@ -288,6 +290,37 @@ async function tarjetaAutorrelleno(a) {
   pintar(st);
   if (st.corrida && st.corrida.en_curso) seguir();
   return caja;
+}
+
+// Eslabón coincidencia -> Forms -> folio: la coincidencia del plan viaja con el autorrellenado y el folio que la
+// persona obtuvo en el portal se COMPRUEBA con el portal antes de marcar la cita (nada se confirma solo).
+function coincidenciaForms(k) {
+  const estado = k.confirmada ? "Cita CONFIRMADA (folio comprobado con el portal)"
+    : k.lista_para_confirmacion ? "Lista para confirmación supervisada: todavía NO es una cita"
+      : "Coincidencia preparada: se entregará a Forms al autorrellenar";
+  return h("div", { id: "autorrelleno-coincidencia", "data-lista": k.lista_para_confirmacion ? "si" : "no",
+    "data-confirmada": k.confirmada ? "si" : "no" },
+    h("p", {}, h("b", {}, "Coincidencia del plan: "), `${k.fecha} en ${k.sucursal}. `, h("span", { class: "badge " + (k.confirmada ? "b-ok" : "b-warn") }, estado)),
+    k.folio ? h("p", {}, "Folio: ", h("b", { id: "autorrelleno-folio" }, k.folio)) : null);
+}
+
+function folioVerificado(k, a) {
+  const f1 = h("input", { id: "folio-forms", autocomplete: "off", placeholder: "Folio que muestra el portal" });
+  const f2 = h("input", { id: "folio-forms-2", autocomplete: "off", placeholder: "Vuelve a teclearlo" });
+  const errs = h("div", { class: "error", role: "alert", id: "folio-forms-error" });
+  const boton = h("button", { class: "btn primary", id: "btn-folio-forms", onclick: async () => {
+    boton.disabled = true; errs.textContent = "";
+    try {
+      await api(`/api/autorrelleno/reservaciones/${k.reservacion_id}/folio`, { method: "POST", body: { folio: f1.value, folio_confirmacion: f2.value } });
+      toast("Folio comprobado con el portal: cita confirmada", 4000);
+      refresh(true, true);
+    } catch (err) { errs.textContent = err.message; boton.disabled = false; }
+  } }, "Comprobar folio con el portal");
+  if (!k.verificable) return h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este portal no permite comprobar folios: registra la cita con la confirmación asistida.");
+  return h("div", { class: "section", id: "folio-forms-caja" },
+    h("p", { class: "muted" }, `Con la persona, en la ventana del portal: teclea los campos manuales, elige el ${k.fecha} en ${k.sucursal} y confirma. Después escribe aquí el folio dos veces.`),
+    h("label", { for: "folio-forms" }, "Folio"), f1, h("label", { for: "folio-forms-2" }, "Confirma el folio"), f2,
+    h("div", { class: "actions" }, boton), errs);
 }
 
 function resumenAutorrelleno(c) {

@@ -6,8 +6,10 @@ configuración de laboratorio y todas las reglas de Monitor. Nada de esto envía
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from ..autorrelleno import adaptador as ad
+from ..autorrelleno import coincidencia as cz
 from ..db import Database, utcnow
 from ..models import Atencion
 from .deps import CurrentUser, current_user, get_db
@@ -34,10 +36,11 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
         if a is None or not (user.is_admin or a.username == user.username):
             raise HTTPException(404, "Atención no encontrada")
         exp_id = a.expediente_id
+        coin = cz.vista(s, exp_id, user.operator_id) if exp_id else None
     corrida = ad.corrida_de(exp_id) if exp_id else None
     out = {"habilitado": conf["habilitado"], "disponible": False, "codigo": conf["codigo"], "motivo": conf["motivo"],
            "corrida": corrida.vista() if corrida else None,
-           "externo": conf.get("externo", False), "sitio": conf.get("sitio", "")}
+           "externo": conf.get("externo", False), "sitio": conf.get("sitio", ""), "coincidencia": coin}
     if not conf["habilitado"]:
         return out
     try:
@@ -55,3 +58,18 @@ def lanzar(aid: int, user: CurrentUser = Depends(current_user), db: Database = D
         return ad.iniciar(db, user, aid)
     except ad.Negado as n:
         _negado(n)
+
+
+class FolioIn(BaseModel):
+    folio: str = Field(min_length=4, max_length=40)
+    folio_confirmacion: str = Field(min_length=4, max_length=40)
+
+
+@router.post("/reservaciones/{rid}/folio")
+def registrar_folio(rid: int, body: FolioIn, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """La persona confirmó en el portal la operación que Forms preparó: Monitor comprueba el folio con el portal
+    (vía autorizada del adaptador) y solo entonces marca la cita CONFIRMADA. Si no coincide, no cambia nada."""
+    try:
+        return cz.verificar_folio(db, user, rid, body.folio, body.folio_confirmacion, utcnow())
+    except cz.ErrorFolio as e:
+        raise HTTPException(e.http, {"mensaje": e.mensaje, "codigo": e.codigo, **e.detalle})

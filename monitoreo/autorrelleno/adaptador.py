@@ -58,6 +58,7 @@ from ..conector import contrato as C
 from ..conector.registro import ErrorRegistro, Registro
 from ..db import Database, utcnow
 from ..models import Atencion, Expediente
+from . import coincidencia as cz
 from .lanzador_lab import LanzadorLab
 
 log = logging.getLogger("monitoreo.autorrelleno")
@@ -95,6 +96,9 @@ MENSAJES = {
     "CANCELADA": "Monitor detuvo el autorrellenado.",
     "INCIERTA": "Forms terminó sin una respuesta válida: no se sabe qué quedó en la ventana. Revisa el portal.",
 }
+MENSAJE_LISTA = ("Operación preparada para CONFIRMACIÓN SUPERVISADA (todavía no es una cita): Forms rellenó y verificó "
+                 "el formulario para la coincidencia del {fecha} en {sucursal}. Con la persona, elige ese día en el "
+                 "portal, confirma y registra aquí el folio: Monitor lo comprobará con el portal.")
 
 
 class Negado(Exception):
@@ -299,6 +303,7 @@ class Contexto:
     manuales: list = field(default_factory=list)
     etiquetas: dict = field(default_factory=dict)
     sin_equivalencia: list = field(default_factory=list)   # códigos sin fila en la tabla aprobada: los pone la persona
+    coincidencia: dict | None = None        # operación preparada desde el plan (fecha y sucursal), si la hay
 
 
 def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Contexto:
@@ -367,9 +372,14 @@ def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Context
         for campo in contrato.automaticos:
             if campo.confirmacion_de and campo.nombre in valores and campo.confirmacion_de in valores:
                 valores[campo.nombre] = valores[campo.confirmacion_de]
+        # Eslabón con el planificador: si este operador preparó una coincidencia de este expediente, viaja con
+        # la solicitud (fecha y sucursal solo si el perfil aprobado las declara) y el resultado vuelve a ella.
+        coin = cz.operacion_viva(s, exp.id, user.operator_id)
+        if coin is not None:
+            valores.update(cz.campos_de(coin, declarados))
         ctx = Contexto(a.id, exp.id, exp.codigo, c.id, c.codigo, c.vigente_hasta, valores, sin_dato,
-                       [m.etiqueta for m in contrato.manuales], {x.nombre: x.etiqueta for x in contrato.campos},
-                       sin_equivalencia)
+                       [m.etiqueta for m in contrato.manuales],
+                       {**{x.nombre: x.etiqueta for x in contrato.campos}, **cz.ETIQUETAS}, sin_equivalencia, coin)
     verif = cs.verificar(db, ctx.consentimiento_id)
     if not verif["ok"]:
         raise Negado("CONSENTIMIENTO_NO_VERIFICABLE", "La cadena de eventos del consentimiento no cuadra: un "
@@ -418,6 +428,8 @@ class Corrida:
     cancelacion: str = ""
     procesos_restantes: int = 0              # procesos del árbol de Forms que no se pudo terminar (debe ser 0)
     diagnostico: list = field(default_factory=list)   # códigos fijos de stderr de Forms (nunca texto libre)
+    coincidencia: dict | None = None         # operación del plan a la que vuelve el resultado
+    resultado_operacion: str = ""            # LISTA_PARA_CONFIRMACION | FORMS_SIN_PREPARAR (solo con coincidencia)
     lanzador: LanzadorLab | None = field(default=None, repr=False)
 
     @property
@@ -426,10 +438,14 @@ class Corrida:
 
     def vista(self) -> dict:
         from ..api.serializers import iso
+        mensaje = MENSAJES.get(self.estado, "")
+        if self.resultado_operacion == cz.LISTA and self.coincidencia:
+            mensaje = MENSAJE_LISTA.format(**self.coincidencia)
         return {"solicitud_id": self.solicitud_id, "expediente": self.expediente_codigo, "estado": self.estado,
-                "codigo": self.codigo, "en_curso": self.en_curso, "mensaje": MENSAJES.get(self.estado, ""),
+                "codigo": self.codigo, "en_curso": self.en_curso, "mensaje": mensaje,
                 "consentimiento": self.consentimiento_codigo, "informe": self.informe,
                 "procesos_restantes": self.procesos_restantes, "diagnostico": self.diagnostico,
+                "coincidencia": self.coincidencia, "resultado_operacion": self.resultado_operacion,
                 "iniciada_en": iso(self.iniciada_en), "terminada_en": iso(self.terminada_en)}
 
 
@@ -506,7 +522,7 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
             except ErrorRegistro as e:
                 raise Negado("SOLICITUD_INVALIDA", f"La solicitud no cumple el contrato ({e.codigo}).") from e
             corrida = Corrida(sol["solicitud_id"], ctx.expediente_id, ctx.expediente_codigo, aid, user.username,
-                              ctx.consentimiento_codigo, now, estado="AUTORIZADA")
+                              ctx.consentimiento_codigo, now, estado="AUTORIZADA", coincidencia=ctx.coincidencia)
             _CORRIDAS[ctx.expediente_id] = corrida
     except Negado as n:
         _auditar(db, user, "autorrelleno_negado", f"atencion:{aid}", {"codigo": n.codigo})
@@ -516,6 +532,12 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
                "sin_equivalencia": ctx.sin_equivalencia, "externo": cfg.perfil.get("externo") is True}
     with db.session() as s:
         ex.evento(s, ctx.expediente_id, "AUTORRELLENO_SOLICITADO", vt._actor(user), now, **detalle)
+        if ctx.coincidencia is not None:
+            k = ctx.coincidencia
+            ex.evento(s, ctx.expediente_id, "COINCIDENCIA_ENTREGADA_A_FORMS", vt._actor(user), now,
+                      reservacion_id=k["reservacion_id"], elemento_id=k["elemento_id"], fecha=k["fecha"],
+                      sucursal=k["sucursal"], solicitud_id=sol["solicitud_id"],
+                      viaja_en_formulario=sorted(cz.campos_de(k, set(cfg.perfil["campos"]))))
         security.audit(s, user.username, "autorrelleno_solicitado", ctx.expediente_codigo,
                        {"solicitud_id": sol["solicitud_id"], "consentimiento": ctx.consentimiento_codigo})
     hilo = threading.Thread(target=_correr, args=(db, corrida, sol, cfg, ctx), daemon=True,
@@ -602,6 +624,9 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
                       utcnow(), **detalle)
             security.audit(s, corrida.username, "autorrelleno_terminado", corrida.expediente_codigo,
                            {"solicitud_id": sid, "estado": estado, "codigo": codigo})
+        if corrida.coincidencia is not None:
+            corrida.resultado_operacion = cz.registrar_resultado(db, corrida.coincidencia, corrida.expediente_id,
+                                                                 f"{corrida.username} (ventanilla)", detalle, utcnow())
     except Exception:  # noqa: BLE001
         log.exception("no se pudo registrar el fin del autorrellenado %s", sid)
     finally:
