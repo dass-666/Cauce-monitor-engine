@@ -208,6 +208,54 @@ def test_sin_forms_listo_no_se_registra_folio(lab, monkeypatch):
     assert "OPERACION_FORMS_SIN_PREPARAR" in _tipos(lab, k["exp_id"])
 
 
+def test_operacion_lista_no_se_vuelve_a_autorrellenar_sin_motivo_y_los_reintentos_son_controlados(lab, monkeypatch):
+    """Ajuste aprobado por Diego: tras un autorrellenado completo el botón se desactiva y lo siguiente es el folio.
+    Volver a abrir el formulario exige motivo, tiene límite, reutiliza la MISMA operación y un reintento que sale
+    peor no le quita a la operación su estado LISTA."""
+    import sys
+    from .test_autorrelleno_forms import ESPIA
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)
+    assert pulsar(lab, k["aid"], h).status_code == 202
+    assert esperar(lab, k["aid"], h)["resultado_operacion"] == cz.LISTA
+    st = lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h).json()
+    assert st["disponible"] is False and st["codigo"] == "OPERACION_YA_LISTA", st
+    assert st["coincidencia"]["reintentos"] == 0 and st["coincidencia"]["max_reintentos"] == cz.MAX_REINTENTOS
+    assert set(st["coincidencia"]["motivos_reintento"]) == set(cz.MOTIVOS_REINTENTO)
+    # sin motivo o con uno inventado: no se lanza nada
+    r = pulsar(lab, k["aid"], h)
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "OPERACION_YA_LISTA", r.text
+    r = lab.c.post(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h, json={"reintento": "PORQUE_SI"})
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "MOTIVO_NO_VALIDO", r.text
+    # reintento 1 con motivo, y Forms esta vez sale con incidencias: la operación SIGUE lista
+    monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps([sys.executable, str(ESPIA), str(lab.espia), "incidencias"]))
+    r = lab.c.post(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h, json={"reintento": "TIEMPO_AGOTADO"})
+    assert r.status_code == 202, r.text
+    fin = esperar(lab, k["aid"], h)
+    assert fin["reintento"] == "TIEMPO_AGOTADO" and fin["resultado_operacion"] == cz.LISTA, fin
+    with lab.db.session() as s:
+        res = s.get(Reservacion, k["rid"])
+        f = res.evidencia["forms"]
+        assert res.estado == "PREPARADA" and f["resultado"] == cz.LISTA and f["campos_correctos"] == f["campos_total"]
+        assert [(x["motivo"], x["resultado"]) for x in f["reintentos"]] == [("TIEMPO_AGOTADO", cz.SIN_PREPARAR)]
+        # misma operación: ninguna reservación ni elemento nuevo
+        assert len(s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()) == 1
+        assert len(s.scalars(select(PlanElemento).where(PlanElemento.expediente_id == k["exp_id"])).all()) == 1
+    # reintento 2 (bien) y después ya no quedan
+    monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps([sys.executable, str(ESPIA), str(lab.espia)]))
+    r = lab.c.post(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h, json={"reintento": "VENTANA_CERRADA"})
+    assert r.status_code == 202, r.text
+    assert esperar(lab, k["aid"], h)["resultado_operacion"] == cz.LISTA
+    r = lab.c.post(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h, json={"reintento": "DATO_CORREGIDO"})
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "REINTENTOS_AGOTADOS", r.text
+    tipos = _tipos(lab, k["exp_id"])
+    assert tipos.count("AUTORRELLENO_REINTENTO") == 2 and tipos.count("PLAN_OPERACION_PREPARADA") == 1, tipos
+    # y el folio se sigue registrando con normalidad
+    f = persona_confirma_en_portal(lab, k["exp_id"], k["fecha"], k["sucursal"])
+    r = folio(lab, h, k["rid"], f)
+    assert r.status_code == 200 and r.json()["reservacion"]["estado"] == "CONFIRMADA", r.text
+
+
 def test_perfil_con_fecha_y_sucursal_las_entrega_a_forms(lab, monkeypatch):
     """Un formulario de una pantalla con fecha y sucursal (p. ej. un portal externo autorizado): si su perfil
     aprobado las declara, la coincidencia viaja en la solicitud a Forms."""

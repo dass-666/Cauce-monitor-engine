@@ -121,6 +121,47 @@ def vista(s, exp_id: int, operator_id: int | None) -> dict | None:
             "verificable": ADAPTADOR_POR_CONTRATO.get(res.contrato) is not None}
 
 
+# ---------------------------------------------------------------- reintentos controlados
+# Con la operación ya LISTA, el botón «Autorrellenar» se desactiva: lo siguiente es registrar el folio. Volver a
+# abrir el formulario solo se permite con uno de estos motivos y hasta MAX_REINTENTOS veces; reutiliza la MISMA
+# reservación (no se crea otra operación) y un reintento que salga peor no le quita a la operación su estado LISTA.
+MOTIVOS_REINTENTO = {
+    "VENTANA_CERRADA": "La ventana del formulario se cerró antes de que la persona confirmara",
+    "TIEMPO_AGOTADO": "Se agotó el tiempo de revisión antes de que la persona confirmara",
+    "DATO_CORREGIDO": "Se corrigió un dato del expediente y hay que rellenar de nuevo",
+}
+MAX_REINTENTOS = 2
+
+
+def forms_de(s, coin: dict | None) -> dict | None:
+    if coin is None:
+        return None
+    res = s.get(Reservacion, coin["reservacion_id"])
+    return ((res.evidencia or {}).get("forms") or None) if res is not None else None
+
+
+def forms_de_id(db: Database, coin: dict) -> bool:
+    """¿La operación ya estaba LISTA antes de este lanzamiento? (solo entonces cuenta como reintento)."""
+    with db.session() as s:
+        f = forms_de(s, coin)
+    return bool(f and f.get("resultado") == LISTA)
+
+
+def reintento_permitido(forms: dict | None, motivo: str | None) -> tuple[bool, str, str]:
+    """(permitido, codigo, mensaje). Sin operación LISTA no hace falta motivo: es un autorrellenado normal."""
+    if not forms or forms.get("resultado") != LISTA:
+        return True, "", ""
+    if not motivo:
+        return False, "OPERACION_YA_LISTA", ("Forms ya dejó lista esta operación: registra el folio. Solo si hay que "
+                                             "volver a abrir el formulario, usa «Reintentar» con su motivo.")
+    if motivo not in MOTIVOS_REINTENTO:
+        return False, "MOTIVO_NO_VALIDO", "Elige uno de los motivos de reintento."
+    if len(forms.get("reintentos") or []) >= MAX_REINTENTOS:
+        return False, "REINTENTOS_AGOTADOS", (f"Ya se reintentó {MAX_REINTENTOS} veces: registra el folio o termina la "
+                                              "atención sin cita y revisa con un administrador.")
+    return True, "", ""
+
+
 # ---------------------------------------------------------------- 2. resultado de Forms -> reservación
 def listo(detalle: dict) -> bool:
     return (detalle.get("estado") in ESTADOS_LISTOS and detalle.get("campos_total", 0) > 0
@@ -128,8 +169,11 @@ def listo(detalle: dict) -> bool:
             and not detalle.get("envio_por_conector"))
 
 
-def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detalle: dict, now: datetime) -> str:
-    """Anota en la reservación (todavía PREPARADA) lo que hizo Forms. Devuelve LISTA o FORMS_SIN_PREPARAR."""
+def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detalle: dict, now: datetime,
+                        reintento: str | None = None) -> str:
+    """Anota en la reservación (todavía PREPARADA) lo que hizo Forms. Devuelve LISTA o FORMS_SIN_PREPARAR.
+    En un reintento sobre una operación ya LISTA, el resultado nuevo se añade a `reintentos`; si salió peor, la
+    operación sigue LISTA (la persona pudo haber confirmado ya con el formulario anterior)."""
     resultado = LISTA if listo(detalle) else SIN_PREPARAR
     forms = {"resultado": resultado, "solicitud_id": detalle.get("solicitud_id"), "estado": detalle.get("estado"),
              "codigo": detalle.get("codigo"), "campos_correctos": detalle.get("campos_correctos"),
@@ -141,6 +185,13 @@ def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detal
              "terminado_en": now.isoformat() + "Z"}
     with db.session() as s:
         res = s.get(Reservacion, coin["reservacion_id"])
+        previo = ((res.evidencia or {}).get("forms") or {}) if res is not None else {}
+        if previo.get("resultado") == LISTA:
+            intento = {"motivo": reintento or "", "resultado": resultado, "estado": detalle.get("estado"),
+                       "codigo": detalle.get("codigo"), "terminado_en": forms["terminado_en"]}
+            reintentos = [*(previo.get("reintentos") or []), intento]
+            forms = {**(forms if resultado == LISTA else previo), "reintentos": reintentos}
+            resultado = LISTA
         if res is None or res.estado != rs.PREPARADA:
             # la reservación siguió por otro camino mientras Forms trabajaba: no se toca
             ex.evento(s, exp_id, "FORMS_RESULTADO_DESCARTADO", actor, now, reservacion_id=coin["reservacion_id"],

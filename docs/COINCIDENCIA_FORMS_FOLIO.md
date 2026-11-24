@@ -51,14 +51,21 @@ Solo laboratorio y datos FICTICIOS. No crea otro motor: une piezas que ya exist�
   el operador retoma la atención, ve la coincidencia («todavía NO es una cita»), pulsa «Autorrellenar», la tarjeta
   pasa sola a «Lista para confirmación supervisada», teclea un folio inexistente (error visible, nada cambia) y el
   correcto (la atención muestra «Reservación confirmada» con evidencia `PORTAL_API_FOLIO`). Sin errores de JavaScript.
-  **33/33** con el observador universal (`docs/evidencia_coincidencia/recorrido_interfaz_ventanilla.json`, capturas en
-  `docs/evidencia_coincidencia/interfaz/`) y **31/31** con el observador del calendario.
-- Hallazgos de la pantalla (no corregidos; son decisiones de diseño):
-  1. Con la operación ya lista por Forms, la misma atención sigue mostrando debajo el flujo anterior
-     («Revisión de campos preparados» y «Enviar datos al portal»). Dos caminos a la vez para la misma cita confunden.
-  2. La etiqueta del resultado de Forms dice `CADUCADA` (terminó el tiempo de revisión de la ventana) junto a
-     «Operación preparada»: es correcto técnicamente pero se lee como un fallo.
-  3. El botón «Autorrellenar» sigue activo cuando la operación ya está lista (se puede volver a lanzar Forms).
+  **37/37** con el observador universal (con los ajustes de pantalla) (`docs/evidencia_coincidencia/recorrido_interfaz_ventanilla.json`, capturas en
+  `docs/evidencia_coincidencia/interfaz/`) y **35/35** con el observador del calendario.
+- Ajustes de pantalla aprobados por Diego (2026-11-24) y verificados en el recorrido con navegador:
+  1. En cuanto la operación del plan va por Forms (se lanzó el autorrellenado con ella), el flujo anterior
+     («Revisión de campos» y «Enviar datos al portal») se oculta y el «Siguiente» de la cabecera habla del folio.
+     Solo es visual: la API del flujo anterior no cambió.
+  2. El estado `CADUCADA` del resultado de Forms se muestra como «Tiempo de revisión agotado» (el estado real sigue
+     en `data-estado`); la operación sigue diciendo «todavía NO es una cita».
+  3. Con la operación LISTA, «Autorrellenar» queda desactivado («Autorrellenado completo») y se presenta
+     «Registrar folio». Volver a abrir el formulario exige un motivo (`VENTANA_CERRADA`, `TIEMPO_AGOTADO`,
+     `DATO_CORREGIDO`), máximo 2 veces, sobre la MISMA reservación (evento `AUTORRELLENO_REINTENTO`); si el reintento
+     sale peor, la operación sigue LISTA. Lo aplica el servidor (`OPERACION_YA_LISTA`, `MOTIVO_NO_VALIDO`,
+     `REINTENTOS_AGOTADOS`), no solo la pantalla. Prueba: `test_operacion_lista_no_se_vuelve_a_autorrellenar_…`.
+  Recorrido con navegador: **37/37** (observador universal) y **35/35** (calendario). El reintento se comprobó por
+  API (prueba automática); en pantalla solo se comprobó que aparece y está desactivado sin motivo.
 
 ## 4. Límites
 
@@ -81,7 +88,7 @@ cd monitor; powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 C:\cauce-coincidencia\monitor\recorrido_coincidencia_forms.bat C:\cauce-coincidencia\cauce-forms --con-ventana
 ```
 
-Resultado esperado: `31/31 comprobaciones` (el lanzador usa `--interfaz`: los pasos del operador se hacen en la pantalla) y `resultados\recorrido_coincidencia_forms\recorrido_coincidencia_forms.json`.
+Resultado esperado: `35/35 comprobaciones` (el lanzador usa `--interfaz`: los pasos del operador se hacen en la pantalla) y `resultados\recorrido_coincidencia_forms\recorrido_coincidencia_forms.json`.
 Después, a mano con `autorrelleno_laboratorio.bat` (Ventanilla): dejar a una persona ficticia en el plan, habilitar
 un día en «Calendario del laboratorio», preparar la coincidencia, autorrellenar, completar en la ventana de Forms
 (clave AAA000000, aviso, día de la coincidencia, «Continuar»), y teclear el folio en la tarjeta: debe quedar

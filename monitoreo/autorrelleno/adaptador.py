@@ -306,7 +306,7 @@ class Contexto:
     coincidencia: dict | None = None        # operación preparada desde el plan (fecha y sucursal), si la hay
 
 
-def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Contexto:
+def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config, reintento: str | None = None) -> Contexto:
     """Todas las puertas de Monitor. Lanza `Negado` con el primer motivo encontrado."""
     with db.session() as s:
         try:
@@ -376,6 +376,9 @@ def evaluar(db: Database, user, aid: int, now: datetime, cfg: Config) -> Context
         # la solicitud (fecha y sucursal solo si el perfil aprobado las declara) y el resultado vuelve a ella.
         coin = cz.operacion_viva(s, exp.id, user.operator_id)
         if coin is not None:
+            ok, codigo, mensaje = cz.reintento_permitido(cz.forms_de(s, coin), reintento)
+            if not ok:
+                raise Negado(codigo, mensaje)
             valores.update(cz.campos_de(coin, declarados))
         ctx = Contexto(a.id, exp.id, exp.codigo, c.id, c.codigo, c.vigente_hasta, valores, sin_dato,
                        [m.etiqueta for m in contrato.manuales],
@@ -430,6 +433,7 @@ class Corrida:
     diagnostico: list = field(default_factory=list)   # códigos fijos de stderr de Forms (nunca texto libre)
     coincidencia: dict | None = None         # operación del plan a la que vuelve el resultado
     resultado_operacion: str = ""            # LISTA_PARA_CONFIRMACION | FORMS_SIN_PREPARAR (solo con coincidencia)
+    reintento: str = ""                      # motivo, si se volvió a abrir una operación ya LISTA
     lanzador: LanzadorLab | None = field(default=None, repr=False)
 
     @property
@@ -446,7 +450,7 @@ class Corrida:
                 "consentimiento": self.consentimiento_codigo, "informe": self.informe,
                 "procesos_restantes": self.procesos_restantes, "diagnostico": self.diagnostico,
                 "coincidencia": self.coincidencia, "resultado_operacion": self.resultado_operacion,
-                "iniciada_en": iso(self.iniciada_en), "terminada_en": iso(self.terminada_en)}
+                "reintento": self.reintento, "iniciada_en": iso(self.iniciada_en), "terminada_en": iso(self.terminada_en)}
 
 
 _LOCK = threading.Lock()
@@ -502,12 +506,15 @@ def informe_sin_valores(resp: dict, ctx: Contexto) -> dict:
             "revision_humana": resp.get("revision_humana", {}).get("resultado")}
 
 
-def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bool = False) -> dict:
-    """Comprueba todo y lanza Forms en segundo plano. `esperar=True` (pruebas) espera a que termine."""
+def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bool = False,
+            reintento: str | None = None) -> dict:
+    """Comprueba todo y lanza Forms en segundo plano. `esperar=True` (pruebas) espera a que termine.
+    `reintento`: motivo (cz.MOTIVOS_REINTENTO) para volver a abrir una operación que Forms ya dejó LISTA."""
     try:
         cfg = cfg or configuracion()
         now = utcnow()
-        ctx = evaluar(db, user, aid, now, cfg)
+        ctx = evaluar(db, user, aid, now, cfg, reintento)
+        reintento = reintento if ctx.coincidencia is not None and cz.forms_de_id(db, ctx.coincidencia) else None
         with _LOCK:
             otra = en_curso()
             if otra is not None:
@@ -522,7 +529,8 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
             except ErrorRegistro as e:
                 raise Negado("SOLICITUD_INVALIDA", f"La solicitud no cumple el contrato ({e.codigo}).") from e
             corrida = Corrida(sol["solicitud_id"], ctx.expediente_id, ctx.expediente_codigo, aid, user.username,
-                              ctx.consentimiento_codigo, now, estado="AUTORIZADA", coincidencia=ctx.coincidencia)
+                              ctx.consentimiento_codigo, now, estado="AUTORIZADA", coincidencia=ctx.coincidencia,
+                              reintento=reintento or "")
             _CORRIDAS[ctx.expediente_id] = corrida
     except Negado as n:
         _auditar(db, user, "autorrelleno_negado", f"atencion:{aid}", {"codigo": n.codigo})
@@ -534,6 +542,9 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
         ex.evento(s, ctx.expediente_id, "AUTORRELLENO_SOLICITADO", vt._actor(user), now, **detalle)
         if ctx.coincidencia is not None:
             k = ctx.coincidencia
+            if reintento:
+                ex.evento(s, ctx.expediente_id, "AUTORRELLENO_REINTENTO", vt._actor(user), now,
+                          reservacion_id=k["reservacion_id"], motivo=reintento, solicitud_id=sol["solicitud_id"])
             ex.evento(s, ctx.expediente_id, "COINCIDENCIA_ENTREGADA_A_FORMS", vt._actor(user), now,
                       reservacion_id=k["reservacion_id"], elemento_id=k["elemento_id"], fecha=k["fecha"],
                       sucursal=k["sucursal"], solicitud_id=sol["solicitud_id"],
@@ -626,7 +637,8 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
                            {"solicitud_id": sid, "estado": estado, "codigo": codigo})
         if corrida.coincidencia is not None:
             corrida.resultado_operacion = cz.registrar_resultado(db, corrida.coincidencia, corrida.expediente_id,
-                                                                 f"{corrida.username} (ventanilla)", detalle, utcnow())
+                                                                 f"{corrida.username} (ventanilla)", detalle, utcnow(),
+                                                                 corrida.reintento or None)
     except Exception:  # noqa: BLE001
         log.exception("no se pudo registrar el fin del autorrellenado %s", sid)
     finally:

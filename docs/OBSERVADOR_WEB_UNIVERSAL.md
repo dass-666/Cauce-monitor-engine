@@ -116,4 +116,4 @@ En la misma carpeta nueva de `docs/COINCIDENCIA_FORMS_FOLIO.md` §5 (`C:\cauce-c
 C:\cauce-coincidencia\monitor\observador_web_laboratorio.bat C:\cauce-coincidencia\cauce-forms
 ```
 
-Esperado: `9 passed`, `33/33 comprobaciones` (con la pantalla de Ventanilla) y `20/20` de la pantalla «Páginas observadas». Enviar los dos JSON que indica la ventana.
+Esperado: `9 passed`, `37/37 comprobaciones` (con la pantalla de Ventanilla) y `20/20` de la pantalla «Páginas observadas». Enviar los dos JSON que indica la ventana.

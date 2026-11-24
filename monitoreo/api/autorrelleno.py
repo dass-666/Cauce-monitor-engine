@@ -38,6 +38,10 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
         exp_id = a.expediente_id
         coin = cz.vista(s, exp_id, user.operator_id) if exp_id else None
     corrida = ad.corrida_de(exp_id) if exp_id else None
+    if coin is not None and coin.get("lista_para_confirmacion"):
+        coin["reintentos"] = len((coin.get("forms") or {}).get("reintentos") or [])
+        coin["max_reintentos"] = cz.MAX_REINTENTOS
+        coin["motivos_reintento"] = cz.MOTIVOS_REINTENTO
     out = {"habilitado": conf["habilitado"], "disponible": False, "codigo": conf["codigo"], "motivo": conf["motivo"],
            "corrida": corrida.vista() if corrida else None,
            "externo": conf.get("externo", False), "sitio": conf.get("sitio", ""), "coincidencia": coin}
@@ -52,10 +56,15 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
     return out
 
 
+class LanzarIn(BaseModel):
+    reintento: str | None = Field(default=None, max_length=32)   # motivo: cz.MOTIVOS_REINTENTO
+
+
 @router.post("/atenciones/{aid}", status_code=202)
-def lanzar(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+def lanzar(aid: int, body: LanzarIn | None = None, user: CurrentUser = Depends(current_user),
+           db: Database = Depends(get_db)):
     try:
-        return ad.iniciar(db, user, aid)
+        return ad.iniciar(db, user, aid, reintento=(body.reintento if body else None))
     except ad.Negado as n:
         _negado(n)
 

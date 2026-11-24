@@ -24,6 +24,27 @@ fs.mkdirSync(outDir, { recursive: true });
   const shot = async (nombre) => { await O.screenshot({ path: path.join(outDir, `${fase}_${nombre}.png`), fullPage: true }); };
   const paso = (k, ok, detalle) => { res.pasos.push({ paso: k, ok: !!ok, detalle }); if (!ok) throw new Error(`paso ${k} falló: ${JSON.stringify(detalle)}`); };
   const sinNull = async (sel) => !/\bnull\b|undefined|NaN/.test(await O.textContent(sel));
+  // el flujo anterior («Enviar datos al portal») ¿se ve?
+  const flujoAnteriorVisible = async () => O.evaluate(() => {
+    const f = document.querySelector("#flujo");
+    const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes("Enviar datos al portal"));
+    return !!(f && f.offsetParent !== null) || !!(b && b.offsetParent !== null);
+  });
+  // la tarjeta de Forms con la operación lista: ajustes aprobados (etiqueta, botón, folio, reintento, sin confirmar)
+  const tarjetaLista = async () => {
+    const texto = await O.textContent("#autorrelleno");
+    const estadoReal = await O.getAttribute("#autorrelleno-resultado", "data-estado").catch(() => null);
+    return {
+      flujo_anterior_oculto: !(await flujoAnteriorVisible()),
+      etiqueta_ok: estadoReal !== "CADUCADA" || (texto.includes("Tiempo de revisión agotado") && !texto.includes("CADUCADA")),
+      estado_real: estadoReal,
+      autorrellenar_desactivado: await O.$eval("#btn-autorrellenar", (b) => b.disabled && b.textContent.includes("completo")),
+      registrar_folio: (await O.textContent("#btn-folio-forms")).trim() === "Registrar folio",
+      reintento_controlado: !!(await O.$("#reintento-forms")) && await O.$eval("#btn-reintentar-forms", (b) => b.disabled),
+      no_dice_confirmada: !/cita confirmada|CONFIRMADA \(folio/i.test(texto),
+      siguiente_habla_del_folio: (await O.textContent("#siguiente-paso")).includes("registra el folio"),
+    };
+  };
   try {
     await O.goto(base + "/");
     await O.fill("input[name=username]", E.operador[0]); await O.fill("input[name=password]", E.operador[1]);
@@ -45,10 +66,12 @@ fs.mkdirSync(outDir, { recursive: true });
         && (await O.getAttribute("#autorrelleno-coincidencia", "data-confirmada")) === "no" && !(await O.$("#folio-forms")),
         res.coincidencia_visible);
       await O.waitForSelector("#autorrelleno[data-disponible=si] #btn-autorrellenar:not([disabled])", { timeout: 15000 });
+      paso("1b_antes_de_forms_el_flujo_anterior_sigue_disponible", await flujoAnteriorVisible(), null);
       await shot("1_coincidencia_antes_de_forms");
       await O.click("#btn-autorrellenar");
       await O.waitForSelector("#autorrelleno-resultado[data-estado=LANZADA]", { timeout: 15000 });
       paso("2_forms_lanzado_desde_la_tarjeta", true, null);
+      paso("2b_vinculada_a_forms_el_flujo_anterior_se_oculta", !(await flujoAnteriorVisible()), null);
       // la tarjeta se refresca sola; al terminar Forms, la operación queda lista (no confirmada)
       await O.waitForSelector("#autorrelleno-coincidencia[data-lista=si]", { timeout: (E.espera_s + 180) * 1000 });
       const estado = await O.getAttribute("#autorrelleno-resultado", "data-estado");
@@ -60,7 +83,12 @@ fs.mkdirSync(outDir, { recursive: true });
       paso("3_lista_para_confirmacion_en_pantalla", ["CADUCADA", "PREPARADO"].includes(estado) && res.resultado.campos_ok === 8
         && res.resultado.texto_lista && res.resultado.caja_folio && res.resultado.sin_null
         && (await O.getAttribute("#autorrelleno-coincidencia", "data-confirmada")) === "no", res.resultado);
+      res.ajustes = await tarjetaLista();
+      paso("4_ajustes_aprobados_en_la_tarjeta", Object.entries(res.ajustes).every(([k, v]) => k === "estado_real" || v), res.ajustes);
     } else if (fase === "folio") {
+      // al volver a abrir la atención (otra sesión del navegador) se mantiene igual
+      res.ajustes_al_volver = await tarjetaLista();
+      paso("0_al_volver_la_tarjeta_sigue_igual", Object.entries(res.ajustes_al_volver).every(([k, v]) => k === "estado_real" || v), res.ajustes_al_volver);
       await O.waitForSelector("#folio-forms-caja", { timeout: 15000 });
       await O.fill("#folio-forms", E.folio_falso); await O.fill("#folio-forms-2", E.folio_falso);
       await O.click("#btn-folio-forms");
