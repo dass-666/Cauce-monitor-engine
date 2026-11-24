@@ -195,7 +195,17 @@ def test_dia_que_se_agota_antes_de_confirmar(lab):
         cal = r.json()["detail"]["calendario"]
         assert next(d for d in cal["dias"] if d["fecha"] == dia["fecha"])["estado"] == "AGOTADO"   # calendario al día
         assert res_estado(lab, rid) == "DATOS_ENVIADOS" and estado(lab, eid) == "CAPTURA_EN_PROCESO"
-        otro = next(d for d in cal["dias"] if d["estado"] == "DISPONIBLE")
+        otro = next((d for d in cal["dias"] if d["estado"] == "DISPONIBLE"), None)
+        if otro is None and cal.get("mes"):
+            # Cerca de fin de mes (o con el mes ocupado por pruebas anteriores) el otro día libre está en el mes
+            # siguiente, igual que en lab.hasta_fecha: antes esta prueba fallaba según la fecha de la corrida.
+            y, m = (int(x) for x in cal["mes"].split("-"))
+            sig = lab.c.get(f"/api/reservaciones/{rid}/calendario", headers=h,
+                            params={"mes": f"{y + m // 12:04d}-{m % 12 + 1:02d}", "sucursal": dia["sucursal"]})
+            assert sig.status_code == 200, sig.text
+            sig = sig.json()["calendario"] if "calendario" in sig.json() else sig.json()
+            otro = next((d for d in sig["dias"] if d["estado"] == "DISPONIBLE"), None)
+        assert otro, ("el calendario debería tener otro día disponible", cal.get("mes"))
         assert lab.c.post(f"/api/reservaciones/{rid}/seleccionar-dia", headers=h,
                           json={"fecha": otro["fecha"], "sucursal": dia["sucursal"]}).status_code == 200
         r = lab.c.post(f"/api/reservaciones/{rid}/confirmar", headers=h, json={"confirmo": True})
