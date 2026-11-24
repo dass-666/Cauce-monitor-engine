@@ -12,7 +12,11 @@
      API del portal (titular, trámite, fecha, sucursal) -> CONFIRMADA, plan CONFIRMADO.
   7. Ningún archivo de texto ni registro contiene los datos personales ficticios.
 
+Con --interfaz, los pasos 4 y 6 los hace el operador SOLO con la pantalla de Ventanilla (Chromium automatizado,
+scripts/recorrido_coincidencia_ui.js): pulsa «Autorrellenar», ve la operación lista y teclea los folios.
+
 Uso: python scripts/recorrido_coincidencia_forms.py --forms <carpeta de Forms instalado> [--salida DIR] [--con-ventana]
+     [--observador calendario|web] [--interfaz]
 Código 0 si todo pasa, 1 si algo falla, 3 si falta Forms o Node.js/Playwright.
 """
 from __future__ import annotations
@@ -22,6 +26,7 @@ import json
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -35,6 +40,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from autorrelleno_forms import FormsNoListo, buscar_datos  # noqa: E402
 from ventanilla_laboratorio import ADMIN_PWD, OPERADOR, Laboratorio  # noqa: E402
+
+from monitoreo import navegador  # noqa: E402
 
 MANUALES = {"clave_identidad": "QXZ482915", "acepto_privacidad": "si"}     # ficticios: los teclea la «persona»
 
@@ -88,6 +95,8 @@ def main() -> int:
     ap.add_argument("--con-ventana", action="store_true")
     ap.add_argument("--observador", choices=("calendario", "web"), default="calendario",
                     help="web: el OBSERVADOR UNIVERSAL (fuente configurada por URL + perfil, sin código del portal)")
+    ap.add_argument("--interfaz", action="store_true",
+                    help="pasos 4 y 6 con la pantalla de Ventanilla (navegador automatizado), no con la API")
     a = ap.parse_args()
     out = Path(a.salida)
     out.mkdir(parents=True, exist_ok=True)
@@ -100,7 +109,7 @@ def main() -> int:
     lab.env_extra.update({"MONITOREO_AUTORRELLENO_ESPERA_S": str(a.espera_s),
                           "MONITOREO_FORMS_HEADLESS": "0" if a.con_ventana else "1"})
     ck: list[dict] = []
-    res: dict = {"recorrido": "coincidencia_forms_folio_laboratorio", "plataforma": platform.platform(),
+    res: dict = {"recorrido": "coincidencia_forms_folio_laboratorio", "interfaz": None if not a.interfaz else {}, "plataforma": platform.platform(),
                  "python": platform.python_version(), "inicio": time.strftime("%Y-%m-%dT%H:%M:%S"),
                  "datos": "FICTICIOS; portal de laboratorio propio en 127.0.0.1; la persona del paso 5 es SIMULADA"}
     tiempos: dict = {}
@@ -109,6 +118,24 @@ def main() -> int:
         ck.append({"comprobacion": nombre, "ok": bool(ok), "detalle": detalle})
         print(("OK   " if ok else "FALLA") + " " + nombre + ("" if ok else f"  {detalle}"))
         return ok
+
+    def interfaz(fase, entrada):
+        """Ejecuta una fase de recorrido_coincidencia_ui.js y registra sus pasos como comprobaciones."""
+        (tmp / f"ui_{fase}.json").write_text(json.dumps({"operador": list(OPERADOR), **entrada}), "utf-8")
+        p = subprocess.run([shutil.which("node"), str(ROOT / "scripts" / "recorrido_coincidencia_ui.js"), fase, d["motor"],
+                            str(out / "capturas_interfaz"), str(tmp / f"ui_{fase}.json")],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
+                           env=navegador.entorno(), cwd=str(ROOT / "scripts"))
+        linea = next((x for x in p.stdout.splitlines() if x.startswith("RESULTADO ")), None)
+        if linea is None:
+            check(f"interfaz · {fase}: el navegador automatizado se ejecutó", False, (p.stderr or p.stdout)[-400:])
+            return None
+        nav = json.loads(linea[len("RESULTADO "):])
+        res.setdefault("interfaz", {})[fase] = nav
+        for x in nav["pasos"]:
+            check(f"interfaz · {fase} · {x['paso']}", x["ok"], x["detalle"])
+        check(f"interfaz · {fase}: sin interrupciones", not nav.get("fallo"), nav.get("fallo"))
+        return nav
 
     persona = {}
     try:
@@ -217,8 +244,11 @@ def main() -> int:
         check("4 · Ventanilla muestra la coincidencia y el botón disponible",
               st["disponible"] and (st["coincidencia"] or {}).get("fecha") == fecha, st)
         t = time.perf_counter()
-        r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
-        check("4 · autorrellenar lanzado (Forms real)", r.status_code == 202, r.text[:200])
+        if a.interfaz:
+            interfaz("autorrellenar", {"atencion": at2["id"], "fecha": fecha, "sucursal": "NOR-1", "espera_s": a.espera_s})
+        else:
+            r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
+            check("4 · autorrellenar lanzado (Forms real)", r.status_code == 202, r.text[:200])
         fin = esperar(lambda: (lambda c: c if c and not c["en_curso"] else None)(
             op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["corrida"]), a.espera_s + 180, 0.5)
         tiempos["forms_s"] = round(time.perf_counter() - t, 2)
@@ -242,22 +272,34 @@ def main() -> int:
         # 6. folio -> verificación con el portal
         def mandar(f1, f2=None):
             return op.post(f"/api/autorrelleno/reservaciones/{rid}/folio", json={"folio": f1, "folio_confirmacion": f2 or f1})
-        r = mandar("DIA-20991231-99999Z")
-        check("6 · un folio inexistente se rechaza y no cambia nada",
-              r.status_code == 409 and r.json()["detail"]["codigo"] == "FOLIO_INEXISTENTE", r.text[:200])
         r = mandar(folio, folio + "X")
         check("6 · un folio tecleado distinto las dos veces se rechaza", r.status_code == 422, r.text[:200])
-        r = mandar(folio)
-        ok = r.status_code == 200
-        check("6 · el folio correcto se COMPRUEBA con la API del portal y la cita queda CONFIRMADA",
-              ok and r.json()["reservacion"]["estado"] == "CONFIRMADA", r.text[:300])
+        if a.interfaz:
+            interfaz("folio", {"atencion": at2["id"], "fecha": fecha, "sucursal": "NOR-1",
+                               "folio": folio, "folio_falso": "DIA-20991231-99999Z"})
+            vista_res = next((x for x in adm.get("/api/reservaciones").json() if x["id"] == rid), {})
+            ok = vista_res.get("estado") == "CONFIRMADA"
+            r_json = {"reservacion": vista_res,
+                      "estado_plan": next((e["estado"] for p in adm.get("/api/planes").json()["planes"]
+                                           for e in adm.get(f"/api/planes/{p['id']}").json()["elementos"]
+                                           if e["expediente_id"] == exp_id), None)}
+            check("6 · tras los folios tecleados en pantalla, la reservación está CONFIRMADA", ok, vista_res.get("estado"))
+        else:
+            r = mandar("DIA-20991231-99999Z")
+            check("6 · un folio inexistente se rechaza y no cambia nada",
+                  r.status_code == 409 and r.json()["detail"]["codigo"] == "FOLIO_INEXISTENTE", r.text[:200])
+            r = mandar(folio)
+            ok = r.status_code == 200
+            r_json = r.json() if ok else {}
+            check("6 · el folio correcto se COMPRUEBA con la API del portal y la cita queda CONFIRMADA",
+                  ok and r_json["reservacion"]["estado"] == "CONFIRMADA", r.text[:300])
         if ok:
-            ev = r.json()["reservacion"]["evidencia"]
+            ev = r_json["reservacion"].get("evidencia") or {}
             res["evidencia_confirmacion"] = {k: ev.get(k) for k in ("fuente", "verificada_con_proveedor", "comprobado",
                                                                     "estado_portal", "fecha_portal", "sucursal_portal")}
             check("6 · comprobado: estado, folio, titular, trámite, fecha y sucursal",
                   ev.get("comprobado") and all(ev["comprobado"].values()) and len(ev["comprobado"]) == 6, ev.get("comprobado"))
-            check("6 · el plan pasa a CONFIRMADO", r.json().get("estado_plan") == "CONFIRMADO", r.json().get("estado_plan"))
+            check("6 · el plan pasa a CONFIRMADO", r_json.get("estado_plan") == "CONFIRMADO", r_json.get("estado_plan"))
         exp = adm.get(f"/api/expedientes/{exp_id}").json()
         check("6 · el expediente queda RESERVACION_CONFIRMADA", exp["estado"] == "RESERVACION_CONFIRMADA", exp["estado"])
         t = adm.get(f"/api/expedientes/{exp_id}/trazabilidad").json()

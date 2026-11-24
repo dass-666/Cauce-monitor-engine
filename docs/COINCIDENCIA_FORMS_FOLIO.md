@@ -47,6 +47,19 @@ Solo laboratorio y datos FICTICIOS. No crea otro motor: une piezas que ya exist�
 - Regresión: `test_adaptadores`, `test_autorrelleno_forms`, `test_autorrelleno_externo`, `test_planificador`,
   `test_piloto_asistido`, `test_portal_dias`: 74 aprobadas, 4 omitidas. Con Forms real (`FORMS_REPO`): 31 + 1 omitida.
 
+- **Pantalla de Ventanilla probada en navegador** (`--interfaz`, Chromium automatizado, `scripts/recorrido_coincidencia_ui.js`):
+  el operador retoma la atención, ve la coincidencia («todavía NO es una cita»), pulsa «Autorrellenar», la tarjeta
+  pasa sola a «Lista para confirmación supervisada», teclea un folio inexistente (error visible, nada cambia) y el
+  correcto (la atención muestra «Reservación confirmada» con evidencia `PORTAL_API_FOLIO`). Sin errores de JavaScript.
+  **33/33** con el observador universal (`docs/evidencia_coincidencia/recorrido_interfaz_ventanilla.json`, capturas en
+  `docs/evidencia_coincidencia/interfaz/`) y **31/31** con el observador del calendario.
+- Hallazgos de la pantalla (no corregidos; son decisiones de diseño):
+  1. Con la operación ya lista por Forms, la misma atención sigue mostrando debajo el flujo anterior
+     («Revisión de campos preparados» y «Enviar datos al portal»). Dos caminos a la vez para la misma cita confunden.
+  2. La etiqueta del resultado de Forms dice `CADUCADA` (terminó el tiempo de revisión de la ventana) junto a
+     «Operación preparada»: es correcto técnicamente pero se lee como un fallo.
+  3. El botón «Autorrellenar» sigue activo cuando la operación ya está lista (se puede volver a lanzar Forms).
+
 ## 4. Límites
 
 - Solo laboratorio (router en `SOLO_LABORATORIO`, `MONITOREO_AUTORRELLENO_LAB=1`). Forms sigue con el mismo usuario
@@ -67,7 +80,7 @@ cd monitor; powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 C:\cauce-coincidencia\monitor\recorrido_coincidencia_forms.bat C:\cauce-coincidencia\cauce-forms --con-ventana
 ```
 
-Resultado esperado: `24/24 comprobaciones` y `resultados\recorrido_coincidencia_forms\recorrido_coincidencia_forms.json`.
+Resultado esperado: `31/31 comprobaciones` (el lanzador usa `--interfaz`: los pasos del operador se hacen en la pantalla) y `resultados\recorrido_coincidencia_forms\recorrido_coincidencia_forms.json`.
 Después, a mano con `autorrelleno_laboratorio.bat` (Ventanilla): dejar a una persona ficticia en el plan, habilitar
 un día en «Calendario del laboratorio», preparar la coincidencia, autorrellenar, completar en la ventana de Forms
 (clave AAA000000, aviso, día de la coincidencia, «Continuar»), y teclear el folio en la tarjeta: debe quedar
