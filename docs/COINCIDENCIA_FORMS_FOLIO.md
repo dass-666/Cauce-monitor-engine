@@ -21,7 +21,7 @@ Solo laboratorio y datos FICTICIOS. No crea otro motor: une piezas que ya exist�
    una pantalla). En el portal de laboratorio por día no viajan: van en su 2.ª pantalla (calendario), que elige la persona.
    Historial: `COINCIDENCIA_ENTREGADA_A_FORMS`.
 2. Al terminar Forms, su resultado (sin valores) queda en `reservaciones.evidencia.forms`. Si rellenó y verificó todos
-   los campos sin enviar → `OPERACION_LISTA_PARA_CONFIRMACION`. **No es una cita**: la reservación sigue `PREPARADA` y el
+   los campos sin enviar → `OPERACION_LISTA_CONFIRMACION`. **No es una cita**: la reservación sigue `PREPARADA` y el
    plan sigue `OPERACION_PREPARADA`. Si no, `OPERACION_FORMS_SIN_PREPARAR`.
 3. La persona confirma en el portal (en la ventana de Forms: campos manuales, día de la coincidencia, «Continuar») y el
    operador teclea el folio dos veces en la tarjeta. `POST /api/autorrelleno/reservaciones/{id}/folio`:

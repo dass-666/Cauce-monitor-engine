@@ -263,7 +263,7 @@ def main() -> int:
         t = adm.get(f"/api/expedientes/{exp_id}/trazabilidad").json()
         tipos = [x.get("tipo") for x in t.get("linea_de_tiempo", [])]
         orden = ["PLAN_OPERACION_PREPARADA", "COINCIDENCIA_ENTREGADA_A_FORMS", "AUTORRELLENO_TERMINADO",
-                 "OPERACION_LISTA_PARA_CONFIRMACION", "FOLIO_RECHAZADO", "RESERVACION_CONFIRMADA"]
+                 "OPERACION_LISTA_CONFIRMACION", "FOLIO_RECHAZADO", "RESERVACION_CONFIRMADA"]
         pos = [tipos.index(x) if x in tipos else -1 for x in orden]
         check("6 · historial en orden: preparada -> entregada a Forms -> lista -> rechazo -> confirmada",
               -1 not in pos and pos == sorted(pos), dict(zip(orden, pos)))

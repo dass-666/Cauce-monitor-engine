@@ -150,7 +150,7 @@ def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detal
         s.execute(update(t).where(t.c.id == res.id, t.c.estado == rs.PREPARADA).values(
             evidencia={**(res.evidencia or {}), "forms": forms}, fecha=coin["fecha"], sucursal=coin["sucursal"],
             updated_at=now))
-        ex.evento(s, exp_id, "OPERACION_LISTA_PARA_CONFIRMACION" if resultado == LISTA else "OPERACION_FORMS_SIN_PREPARAR",
+        ex.evento(s, exp_id, "OPERACION_LISTA_CONFIRMACION" if resultado == LISTA else "OPERACION_FORMS_SIN_PREPARAR",
                   actor, now, reservacion_id=res.id, elemento_id=coin["elemento_id"], fecha=coin["fecha"],
                   sucursal=coin["sucursal"], estado_forms=detalle.get("estado"), codigo=detalle.get("codigo"),
                   es_cita=False)

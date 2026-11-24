@@ -2,18 +2,19 @@
   "recorrido": "coincidencia_forms_folio_laboratorio",
   "plataforma": "Linux-6.18.44-fc-v819-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "inicio": "2026-11-24T14:01:22",
+  "inicio": "2026-11-24T14:24:06",
   "datos": "FICTICIOS; portal de laboratorio propio en 127.0.0.1; la persona del paso 5 es SIMULADA",
   "forms": {
     "commit": "ff117da",
-    "perfil_sha256": "fc5241f25b30b41f3e5778a3855f93a538270e6d4b50fb9f45623f27c59c9e0d",
-    "url": "http://127.0.0.1:41215/cita"
+    "perfil_sha256": "b1a7ef0f347148a1b3ee1cfb65b3b2a4058154ce647ccdb2995657c05840f683",
+    "url": "http://127.0.0.1:53847/cita"
   },
   "coincidencia_esperada": {
     "fecha": "2026-12-17",
     "sucursal": "NOR-1",
     "tramite": "constancia"
   },
+  "observador": "calendario",
   "forms_resultado": {
     "estado": "CADUCADA",
     "codigo": "revision_caducada",
@@ -65,14 +66,14 @@
     "AUTORRELLENO_SOLICITADO",
     "COINCIDENCIA_ENTREGADA_A_FORMS",
     "AUTORRELLENO_TERMINADO",
-    "OPERACION_LISTA_PARA_CONFIRMACION",
+    "OPERACION_LISTA_CONFIRMACION",
     "FOLIO_RECHAZADO",
     "RESERVACION_CONFIRMADA",
     "ESTADO"
   ],
   "tiempos": {
-    "habilitar_a_coincidencia_s": 0.45,
-    "forms_s": 37.6
+    "habilitar_a_coincidencia_s": 0.46,
+    "forms_s": 37.58
   },
   "comprobaciones": [
     {
@@ -83,7 +84,7 @@
     {
       "comprobacion": "1 · expediente ficticio con consentimiento registrado en Ventanilla",
       "ok": true,
-      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"EN_PROCESO\",\"estado_nombre\":\"En proceso\",\"resultado\":null,\"folio\":null,\"abierta\":true,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciada_en\":\"2026-11-24T14:01:27.124"
+      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"EN_PROCESO\",\"estado_nombre\":\"En proceso\",\"resultado\":null,\"folio\":null,\"abierta\":true,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciada_en\":\"2026-11-24T14:24:11.635"
     },
     {
       "comprobacion": "1 · la persona queda en el plan del día con sus fechas aceptables",
@@ -93,7 +94,7 @@
     {
       "comprobacion": "2 · el motor lanzó el observador (Chromium) del calendario",
       "ok": true,
-      "detalle": "{\"nombre\":\"obs-NOR-1-constancia\",\"url\":\"http://127.0.0.1:41215/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12\",\"estrategia\":\"ambas\",\"vivo\":true,\"pendientes\":0,\"fallo\":null,\"ultimo_error\":null,\"errores\":[],\"stderr_node\":[],\"lineas\":0,\"eventos\":0,\"reinicios_navegador\":0,\"reaperturas"
+      "detalle": "{\"nombre\":\"obs-NOR-1-constancia\",\"url\":\"http://127.0.0.1:53847/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12\",\"fuente_web\":false,\"estrategia\":\"ambas\",\"vivo\":true,\"pendientes\":0,\"fallo\":null,\"ultimo_error\":null,\"errores\":[],\"stderr_node\":[],\"lineas\":0,\"eventos\":0,\"reinicios_navega"
     },
     {
       "comprobacion": "2 · calendario abierto y ACTIVO",
@@ -110,19 +111,20 @@
             "activo": true,
             "estado": "ACTIVO",
             "motivo": "",
-            "titular": "vm:3967:21eec8",
+            "titular": "vm:11953:232ab3",
             "reinicios": 0,
             "creado_por": "admin",
-            "actualizado": "2026-11-24T14:01:27.242753Z"
+            "actualizado": "2026-11-24T14:24:11.755131Z"
           }
         ],
         "proceso": {
-          "proceso": "vm:3967:21eec8",
+          "proceso": "vm:11953:232ab3",
           "ultimo_error": null,
           "observadores": [
             {
               "nombre": "obs-NOR-1-constancia",
-              "url": "http://127.0.0.1:41215/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+              "url": "http://127.0.0.1:53847/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+              "fuente_web": false,
               "estrategia": "ambas",
               "vivo": true,
               "pendientes": 0,
@@ -150,7 +152,8 @@
         "observadores": [
           {
             "nombre": "obs-NOR-1-constancia",
-            "url": "http://127.0.0.1:41215/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "url": "http://127.0.0.1:53847/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "fuente_web": false,
             "estrategia": "ambas",
             "vivo": true,
             "pendientes": 0,
@@ -218,7 +221,7 @@
           },
           "jornada": "2026-11-24",
           "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
-          "atendido_en": "2026-11-24T14:01:31.690508Z",
+          "atendido_en": "2026-11-24T14:24:16.227661Z",
           "unidades": {
             "libres_vistas": 1,
             "con_las_que_se_cuenta": 1,
@@ -287,7 +290,7 @@
     {
       "comprobacion": "4 · autorrellenar lanzado (Forms real)",
       "ok": true,
-      "detalle": "{\"solicitud_id\":\"sol_f37b797c0191cc58002fdb6d\",\"expediente\":\"EXP-000001\",\"estado\":\"LANZADA\",\"codigo\":\"\",\"en_curso\":true,\"mensaje\":\"Forms está rellenando el formulario en una ventana del navegador. Rev"
+      "detalle": "{\"solicitud_id\":\"sol_366c314ad6277142aab49020\",\"expediente\":\"EXP-000001\",\"estado\":\"LANZADA\",\"codigo\":\"\",\"en_curso\":true,\"mensaje\":\"Forms está rellenando el formulario en una ventana del navegador. Rev"
     },
     {
       "comprobacion": "4 · Forms rellenó y verificó 8 campos y 2 confirmaciones sin enviar",
@@ -325,7 +328,7 @@
         "confirmada": false,
         "forms": {
           "resultado": "LISTA_PARA_CONFIRMACION",
-          "solicitud_id": "sol_f37b797c0191cc58002fdb6d",
+          "solicitud_id": "sol_366c314ad6277142aab49020",
           "estado": "CADUCADA",
           "codigo": "revision_caducada",
           "campos_correctos": 8,
@@ -335,7 +338,7 @@
           "envio_humano_observado": false,
           "fecha_coincidencia": "2026-12-17",
           "sucursal_coincidencia": "NOR-1",
-          "terminado_en": "2026-11-24T14:02:09.135956Z"
+          "terminado_en": "2026-11-24T14:24:53.626254Z"
         },
         "verificable": true
       }
@@ -389,7 +392,7 @@
         "PLAN_OPERACION_PREPARADA": 22,
         "COINCIDENCIA_ENTREGADA_A_FORMS": 26,
         "AUTORRELLENO_TERMINADO": 27,
-        "OPERACION_LISTA_PARA_CONFIRMACION": 28,
+        "OPERACION_LISTA_CONFIRMACION": 28,
         "FOLIO_RECHAZADO": 29,
         "RESERVACION_CONFIRMADA": 30
       }
@@ -406,5 +409,5 @@
     }
   ],
   "ok": true,
-  "fin": "2026-11-24T14:02:10"
+  "fin": "2026-11-24T14:24:54"
 }

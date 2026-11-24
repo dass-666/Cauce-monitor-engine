@@ -161,7 +161,7 @@ def test_coincidencia_a_forms_a_folio_verificado(lab):
     assert folio(lab, h, k["rid"], f).json()["repetida"] is True           # idempotente
     tipos = _tipos(lab, k["exp_id"])
     i = tipos.index
-    assert i("PLAN_OPERACION_PREPARADA") < i("COINCIDENCIA_ENTREGADA_A_FORMS") < i("OPERACION_LISTA_PARA_CONFIRMACION") \
+    assert i("PLAN_OPERACION_PREPARADA") < i("COINCIDENCIA_ENTREGADA_A_FORMS") < i("OPERACION_LISTA_CONFIRMACION") \
         < i("RESERVACION_CONFIRMADA")
     guardado = textos_guardados(lab)
     for v in (k["datos"]["telefono"], k["datos"]["correo"], k["datos"]["id_registro_previo"], MANUALES["clave_identidad"]):

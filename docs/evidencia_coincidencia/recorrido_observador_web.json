@@ -2,12 +2,12 @@
   "recorrido": "coincidencia_forms_folio_laboratorio",
   "plataforma": "Linux-6.18.44-fc-v819-x86_64-with-glibc2.39",
   "python": "3.13.18",
-  "inicio": "2026-11-24T14:16:48",
+  "inicio": "2026-11-24T14:24:55",
   "datos": "FICTICIOS; portal de laboratorio propio en 127.0.0.1; la persona del paso 5 es SIMULADA",
   "forms": {
     "commit": "ff117da",
-    "perfil_sha256": "1d0dce24b9d93831a0bdf11e6775389767b46d2664ea2a7c07f18a5a267930c2",
-    "url": "http://127.0.0.1:37593/cita"
+    "perfil_sha256": "e1b837dd2b1859cd414df76706d4e215308a9686e003ee45b6550f652b93daaa",
+    "url": "http://127.0.0.1:41347/cita"
   },
   "coincidencia_esperada": {
     "fecha": "2026-12-17",
@@ -66,14 +66,14 @@
     "AUTORRELLENO_SOLICITADO",
     "COINCIDENCIA_ENTREGADA_A_FORMS",
     "AUTORRELLENO_TERMINADO",
-    "OPERACION_LISTA_PARA_CONFIRMACION",
+    "OPERACION_LISTA_CONFIRMACION",
     "FOLIO_RECHAZADO",
     "RESERVACION_CONFIRMADA",
     "ESTADO"
   ],
   "evento_observado": {
-    "detectado_en": "2026-11-24T14:16:58.178000Z",
-    "registrado_en": "2026-11-24T14:16:58.891270Z",
+    "detectado_en": "2026-11-24T14:25:05.535000Z",
+    "registrado_en": "2026-11-24T14:25:06.242024Z",
     "observador": "web-calendario-lab",
     "sucursal": "NOR-1",
     "fecha": "2026-12-17",
@@ -81,12 +81,12 @@
     "evidencia": {
       "sha256": "6e2549ca497426e884aea6abc740ece0e161c2b1ddf4b5448567c12094f125a7",
       "imagen_sha256": "44520f0f607ce8c4f8a9b1e65a484c5887727c17571558f1d0e2af98ab9d77bf",
-      "url": "http://127.0.0.1:37593/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12"
+      "url": "http://127.0.0.1:41347/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12"
     }
   },
   "tiempos": {
-    "habilitar_a_coincidencia_s": 1.31,
-    "forms_s": 37.05
+    "habilitar_a_coincidencia_s": 1.11,
+    "forms_s": 37.52
   },
   "comprobaciones": [
     {
@@ -97,7 +97,7 @@
     {
       "comprobacion": "1 · expediente ficticio con consentimiento registrado en Ventanilla",
       "ok": true,
-      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"EN_PROCESO\",\"estado_nombre\":\"En proceso\",\"resultado\":null,\"folio\":null,\"abierta\":true,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciada_en\":\"2026-11-24T14:16:52.820"
+      "detalle": "{\"id\":1,\"codigo\":\"ATN-000001\",\"estado\":\"EN_PROCESO\",\"estado_nombre\":\"En proceso\",\"resultado\":null,\"folio\":null,\"abierta\":true,\"region\":\"NORTE\",\"sucursal\":\"NOR-1\",\"iniciada_en\":\"2026-11-24T14:25:00.083"
     },
     {
       "comprobacion": "1 · la persona queda en el plan del día con sus fechas aceptables",
@@ -107,12 +107,12 @@
     {
       "comprobacion": "2 · vista previa del perfil: la página se lee sin código del portal",
       "ok": true,
-      "detalle": "{\"fuente\":\"calendario-lab\",\"url\":\"http://127.0.0.1:37593/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12\",\"dias\":[{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-01\",\"estado\":\"DISPONIBLE\",\"libres\":2,\"horas\":[]},{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-02\",\"estado\":\"DISPONIBLE\",\"libres\":1,\"horas\":"
+      "detalle": "{\"fuente\":\"calendario-lab\",\"url\":\"http://127.0.0.1:41347/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12\",\"dias\":[{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-01\",\"estado\":\"DISPONIBLE\",\"libres\":2,\"horas\":[]},{\"sucursal\":\"NOR-1\",\"fecha\":\"2026-12-02\",\"estado\":\"DISPONIBLE\",\"libres\":1,\"horas\":"
     },
     {
       "comprobacion": "2 · el motor lanzó el OBSERVADOR UNIVERSAL (fuente por URL + perfil)",
       "ok": true,
-      "detalle": "{\"clave\":\"web|calendario-lab\",\"sucursal\":\"NOR-1\",\"tramite\":\"constancia\",\"mes\":null,\"estrategia\":\"ambas\",\"intervalo_visual_ms\":1000,\"activo\":true,\"estado\":\"ACTIVO\",\"motivo\":\"\",\"titular\":null,\"reinicios\":0,\"creado_por\":\"admin\",\"actualizado\":\"2026-11-24T14:16:53.711390Z\",\"nombre\":\"calendario-lab\",\"url\""
+      "detalle": "{\"clave\":\"web|calendario-lab\",\"sucursal\":\"NOR-1\",\"tramite\":\"constancia\",\"mes\":null,\"estrategia\":\"ambas\",\"intervalo_visual_ms\":1000,\"activo\":true,\"estado\":\"ACTIVO\",\"motivo\":\"\",\"titular\":null,\"reinicios\":0,\"creado_por\":\"admin\",\"actualizado\":\"2026-11-24T14:25:01.101669Z\",\"nombre\":\"calendario-lab\",\"url\""
     },
     {
       "comprobacion": "2 · calendario abierto y ACTIVO",
@@ -129,19 +129,19 @@
             "activo": true,
             "estado": "ACTIVO",
             "motivo": "",
-            "titular": "vm:9111:77d9c1",
+            "titular": "vm:12369:324b2b",
             "reinicios": 0,
             "creado_por": "admin",
-            "actualizado": "2026-11-24T14:16:53.723156Z"
+            "actualizado": "2026-11-24T14:25:01.105231Z"
           }
         ],
         "proceso": {
-          "proceso": "vm:9111:77d9c1",
+          "proceso": "vm:12369:324b2b",
           "ultimo_error": null,
           "observadores": [
             {
               "nombre": "web-calendario-lab",
-              "url": "http://127.0.0.1:37593/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+              "url": "http://127.0.0.1:41347/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
               "fuente_web": true,
               "estrategia": "ambas",
               "vivo": true,
@@ -170,7 +170,7 @@
         "observadores": [
           {
             "nombre": "web-calendario-lab",
-            "url": "http://127.0.0.1:37593/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "url": "http://127.0.0.1:41347/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
             "fuente_web": true,
             "estrategia": "ambas",
             "vivo": true,
@@ -239,7 +239,7 @@
           },
           "jornada": "2026-11-24",
           "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
-          "atendido_en": "2026-11-24T14:16:58.893748Z",
+          "atendido_en": "2026-11-24T14:25:06.245861Z",
           "unidades": {
             "libres_vistas": 1,
             "con_las_que_se_cuenta": 1,
@@ -308,7 +308,7 @@
     {
       "comprobacion": "4 · autorrellenar lanzado (Forms real)",
       "ok": true,
-      "detalle": "{\"solicitud_id\":\"sol_61ada44e486fde51eccb7c65\",\"expediente\":\"EXP-000001\",\"estado\":\"LANZADA\",\"codigo\":\"\",\"en_curso\":true,\"mensaje\":\"Forms está rellenando el formulario en una ventana del navegador. Rev"
+      "detalle": "{\"solicitud_id\":\"sol_3369f6551b9fd5820f1c7040\",\"expediente\":\"EXP-000001\",\"estado\":\"LANZADA\",\"codigo\":\"\",\"en_curso\":true,\"mensaje\":\"Forms está rellenando el formulario en una ventana del navegador. Rev"
     },
     {
       "comprobacion": "4 · Forms rellenó y verificó 8 campos y 2 confirmaciones sin enviar",
@@ -346,7 +346,7 @@
         "confirmada": false,
         "forms": {
           "resultado": "LISTA_PARA_CONFIRMACION",
-          "solicitud_id": "sol_61ada44e486fde51eccb7c65",
+          "solicitud_id": "sol_3369f6551b9fd5820f1c7040",
           "estado": "CADUCADA",
           "codigo": "revision_caducada",
           "campos_correctos": 8,
@@ -356,7 +356,7 @@
           "envio_humano_observado": false,
           "fecha_coincidencia": "2026-12-17",
           "sucursal_coincidencia": "NOR-1",
-          "terminado_en": "2026-11-24T14:17:36.249355Z"
+          "terminado_en": "2026-11-24T14:25:43.569809Z"
         },
         "verificable": true
       }
@@ -410,7 +410,7 @@
         "PLAN_OPERACION_PREPARADA": 22,
         "COINCIDENCIA_ENTREGADA_A_FORMS": 26,
         "AUTORRELLENO_TERMINADO": 27,
-        "OPERACION_LISTA_PARA_CONFIRMACION": 28,
+        "OPERACION_LISTA_CONFIRMACION": 28,
         "FOLIO_RECHAZADO": 29,
         "RESERVACION_CONFIRMADA": 30
       }
@@ -429,18 +429,18 @@
           "estado": "DISPONIBLE",
           "estrategia": "dom",
           "observador": "web-calendario-lab",
-          "detectado_en": "2026-11-24T14:16:58.178000Z",
-          "registrado_en": "2026-11-24T14:16:58.891270Z",
+          "detectado_en": "2026-11-24T14:25:05.535000Z",
+          "registrado_en": "2026-11-24T14:25:06.242024Z",
           "evidencia": {
             "html": "<span class=\"dia DISPONIBLE\" data-dia=\"2026-12-17\" data-estado=\"DISPONIBLE\" data-libres=\"1\">17</span>",
             "sha256": "6e2549ca497426e884aea6abc740ece0e161c2b1ddf4b5448567c12094f125a7",
-            "imagen": "/tmp/coincidencia-forms-k6rkhdnq/lab/datos/evidencia_observador/calendario-lab/cambio-00001.png",
-            "url": "http://127.0.0.1:37593/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
+            "imagen": "/tmp/coincidencia-forms-_0d0vjm_/lab/datos/evidencia_observador/calendario-lab/cambio-00001.png",
+            "url": "http://127.0.0.1:41347/observar/calendario?sucursal=NOR-1&tramite=constancia&mes=2026-12",
             "imagen_sha256": "44520f0f607ce8c4f8a9b1e65a484c5887727c17571558f1d0e2af98ab9d77bf",
             "horas": []
           },
           "detecciones": {
-            "dom": "2026-11-24T14:16:58.178000Z"
+            "dom": "2026-11-24T14:25:05.535000Z"
           },
           "consumo": "ASIGNADO",
           "plan_elemento_id": 1,
@@ -454,7 +454,7 @@
             },
             "jornada": "2026-11-24",
             "regla": "prioridad (1 primero) -> orden de alta en el plan -> id del expediente",
-            "atendido_en": "2026-11-24T14:16:58.893748Z",
+            "atendido_en": "2026-11-24T14:25:06.245861Z",
             "unidades": {
               "libres_vistas": 1,
               "con_las_que_se_cuenta": 1,
@@ -497,5 +497,5 @@
     }
   ],
   "ok": true,
-  "fin": "2026-11-24T14:17:36"
+  "fin": "2026-11-24T14:25:44"
 }
