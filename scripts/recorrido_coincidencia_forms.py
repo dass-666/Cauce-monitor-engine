@@ -15,8 +15,13 @@
 Con --interfaz, los pasos 4 y 6 los hace el operador SOLO con la pantalla de Ventanilla (Chromium automatizado,
 scripts/recorrido_coincidencia_ui.js): pulsa «Autorrellenar», ve la operación lista y teclea los folios.
 
+Con --aislado CUENTA (solo Linux como root, equipo de pruebas): Forms corre como esa OTRA cuenta del sistema
+(monitoreo/autorrelleno/aislamiento_lab.py). Monitor comprueba antes de lanzar que la cuenta no puede leer su base,
+datos, respaldos ni diario; el recorrido comprueba además que el navegador de Forms es de esa cuenta y que no queda
+ningún proceso suyo al terminar. En Windows el equivalente se prueba en el workflow «Aislamiento Forms Windows».
+
 Uso: python scripts/recorrido_coincidencia_forms.py --forms <carpeta de Forms instalado> [--salida DIR] [--con-ventana]
-     [--observador calendario|web] [--interfaz]
+     [--observador calendario|web] [--interfaz] [--aislado CUENTA]
 Código 0 si todo pasa, 1 si algo falla, 3 si falta Forms o Node.js/Playwright.
 """
 from __future__ import annotations
@@ -87,6 +92,74 @@ def persona_confirma(portal_base: str, p: dict, fecha: str, sucursal: str) -> st
         return m.group(1)
 
 
+def preparar_aislado(cuenta: str) -> Path | None:
+    """Carpeta del conector: perfil/ (la cuenta lo lee) y trabajo/ (solo la cuenta escribe). Linux como root."""
+    import os
+    if not sys.platform.startswith("linux") or os.geteuid() != 0:
+        print("--aislado solo en Linux como root (equipo de pruebas). En Windows: workflow «Aislamiento Forms Windows».")
+        return None
+    import pwd
+    try:
+        pw = pwd.getpwnam(cuenta)
+    except KeyError:
+        print(f"La cuenta {cuenta} no existe (useradd -M -s /usr/sbin/nologin {cuenta}).")
+        return None
+    raiz = Path(tempfile.mkdtemp(prefix="cauce_conector_", dir="/tmp"))
+    os.chmod(raiz, 0o755)
+    (raiz / "perfil").mkdir()
+    (raiz / "trabajo" / "tmp").mkdir(parents=True)
+    for d in (raiz / "trabajo", raiz / "trabajo" / "tmp"):
+        os.chown(d, pw.pw_uid, pw.pw_gid)
+    os.chmod(raiz / "trabajo", 0o700)
+    return raiz
+
+
+def permisos_aislado(raiz: Path, cuenta: str, estado: Path) -> None:
+    import os
+    import pwd
+    pw = pwd.getpwnam(cuenta)
+    for d in (raiz / "perfil", *(raiz / "perfil").rglob("*")):
+        os.chmod(d, 0o755 if d.is_dir() else 0o644)      # el perfil aprobado: la cuenta lo lee, no lo cambia
+    for d in (estado, *estado.rglob("*")):
+        os.chown(d, pw.pw_uid, pw.pw_gid)                 # el estado de Forms: lo escribe la cuenta
+
+
+class VigiaCuenta:
+    """Mira cada 0,2 s los procesos de la cuenta mientras Forms trabaja: ¿hubo un navegador suyo?"""
+
+    def __init__(self, cuenta: str):
+        import threading
+        sys.path.insert(0, str(ROOT))
+        from monitoreo.autorrelleno import aislamiento_lab as al
+        self.al, self.cuenta, self.navegador, self.maximo = al, cuenta, False, 0
+        self._parar = threading.Event()
+        self._hilo = threading.Thread(target=self._mirar, daemon=True)
+        self._hilo.start()
+
+    def _mirar(self):
+        while not self._parar.wait(0.2):
+            try:
+                ps = self.al.procesos_de_la_cuenta(self.cuenta)
+                self.maximo = max(self.maximo, len(ps))
+                self.navegador = self.navegador or any("chrom" in (p.name() or "").lower() for p in ps)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def parar(self):
+        self._parar.set()
+        self._hilo.join(2)
+
+    def restos(self) -> list[int]:
+        import psutil
+        fin = time.monotonic() + 10
+        while time.monotonic() < fin:
+            vivos = [p.pid for p in self.al.procesos_de_la_cuenta(self.cuenta) if p.status() != psutil.STATUS_ZOMBIE]
+            if not vivos:
+                return []
+            time.sleep(0.2)
+        return vivos
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--forms", required=True)
@@ -97,6 +170,8 @@ def main() -> int:
                     help="web: el OBSERVADOR UNIVERSAL (fuente configurada por URL + perfil, sin código del portal)")
     ap.add_argument("--interfaz", action="store_true",
                     help="pasos 4 y 6 con la pantalla de Ventanilla (navegador automatizado), no con la API")
+    ap.add_argument("--aislado", metavar="CUENTA", default="",
+                    help="Forms como OTRA cuenta del sistema (solo Linux como root, equipo de pruebas)")
     a = ap.parse_args()
     out = Path(a.salida)
     out.mkdir(parents=True, exist_ok=True)
@@ -105,7 +180,17 @@ def main() -> int:
         return 3
     t0 = time.time() - 1
     tmp = Path(tempfile.mkdtemp(prefix="coincidencia-forms-"))
-    lab = Laboratorio(tmp / "lab", nuevo=True, forms=Path(a.forms))
+    raiz_conector = None
+    if a.aislado:
+        raiz_conector = preparar_aislado(a.aislado)
+        if raiz_conector is None:
+            return 3
+    lab = Laboratorio(tmp / "lab", nuevo=True, forms=Path(a.forms),
+                      carpeta_forms=(raiz_conector / "perfil") if raiz_conector else None)
+    if raiz_conector:
+        lab.env_extra.update({"MONITOREO_AUTORRELLENO_AISLAMIENTO": "cuenta_restringida",
+                              "MONITOREO_FORMS_CUENTA": a.aislado,
+                              "MONITOREO_FORMS_TRABAJO": str(raiz_conector / "trabajo")})
     lab.env_extra.update({"MONITOREO_AUTORRELLENO_ESPERA_S": str(a.espera_s),
                           "MONITOREO_FORMS_HEADLESS": "0" if a.con_ventana else "1"})
     ck: list[dict] = []
@@ -144,6 +229,10 @@ def main() -> int:
         except FormsNoListo as e:
             print(e)
             return 3
+        if raiz_conector:
+            estado = Path(json.loads(lab.perfil_forms.read_text(encoding="utf-8"))["state_dir"])
+            permisos_aislado(raiz_conector, a.aislado, estado)
+            res["aislado"] = {"cuenta": a.aislado, "monitor_datos": str(tmp / "lab")}
         pin = json.loads(lab.perfil_forms.read_text(encoding="utf-8"))
         res["forms"] = {"commit": pin.get("forms_commit"), "perfil_sha256": pin["perfil_sha256"], "url": pin["url"]}
         adm = cliente(d["motor"], "admin", ADMIN_PWD)
@@ -244,6 +333,7 @@ def main() -> int:
         check("4 · Ventanilla muestra la coincidencia y el botón disponible",
               st["disponible"] and (st["coincidencia"] or {}).get("fecha") == fecha, st)
         t = time.perf_counter()
+        vigia = VigiaCuenta(a.aislado) if a.aislado else None
         if a.interfaz:
             interfaz("autorrellenar", {"atencion": at2["id"], "fecha": fecha, "sucursal": "NOR-1", "espera_s": a.espera_s})
         else:
@@ -260,6 +350,16 @@ def main() -> int:
               res["forms_resultado"])
         check("4 · la operación queda LISTA PARA CONFIRMACIÓN SUPERVISADA (no es cita)",
               fin and fin.get("resultado_operacion") == "LISTA_PARA_CONFIRMACION", res["forms_resultado"])
+        if vigia is not None:
+            vigia.parar()
+            ais = (fin or {}).get("aislamiento") or {}
+            res["aislado"].update(comprobacion=ais, navegador_de_la_cuenta=vigia.navegador, maximo_procesos=vigia.maximo)
+            check("4 · aislado: Monitor comprobó como la cuenta que no puede leer sus datos antes de lanzar Forms",
+                  ais.get("modo") == "cuenta_restringida" and ais.get("verificado") is True
+                  and ais.get("rutas_denegadas", 0) >= 3, ais)
+            check("4 · aislado: el navegador de Forms corrió como la cuenta del conector", vigia.navegador, vigia.maximo)
+            restos = vigia.restos()
+            check("4 · aislado: al terminar no queda ningún proceso de la cuenta", not restos, restos)
         res_ = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["coincidencia"]
         check("4 · reservación sigue PREPARADA, sin folio", res_ and res_["estado_reservacion"] == "PREPARADA"
               and not res_["folio"] and res_["lista_para_confirmacion"], res_)
@@ -361,7 +461,8 @@ def main() -> int:
         valores = {k: persona[k] for k in ("nombre", "telefono", "correo", "fecha_nacimiento", "identificador")}
         valores["clave_identidad"] = MANUALES["clave_identidad"]
         forms = Path(a.forms)
-        hall = buscar_datos([tmp / "lab", forms / "logs", forms / "state", out], valores, desde=t0,
+        carpetas = [tmp / "lab", forms / "logs", forms / "state", out] + ([raiz_conector] if raiz_conector else [])
+        hall = buscar_datos(carpetas, valores, desde=t0,
                             excluir=(tmp / "lab" / "portal.json",))
         check("7 · ningún archivo de texto (motor, portal, Forms, evidencia) contiene los datos ficticios", not hall, hall)
     except Exception as e:  # noqa: BLE001

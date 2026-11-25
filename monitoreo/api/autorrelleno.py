@@ -44,7 +44,8 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
         coin["motivos_reintento"] = cz.MOTIVOS_REINTENTO
     out = {"habilitado": conf["habilitado"], "disponible": False, "codigo": conf["codigo"], "motivo": conf["motivo"],
            "corrida": corrida.vista() if corrida else None,
-           "externo": conf.get("externo", False), "sitio": conf.get("sitio", ""), "coincidencia": coin}
+           "externo": conf.get("externo", False), "sitio": conf.get("sitio", ""), "coincidencia": coin,
+           "aislamiento": conf.get("aislamiento", "ninguno")}
     if not conf["habilitado"]:
         return out
     try:

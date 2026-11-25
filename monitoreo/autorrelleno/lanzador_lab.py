@@ -125,6 +125,10 @@ class LanzadorLab:
         self._cancelar = threading.Event()
         self._proc: subprocess.Popen | None = None
 
+    def _kw_extra(self) -> dict:
+        """Argumentos extra de Popen para subclases (p. ej. lanzar con otra cuenta en Linux)."""
+        return {}
+
     def cancelar(self) -> None:
         """Pide terminar (seguro entre hilos). Equivale a que Monitor revoque la autorización a mitad."""
         self._cancelar.set()
@@ -213,6 +217,7 @@ class LanzadorLab:
             kw["start_new_session"] = True
             if sys.platform.startswith("linux"):
                 kw["preexec_fn"] = _morir_con_el_padre(os.getpid())
+        kw.update(self._kw_extra())
         trabajo = _Trabajo() if ES_WINDOWS else None
         proc = subprocess.Popen(comando, cwd=cwd, env=entorno, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, shell=False, **kw)

@@ -30,7 +30,7 @@ import sys
 import threading
 import time
 
-from monitoreo.autorrelleno.lanzador_lab import LIMITE_SALIDA, LanzadorBloqueado, ResultadoLanzamiento
+from monitoreo.autorrelleno.lanzador_lab import LIMITE_SALIDA, LanzadorBloqueado, LanzadorLab, ResultadoLanzamiento
 
 ES_WINDOWS = sys.platform == "win32"
 
@@ -230,3 +230,27 @@ class LanzadorRestringido:
         return ResultadoLanzamiento(estado, int(codigo.value), salida["o"].decode("utf-8", "replace"),
                                     salida["e"].decode("utf-8", "replace"), round(time.monotonic() - t0, 3),
                                     estado != "TERMINO" or eliminados > 0, eliminados, restos)
+
+
+class LanzadorCuentaPosix(LanzadorLab):
+    """Equivalente de PRUEBAS en Linux (contenedor/CI) del lanzador restringido: el proceso nace con el uid/gid de otra
+    cuenta (sin grupos suplementarios) y se controla igual que en `LanzadorLab` (sesión propia, PDEATHSIG, rondas de
+    terminación). Exige que Monitor corra como root, cosa que solo tiene sentido en un equipo de pruebas. Sirve para
+    comprobar con permisos REALES del sistema de archivos lo mismo que en Windows hacen la cuenta + ACL NTFS.
+    Diferencia con Windows: no hay Job Object; un nieto que se separa y Monitor muere de golpe puede sobrevivir. Por
+    eso `aislamiento_lab.limpiar_huerfanos()` termina cualquier proceso de la cuenta antes del siguiente lanzamiento."""
+
+    def __init__(self, *, cuenta: str, modo_laboratorio: bool = False, gracia_s: float = 1.5):
+        super().__init__(modo_laboratorio=modo_laboratorio, gracia_s=gracia_s)
+        if ES_WINDOWS or not sys.platform.startswith("linux"):
+            raise LanzadorBloqueado("lanzador de cuenta POSIX: solo Linux (en Windows se usa LanzadorRestringido)")
+        if os.geteuid() != 0:
+            raise LanzadorBloqueado("lanzador de cuenta POSIX: Monitor debe correr como root (solo pruebas)")
+        import pwd
+        pw = pwd.getpwnam(cuenta)
+        if pw.pw_uid == 0:
+            raise LanzadorBloqueado("lanzador de cuenta POSIX: la cuenta no puede ser root")
+        self.cuenta, self._uid, self._gid = cuenta, pw.pw_uid, pw.pw_gid
+
+    def _kw_extra(self) -> dict:
+        return {"user": self._uid, "group": self._gid, "extra_groups": [], "umask": 0o077}

@@ -6,10 +6,13 @@ name: Aislamiento Forms Windows
 
 on:
   push:
-    branches: ["claude/project-thread-4lnq8h"]
+    branches: ["claude/project-thread-4lnq8h", "claude/project-thread-vaxyhp"]
   pull_request:
     paths:
       - "monitoreo/autorrelleno/lanzador_restringido.py"
+      - "monitoreo/autorrelleno/aislamiento_lab.py"
+      - "monitoreo/autorrelleno/adaptador.py"
+      - "tests/test_aislamiento_ventanilla.py"
       - "scripts/aislamiento_*"
       - ".github/workflows/aislamiento.yml"
   workflow_dispatch:
@@ -53,4 +56,48 @@ jobs:
         with:
           name: aislamiento-lanzador-py${{ matrix.python }}
           path: aislamiento_lanzador.json
+          if-no-files-found: warn
+
+  # Ventanilla -> Forms como la cuenta restringida, con el adaptador de Monitor (comprobación activa antes de cada
+  # lanzamiento), ACL NTFS reales sobre carpetas temporales y datos FICTICIOS. Misma prueba que en Linux
+  # (tests/test_aislamiento_ventanilla.py), aquí con CreateProcessWithLogonW + Job Object + DPAPI.
+  ventanilla-aislada:
+    name: Ventanilla aislada (Windows) · ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -q -r requirements.txt
+      - name: Cuenta local de un solo uso (no administradora, clave aleatoria)
+        shell: pwsh
+        run: |
+          $clave = "Aa1!" + [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+          Write-Output "::add-mask::$clave"
+          net user cauce_conector_t $clave /add /expires:never /y | Out-Null
+          "CAUCE_AISLAMIENTO_CUENTA=cauce_conector_t" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CAUCE_AISLAMIENTO_CLAVE=$clave" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          (net user cauce_conector_t | Select-String "Local Group|Grupos locales").Line
+      - name: Pruebas de Ventanilla aislada y del lanzador restringido
+        shell: pwsh
+        env:
+          CAUCE_AISLAMIENTO_EFIMERO: "1"
+        run: python -m pytest -v -rs tests/test_aislamiento_ventanilla.py tests/test_lanzador_restringido.py --junitxml=ventanilla_aislada.xml
+      - name: Borrar la cuenta
+        if: always()
+        shell: pwsh
+        run: |
+          net user cauce_conector_t /delete
+          Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*cauce_conector_t*" } | Remove-CimInstance -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ventanilla-aislada-py${{ matrix.python }}
+          path: ventanilla_aislada.xml
           if-no-files-found: warn
