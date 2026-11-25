@@ -53,18 +53,29 @@ if (Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue) {
 $res = Join-Path $Carpeta "resultados"
 $tmp = Join-Path $Carpeta "tmp"
 New-Item -ItemType Directory -Force -Path $res, $tmp | Out-Null
+# Toda la consola queda en resultados\f2_consola.txt (la ventana elevada se cierra sola y se pierde lo que mostró).
+try { Start-Transcript -LiteralPath (Join-Path $res "f2_consola.txt") -Force | Out-Null } catch { }
 $resumen = [ordered]@{ fecha = (Get-Date).ToString("s"); equipo = $env:COMPUTERNAME; usuario = $id.Name
-    windows = (Get-CimInstance Win32_OperatingSystem).Caption; carpeta = $Carpeta; python = $Python
-    forms = $Forms; red_destino = $RedDestino; commit = (git -C $repo rev-parse --short HEAD 2>$null) }
-$resumen.python_base = (& $Python -c "import sys; print(sys.base_prefix)")
+    carpeta = $Carpeta; python = $Python; forms = $Forms; red_destino = $RedDestino }
+# Diagnóstico informativo: nada de esto puede cortar el script. En Windows PowerShell 5.1, con
+# ErrorActionPreference=Stop, cualquier texto en stderr de un programa nativo (git, python, net, icacls)
+# redirigido con 2>$null o 2>&1 se convierte en error terminante; por eso aquí y en la limpieza se usa Continue.
+$ErrorActionPreference = "Continue"
+try { $resumen.windows = (Get-CimInstance Win32_OperatingSystem).Caption } catch { $resumen.windows = "?" }
+$resumen.commit = "$(git -c safe.directory=* -C $repo rev-parse --short HEAD 2>&1)".Trim()
+$resumen.python_base = "$(& $Python -c "import sys; print(sys.base_prefix)" 2>&1)".Trim()
 $resumen.python_base_en_perfil = [bool]($resumen.python_base -match "\\Users\\")   # H2: otra cuenta no lo ejecutaría
-$resumen.firewall_perfiles = @(Get-NetFirewallProfile | ForEach-Object { "$($_.Name)=$($_.Enabled)" })
-$resumen.seclogon = "$((Get-Service seclogon).Status)/$((Get-Service seclogon).StartType)"
+try { $resumen.firewall_perfiles = @(Get-NetFirewallProfile | ForEach-Object { "$($_.Name)=$($_.Enabled)" }) } catch { }
+try { $s0 = Get-Service seclogon; $resumen.seclogon = "$($s0.Status)/$($s0.StartType)" } catch { $resumen.seclogon = "?" }
+$ErrorActionPreference = "Stop"
 
 try {
-    # 2. cuenta de un solo uso
-    $clave = "Aa1!" + [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+    # 2. cuenta de un solo uso (RandomNumberGenerator.GetBytes(int) no existe en .NET Framework: se usa Create())
+    $azar = New-Object byte[] 24
+    [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($azar)
+    $clave = "Aa1!" + [Convert]::ToBase64String($azar)
     net user $cuenta $clave /add /expires:never /y | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "net user /add devolvió $LASTEXITCODE" }
     $sid = (New-Object Security.Principal.NTAccount($cuenta)).Translate([Security.Principal.SecurityIdentifier]).Value
     $resumen.cuenta_grupos = ((net user $cuenta | Select-String "Local Group|Grupos locales").Line).Trim()
     # el Python que usará la cuenta: si está en el perfil de otra persona (H2), no podrá ejecutarlo y todo fallará
@@ -79,15 +90,19 @@ try {
     $env:CAUCE_AISLAMIENTO_RAIZ_TMP = $tmp
     if ($Forms) { $env:FORMS_REPO = $Forms } else { Remove-Item Env:FORMS_REPO -ErrorAction SilentlyContinue }
     Push-Location $repo
+    $ErrorActionPreference = "Continue"   # avisos de pytest en stderr no deben cortar la corrida
     & $Python -m pytest -v -rs -p no:cacheprovider --basetemp (Join-Path $tmp "pytest") `
         tests/test_aislamiento_ventanilla.py tests/test_lanzador_restringido.py `
         --junitxml (Join-Path $res "msi_aislamiento.xml") 2>&1 | Tee-Object -FilePath (Join-Path $res "msi_aislamiento.txt")
     $resumen.pytest_codigo = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
     Pop-Location
 } catch {
-    $resumen.error = "$($_.Exception.GetType().Name): $($_.Exception.Message)"
+    $resumen.error = "$($_.Exception.GetType().Name): $($_.Exception.Message) (línea $($_.InvocationInfo.ScriptLineNumber))"
+    Write-Host "ERROR: $($resumen.error)" -ForegroundColor Red
 } finally {
-    # 5. limpieza SIEMPRE
+    # 5. limpieza SIEMPRE; ningún paso puede impedir los siguientes
+    $ErrorActionPreference = "Continue"
     Remove-Item Env:CAUCE_AISLAMIENTO_CLAVE -ErrorAction SilentlyContinue
     Get-Process -IncludeUserName -ErrorAction SilentlyContinue | Where-Object { $_.UserName -like "*\$cuenta" } |
         Stop-Process -Force -ErrorAction SilentlyContinue
@@ -107,13 +122,14 @@ try {
         regla_existe = [bool](Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue)
         perfil_existe = [bool](Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$cuenta*" }) }
     $x = Join-Path $res "msi_aislamiento.xml"
-    if (Test-Path $x) {
+    if (Test-Path $x) { try {
         [xml]$j = Get-Content $x
         $s = $j.testsuites.testsuite
         $resumen.pruebas = [ordered]@{ total = [int]$s.tests; fallos = [int]$s.failures; errores = [int]$s.errors; omitidas = [int]$s.skipped }
         $resumen.omitidas = @($j.SelectNodes("//testcase[skipped]") | ForEach-Object { "$($_.name): $($_.skipped.message)" })
         $resumen.fallidas = @($j.SelectNodes("//testcase[failure or error]") | ForEach-Object { $_.name })
-    }
+    } catch { $resumen.junit_ilegible = $_.Exception.Message } }
     $resumen | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $res "msi_resumen.json") -Encoding UTF8
     $resumen | ConvertTo-Json -Depth 5
+    try { Stop-Transcript | Out-Null } catch { }
 }
