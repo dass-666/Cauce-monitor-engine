@@ -76,6 +76,22 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -q -r requirements.txt
+      # Forms REAL (mismo commit que en las pruebas Linux) en su propio entorno y con su propio Chromium, para que la
+      # cuenta del conector lo ejecute a través de Ventanilla (test_forms_real_aislado_*).
+      - uses: actions/checkout@v4
+        with:
+          repository: dass-666/CAUCE-UNIVERSAL-CONEXION
+          ref: ff117da
+          path: forms-lab
+          persist-credentials: false
+      - name: Forms real en su entorno (para Ventanilla aislada)
+        shell: pwsh
+        run: |
+          python -m venv forms-lab\.venv
+          forms-lab\.venv\Scripts\python -m pip install -q -r forms-lab\requirements.txt
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\forms-lab\.pw-browsers"
+          forms-lab\.venv\Scripts\python -m playwright install chromium
+          "FORMS_REPO=$PWD\forms-lab" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Cuenta local de un solo uso (no administradora, clave aleatoria)
         shell: pwsh
         run: |
