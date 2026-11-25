@@ -293,7 +293,12 @@ def test_rutas_privadas_cubren_base_datos_respaldos_diario_y_env(lab, tmp_path, 
     extra = tmp_path / "privado.env"
     extra.write_text("X=1")
     refs = {x["ref"] for x in al.rutas_privadas(al.ConfigAislamiento("c", tmp_path, rutas_extra=[extra]))}
-    assert {"base", "carpeta_de_datos", "respaldos", "claves", "clave_del_diario", "diario", "extra_1"} <= refs
+    esperadas = {"carpeta_de_datos", "respaldos", "claves", "clave_del_diario", "diario", "extra_1"}
+    if url.startswith("sqlite"):
+        esperadas.add("base")                       # con PostgreSQL la base no es un archivo (la protege su credencial)
+    else:
+        assert "base" not in refs
+    assert esperadas <= refs, refs
 
 
 # ================================================================ con la cuenta real (Linux root / Windows efímero)
