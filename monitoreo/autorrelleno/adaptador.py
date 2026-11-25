@@ -82,11 +82,12 @@ _ENV_SISTEMA = ("PATH", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHE
 
 MENSAJES = {
     "LANZADA": "Forms está rellenando el formulario en una ventana del navegador. "
-               "Revísalo con la persona, completa los campos manuales y cierra la ventana al terminar. "
-               "Forms no envía nada.",
+               "Revísalo con la persona: teclea solo los campos manuales y sigue en ESA MISMA ventana hasta el "
+               "folio (no hay que volver a escribir los datos). Después ciérrala y registra aquí el folio. "
+               "Forms no envía nada por su cuenta.",
     "PREPARADO": "Forms rellenó y verificó el formulario; la ventana se cerró sin envío.",
-    "ENVIADA_POR_PERSONA": "Se observó que alguien envió el formulario desde la ventana. Es solo un indicio: "
-                           "no es una cita confirmada ni la registra en Monitor.",
+    "ENVIADA_POR_PERSONA": "La persona continuó en la ventana de Forms. Es solo un indicio: no es una cita "
+                           "confirmada hasta que registres aquí el folio y Monitor lo compruebe.",
     "CON_INCIDENCIAS": "Forms rellenó el formulario, pero algún campo o confirmación no quedó como se esperaba: "
                        "revísalo en la ventana.",
     "DETENIDA": "Forms se detuvo antes de teclear: la página cambió o pide intervención humana.",

@@ -35,7 +35,7 @@ from laboratorio_web.servidor import PERFIL_CALENDARIO_PORTAL  # noqa: E402
 from ventanilla_laboratorio import ADMIN_PWD, OPERADOR, Laboratorio  # noqa: E402
 
 PUERTO_MONITOR = 8765          # fijo si está libre: así el acceso directo y el navegador siempre van al mismo sitio
-ESPERA_FORMS_S = 300           # la ventana de Forms queda abierta hasta 5 min para revisar los 8 campos
+ESPERA_FORMS_S = 600           # la ventana de Forms queda abierta hasta 10 min: revisar y terminar con la persona
 FUENTE = "calendario-lab"      # plantilla de la página de laboratorio (queda DETENIDA; se usa «Usar como base»)
 CLAVE_IDENTIDAD = "QXZ482915"  # campo manual del portal de laboratorio (ficticio)
 
@@ -121,7 +121,7 @@ def sembrar(lab: Laboratorio, d: dict) -> dict:
 def guia(d: dict, demo: dict) -> str:
     f = demo["fecha_coincidencia"]
     e1, e2 = demo["expedientes"][0], demo["expedientes"][1]
-    return f"""CAUCE MONITOR · DEMOSTRACIÓN (laboratorio, datos ficticios, solo este equipo)
+    return f"""CAUCE MONITOR · VERSIÓN CANDIDATA 1.0 (portal de laboratorio propio, datos ficticios, solo este equipo)
 
 Monitor: {d['motor']}
 Entrar con:  admin / {ADMIN_PWD}   (administrador: Páginas observadas y Calendario lab)
@@ -138,21 +138,20 @@ Expedientes ficticios ya creados y en el plan del día:
    En unos segundos Monitor lo ve y lo asigna a {e1['nombre']} (fecha {f}, sucursal {demo['sucursal']}).
 3. «Salir» y entra como {OPERADOR[0]}. «Ventanilla» -> «Plan del día»: la coincidencia EXP-{e1['id']:06d}
    con fecha y sucursal -> «Preparar operación».
-4. En la operación pulsa «Autorrellenar formulario». Se abre una ventana de Chromium (Forms) con los 8 campos
-   rellenos; en Ventanilla aparece la verificación campo por campo. Revísala y CIERRA esa ventana
-   (Forms no envía nada; si pulsas «Continuar» dentro de ella, Forms lo registra y la cierra).
-5. Haz de la persona en otra pestaña: {d['portal']}/cita
-   Nueva cita · Alta · {e1['registro_previo']} · nacimiento {e1.get('fecha_nacimiento', '')} · tel {e1.get('telefono', '')} (dos veces)
-   · correo {e1.get('correo', '')} (dos veces) · clave de identidad {CLAVE_IDENTIDAD} (tecleada) · acepta el aviso
-   -> «Continuar» -> sucursal «Plaza Aurora Norte» -> «Mes siguiente» -> día {f} -> «Continuar». Anota el folio.
+4. En la operación pulsa «Autorrellenar formulario». Se abre la ventana de Forms con los 8 campos rellenos y
+   verificados; Ventanilla muestra la verificación campo por campo. Forms no envía nada por su cuenta.
+5. En ESA MISMA ventana, haciendo de la persona (no se vuelve a escribir ningún dato):
+   clave de identidad {CLAVE_IDENTIDAD} (tecleada) · marca el aviso de privacidad · «Continuar» ·
+   sucursal «Plaza Aurora Norte» · «Ver calendario» · «Mes siguiente» · día {f} · «Continuar».
+   Anota el folio que muestra el portal y CIERRA la ventana.
 6. En Ventanilla escribe el folio dos veces -> «Registrar folio». Monitor lo verifica con el portal:
    reservación CONFIRMADA, plan CONFIRMADO y expediente con reservación confirmada.
 7. Historial: «Salir», entra como admin -> «Expedientes» -> fila EXP-{e1['id']:06d} -> «Historial»
    (estado, folio, atenciones, plan del día, operación con el portal y línea de tiempo completa).
    EXP-{e2['id']:06d} sigue «En el plan»: es el caso sin disponibilidad.
 
-Para cerrar: cierra la ventana negra de «Cauce demo». Al volver a abrirla, todo sigue donde quedó.
-Para empezar de cero: «Cauce demo - reiniciar».
+Para cerrar: cierra la ventana negra «Cauce Monitor». Al volver a abrirla, todo sigue donde quedó.
+Para empezar de cero: «Cauce Monitor (candidata) - reiniciar».
 """
 
 
