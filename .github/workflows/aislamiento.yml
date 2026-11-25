@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: dass-666/CAUCE-UNIVERSAL-CONEXION
-          ref: ff117da
+          ref: ff117da71140e263d1a2cf29436ff63b21ad13ce
           path: forms-lab
           persist-credentials: false
       - name: Forms real en su entorno (para Ventanilla aislada)
