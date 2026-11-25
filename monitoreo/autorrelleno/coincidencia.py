@@ -162,7 +162,9 @@ def vista(s, exp_id: int, operator_id: int | None) -> dict | None:
                 "lista_para_confirmacion": False, "confirmada": True, "forms": (res.evidencia or {}).get("forms")}
     res = s.get(Reservacion, coin["reservacion_id"])
     f = (res.evidencia or {}).get("forms") or None
-    return {**coin, "estado_plan": pl.PREPARADO, "estado_reservacion": res.estado, "folio": None,
+    from . import folio_declarado as fd
+    dec = fd.de_reservacion(s, res.id, exp_id)
+    return {**coin, "folio_declarado": fd.vista(dec) if dec is not None else None, "estado_plan": pl.PREPARADO, "estado_reservacion": res.estado, "folio": None,
             "lista_para_confirmacion": bool(f and f.get("resultado") == LISTA), "confirmada": False, "forms": f,
             "interrumpida": bool(f and f.get("resultado") == INTERRUMPIDO),
             "verificable": ADAPTADOR_POR_CONTRATO.get(res.contrato) is not None and not (f or {}).get("externo")}
@@ -289,7 +291,7 @@ def verificar_folio(db: Database, user, res_id: int, folio: str, folio_confirmac
         nombre_ad = None if forms.get("externo") else ADAPTADOR_POR_CONTRATO.get(res.contrato)
         if nombre_ad is None:
             raise ErrorFolio(409, "SIN_VERIFICACION_AUTORIZADA", "Este portal no tiene una vía autorizada para comprobar "
-                             "folios: registra la cita con la confirmación asistida (quedará como declarada por ti).")
+                             "folios: usa «Declarar folio» (quedará PENDIENTE DE VERIFICACIÓN, no como cita confirmada).")
         exp = s.get(Expediente, res.expediente_id)
         if cs.vigente(s, exp, now) is None:
             m = cs.motivo_bloqueo(s, exp, now)
