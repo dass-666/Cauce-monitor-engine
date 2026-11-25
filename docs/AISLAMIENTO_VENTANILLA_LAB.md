@@ -141,7 +141,7 @@ Hallazgos de F2:
 - El servicio «Inicio de sesión secundario» (seclogon, inicio manual) queda en ejecución tras usarlo; vuelve a parar al
   reiniciar.
 
-Después del intento 5 se cambió solo la limpieza del script (b2: usar también .NET al final, y borrar `tmp\pytest`, que
+Después del intento 5 se cambió solo la limpieza del script (commit 4c1e66e: usar también .NET al final, y borrar `tmp\pytest`, que
 se crea elevado y solo es legible elevado). **Ese cambio no se ha ejecutado en la MSI** (solo lint de CI).
 
 ## 5. Bloqueos para fusionar y para pasar de laboratorio
