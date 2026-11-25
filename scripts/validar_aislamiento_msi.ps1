@@ -57,7 +57,7 @@ foreach ($h in $QuitarSidHuerfano) {
     if ($h -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$' -or -not $h.StartsWith($prefijoLocal + "-")) { Falla "$h no es un SID local de este equipo." }
     $resuelto = $null
     try { $resuelto = (New-Object Security.Principal.SecurityIdentifier($h)).Translate([Security.Principal.NTAccount]).Value } catch { }
-    if ($resuelto) { Falla "$h corresponde a la cuenta $resuelto: no es huérfano, no se toca." }
+    if ($resuelto) { Falla "$h corresponde a la cuenta ${resuelto}: no es huérfano, no se toca." }
     $ErrorActionPreference = "Continue"
     icacls $Carpeta /remove "*$h" /T /C /Q 2>$null | Out-Null
     $ErrorActionPreference = "Stop"
