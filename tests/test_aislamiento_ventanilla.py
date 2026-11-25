@@ -899,3 +899,29 @@ def test_monitor_cae_con_la_ventana_abierta_queda_interrumpida_y_se_recupera_sin
         assert len(s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()) == 1
         assert s.get(Expediente, k["exp_id"]).estado == "RESERVACION_CONFIRMADA"
     assert esperar_sin_procesos(lab.cuenta) == []
+
+
+@requiere_cuenta
+def test_forms_real_aislado_coincidencia_forms_y_folio_verificado(forms_real_aislado):
+    """Recorrido Monitor -> Forms REAL como la cuenta -> confirmación simulada en el portal de laboratorio -> folio
+    comprobado. Fecha, sucursal, expediente y operación siguen vinculados y queda una sola reservación."""
+    lab = forms_real_aislado
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)
+    r = pulsar(lab, k["aid"], h)
+    assert r.status_code == 202 and r.json()["aislamiento"]["verificado"] is True, r.text
+    assert r.json()["aislamiento"]["red_bloqueada"] == 1, r.json()["aislamiento"]
+    fin = esperar(lab, k["aid"], h, t=150)
+    assert fin["estado"] in ("PREPARADO", "CADUCADA") and fin["resultado_operacion"] == cz.LISTA, fin
+    assert fin["informe"]["envio_realizado_por_conector"] is False and fin["procesos_restantes"] == 0
+    assert esperar_sin_procesos(lab.cuenta) == []
+    f = persona_confirma_en_portal(lab, k["exp_id"], k["fecha"], k["sucursal"])
+    r = folio(lab, h, k["rid"], f)
+    assert r.status_code == 200 and r.json()["reservacion"]["estado"] == "CONFIRMADA", r.text
+    ev = r.json()["reservacion"]["evidencia"]
+    assert ev["comprobado"] and all(ev["comprobado"].values()), ev
+    with lab.db.session() as s:
+        reservas = s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()
+        assert [x.id for x in reservas] == [k["rid"]]
+        assert (reservas[0].fecha, reservas[0].sucursal) == (k["fecha"], k["sucursal"])
+        assert s.get(Expediente, k["exp_id"]).estado == "RESERVACION_CONFIRMADA"

@@ -25,6 +25,7 @@
 param([switch]$Confirmo, [string]$Carpeta = "C:\cauce-aislamiento-lab", [string]$Python = "",
       [string]$Forms = "", [string]$RedDestino = "1.1.1.1:443")
 $ErrorActionPreference = "Stop"
+$sid = $null
 $cuenta = "cauce_conector_t"
 $regla = "cauce-conector-sin-red"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -46,6 +47,8 @@ if ($Forms) {
 if (-not $Python) { $Python = (Get-Command python).Source }
 if (Get-LocalUser -Name $cuenta -ErrorAction SilentlyContinue) {
     Falla "ya existe la cuenta $cuenta (¿una ejecución anterior cortada?). Bórrala: net user $cuenta /delete" }
+if (Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue) {
+    Falla "ya existe la regla de Firewall $regla. Revísala y bórrala: Remove-NetFirewallRule -DisplayName $regla" }
 
 $res = Join-Path $Carpeta "resultados"
 $tmp = Join-Path $Carpeta "tmp"
@@ -93,7 +96,13 @@ try {
     Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$cuenta*" } | Remove-CimInstance -ErrorAction SilentlyContinue
     icacls $Carpeta /remove:g $cuenta /T /C /Q 2>$null | Out-Null
     icacls $repo /remove:d $cuenta /T /C /Q 2>$null | Out-Null
+    $restoAcl = 0
+    if ($sid) { $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count }
     $resumen.limpieza = [ordered]@{
+        procesos_de_la_cuenta = @(Get-Process -IncludeUserName -ErrorAction SilentlyContinue |
+            Where-Object { $_.UserName -like "*\$cuenta" }).Count
+        permisos_residuales_en_laboratorio = $restoAcl
+        carpetas_temporales_de_prueba = @(Get-ChildItem $tmp -Directory -Filter "cauce_aisl_*" -ErrorAction SilentlyContinue).Count
         cuenta_existe = [bool](Get-LocalUser -Name $cuenta -ErrorAction SilentlyContinue)
         regla_existe = [bool](Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue)
         perfil_existe = [bool](Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$cuenta*" }) }
