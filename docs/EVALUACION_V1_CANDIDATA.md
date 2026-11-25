@@ -33,6 +33,12 @@ Suites en la MSI: Monitor 794 pasan / 34 omitidas / 2 fallaban y se corrigieron 
 no ASCII y una prueba del observador que dependía de la zona horaria del equipo: 21600 s = UTC-6; defecto de la
 prueba, no del producto); excluida `test_autodiagnostico` (falta psycopg). Forms 215 pasan / 7 omitidas.
 
+Estabilidad en la MSI (`scripts/recorrido_estabilidad.py`, 19/19): Forms muere con la ventana abierta (sin
+restos, se relanza sin duplicar); Monitor muere con Forms abierto (el Job Object termina Forms y Chromium; al
+arrancar la operación queda INTERRUMPIDA, reabrir exige motivo, folio bloqueado; tras el reintento se confirma);
+portal caído al registrar el folio (503 sin cambios; después se confirma y el observador vuelve); «reinicio»
+simulado matando todo (nada se pierde). El reinicio real de Windows no se probó.
+
 ## 2. Implementado, pero falta validar
 
 | Función | Estado |
@@ -53,9 +59,9 @@ prueba, no del producto); excluida `test_autodiagnostico` (falta psycopg). Forms
 
 ## 4. Lo que verdaderamente falta para operar (1.0)
 
-1. **[F] Cerrar la operación con un portal real sin API de folios.** Hoy no hay forma de registrar el resultado en
-   el flujo de coincidencias. Lo existente en el piloto asistido (folio DECLARADO por la persona) no está conectado a
-   este flujo. Requiere tu decisión: ¿se acepta un folio DECLARADO (marcado como tal) para cerrar la operación?
+1. **[W] Cerrar la operación con un portal sin API de folios: HECHO (2026-11-25, tarde).** «Declarar folio» lo registra
+   como PENDIENTE_DE_VERIFICACION (operador, fecha, portal, folio, procedencia), sin confirmar nada, sin duplicados y con
+   verificación posterior (`monitoreo/autorrelleno/folio_declarado.py`, `tests/test_folio_declarado.py` 6/6).
 2. **[F] Forms fuera del laboratorio.** Configurar la cuenta restringida y la regla de red en la instalación
    operativa (F4) y, con la prueba negativa en verde, decidir si `puede_lanzar()` se habilita. Requiere administrador.
 3. **[F] Perfil aprobado del formulario real y su fuente de observación**: requiere autorización escrita del
