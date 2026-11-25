@@ -92,7 +92,7 @@ NTFS reales. **Un runner efímero no es la MSI.**
   - aislado con pantalla de Ventanilla (`--interfaz`): **49/49**;
   - sin aislamiento (regresión): calendario **26/26**, web + interfaz **46/46**.
 - **Suite completa Linux**: 825 pasan, 15 omitidas (Forms real y PostgreSQL), 1 excluida (`test_database_down…`: falta psycopg en el contenedor).
-- **Windows, runner efímero** (11948f4): job «Ventanilla aislada» **25 pasan / 5 omitidas**, incluidas red con regla de Firewall `-LocalUser` y su control negativo, API sin sesión, doble clic, sesión perdida y corte/recuperación. Forms real vía Ventanilla en Windows: añadido al job en 6e4431e (ver el PR).
+- **Windows, runner efímero** (11948f4): job «Ventanilla aislada» **25 pasan / 5 omitidas**, incluidas red con regla de Firewall `-LocalUser` y su control negativo, API sin sesión, doble clic, sesión perdida y corte/recuperación. Con 6e4431e (run 45526074426) el job lleva también **Forms REAL (ff117da) a través de Ventanilla como la cuenta**: **27 pasan / 3 omitidas**. Chromium es de la cuenta, rellena los 8 campos sin enviar, y revocar a mitad termina Chromium. **Sigue siendo un runner efímero, no la MSI.**
 
 ### Hallazgos nuevos
 - **H10 [V] La cuenta del conector debe ser de UN solo Monitor.** La limpieza de restos termina **todo** proceso de la cuenta. Dos Monitores (o un recorrido y unas pruebas) que comparten la cuenta se matan los Forms entre sí, y quitarle la regla de red a uno se la quita al otro. Pasó en este hilo al ejecutar pruebas a la vez.
