@@ -609,6 +609,17 @@ def test_recorrido_coincidencia_forms_folio_con_forms_aislado(aislado):
 
 
 # ================================================================ Forms REAL como la cuenta (Linux, FORMS_REPO)
+
+def motivo_negado(lab) -> str:
+    """Para el mensaje de una aserción: los fallos de la última comprobación negada (sin valores personales)."""
+    try:
+        with lab.db.session() as s:
+            neg = s.scalars(select(AuditLog).where(AuditLog.action == "autorrelleno_negado")).all()
+        return json.dumps(neg[-1].detail, ensure_ascii=False) if neg else "sin negaciones auditadas"
+    except Exception as e:  # noqa: BLE001
+        return f"no se pudo leer la auditoría: {type(e).__name__}"
+
+
 @pytest.fixture
 def forms_real_aislado(aislado, monkeypatch):
     if not FORMS_REPO:
@@ -647,7 +658,7 @@ def test_forms_real_aislado_rellena_y_chromium_es_de_la_cuenta(forms_real_aislad
     h = lab.ops["op1"]
     a, _ = atencion(lab, h)
     r = pulsar(lab, a["id"], h)
-    assert r.status_code == 202 and r.json()["aislamiento"]["verificado"] is True, r.text
+    assert r.status_code == 202 and r.json()["aislamiento"]["verificado"] is True, r.text + " | " + motivo_negado(lab)
     fin = time.monotonic() + 60
     navegador = []
     while time.monotonic() < fin and not navegador:
@@ -668,7 +679,8 @@ def test_forms_real_aislado_revocar_a_mitad_termina_chromium(forms_real_aislado,
     monkeypatch.setenv("MONITOREO_AUTORRELLENO_ESPERA_S", "120")
     h = lab.ops["op1"]
     a, _ = atencion(lab, h)
-    assert pulsar(lab, a["id"], h).status_code == 202
+    r = pulsar(lab, a["id"], h)
+    assert r.status_code == 202, r.text + " | " + motivo_negado(lab)
     fin = time.monotonic() + 60
     while time.monotonic() < fin and not [p for p in al.procesos_de_la_cuenta(lab.cuenta)
                                           if "chrom" in (p.name() or "").lower()]:
@@ -909,7 +921,7 @@ def test_forms_real_aislado_coincidencia_forms_y_folio_verificado(forms_real_ais
     h = lab.ops["op1"]
     k = preparar_coincidencia(lab, h)
     r = pulsar(lab, k["aid"], h)
-    assert r.status_code == 202 and r.json()["aislamiento"]["verificado"] is True, r.text
+    assert r.status_code == 202 and r.json()["aislamiento"]["verificado"] is True, r.text + " | " + motivo_negado(lab)
     assert r.json()["aislamiento"]["red_bloqueada"] == 1, r.json()["aislamiento"]
     fin = esperar(lab, k["aid"], h, t=150)
     assert fin["estado"] in ("PREPARADO", "CADUCADA") and fin["resultado_operacion"] == cz.LISTA, fin

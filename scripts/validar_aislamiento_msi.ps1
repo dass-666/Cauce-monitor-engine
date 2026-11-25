@@ -18,12 +18,12 @@
  Uso (PowerShell COMO ADMINISTRADOR, desde la copia del código en la carpeta de laboratorio):
    powershell -ExecutionPolicy Bypass -File scripts\validar_aislamiento_msi.ps1 -Confirmo `
        -Carpeta C:\cauce-aislamiento-lab -Python C:\cauce-aislamiento-lab\venv\Scripts\python.exe `
-       [-Forms C:\cauce-aislamiento-lab\forms]
+       [-Forms C:\cauce-aislamiento-lab\forms] [-QuitarSidHuerfano S-1-5-21-...]
  Reversión manual si se corta a mitad: net user cauce_conector_t /delete ;
    Remove-NetFirewallRule -DisplayName cauce-conector-sin-red ; borrar la carpeta de laboratorio.
 #>
 param([switch]$Confirmo, [string]$Carpeta = "C:\cauce-aislamiento-lab", [string]$Python = "",
-      [string]$Forms = "", [string]$RedDestino = "1.1.1.1:443")
+      [string]$Forms = "", [string]$RedDestino = "1.1.1.1:443", [string[]]$QuitarSidHuerfano = @())
 $ErrorActionPreference = "Stop"
 $sid = $null
 $cuenta = "cauce_conector_t"
@@ -49,6 +49,19 @@ if (Get-LocalUser -Name $cuenta -ErrorAction SilentlyContinue) {
     Falla "ya existe la cuenta $cuenta (¿una ejecución anterior cortada?). Bórrala: net user $cuenta /delete" }
 if (Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue) {
     Falla "ya existe la regla de Firewall $regla. Revísala y bórrala: Remove-NetFirewallRule -DisplayName $regla" }
+
+# Permisos huérfanos de una ejecución anterior (cuenta ya borrada): solo se quitan si el SID es local de esta
+# máquina y ya no corresponde a ninguna cuenta (si se resuelve a un nombre, no se toca).
+if ($QuitarSidHuerfano) { $prefijoLocal = (Get-LocalUser | Select-Object -First 1).SID.AccountDomainSid.Value }
+foreach ($h in $QuitarSidHuerfano) {
+    if ($h -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$' -or -not $h.StartsWith($prefijoLocal + "-")) { Falla "$h no es un SID local de este equipo." }
+    $resuelto = $null
+    try { $resuelto = (New-Object Security.Principal.SecurityIdentifier($h)).Translate([Security.Principal.NTAccount]).Value } catch { }
+    if ($resuelto) { Falla "$h corresponde a la cuenta $resuelto: no es huérfano, no se toca." }
+    $ErrorActionPreference = "Continue"
+    icacls $Carpeta /remove "*$h" /T /C /Q 2>$null | Out-Null
+    $ErrorActionPreference = "Stop"
+    Write-Host "Quitado el permiso huérfano $h de $Carpeta" }
 
 $res = Join-Path $Carpeta "resultados"
 $tmp = Join-Path $Carpeta "tmp"
@@ -87,7 +100,15 @@ try {
     if ($grupos -contains "S-1-5-32-544") { throw "la cuenta temporal quedó en Administradores: no se prueba" }
     # el Python que usará la cuenta: si está en el perfil de otra persona (H2), no podrá ejecutarlo y todo fallará
     # cerrado; la carpeta de laboratorio sí se le abre en lectura.
-    icacls $Carpeta /grant "${cuenta}:(OI)(CI)RX" | Out-Null
+    # La carpeta de laboratorio cuelga de C:\ y hereda "Usuarios autentificados: Modificar" (H1): la cuenta podría
+    # escribir el código de Forms, el Python y el venv que usa Monitor. Se cierra la herencia y quedan solo
+    # Administradores, SYSTEM y quien ejecuta (control total); la cuenta recibe solo lectura. Esto reproduce el
+    # endurecimiento que F3 exigirá en la instalación real. Reversión: icacls <Carpeta> /reset /T
+    $yo = $id.User.Value
+    icacls $Carpeta /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*${yo}:(OI)(CI)F" /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls /inheritance:r devolvió $LASTEXITCODE" }
+    $resumen.laboratorio_endurecido = $true
+    icacls $Carpeta /grant "*${sid}:(OI)(CI)RX" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "icacls /grant devolvió $LASTEXITCODE" }
     # 3. Firewall: la cuenta no sale salvo a 127.0.0.1
     New-NetFirewallRule -DisplayName $regla -Direction Outbound -Action Block -LocalUser "D:(A;;CC;;;$sid)" `
@@ -115,12 +136,19 @@ try {
     Get-Process -IncludeUserName -ErrorAction SilentlyContinue | Where-Object { $_.UserName -like "*\$cuenta" } |
         Stop-Process -Force -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue
+    # Permisos POR SID y ANTES de borrar la cuenta (borrada, su nombre ya no se resuelve y /remove por nombre no
+    # encuentra nada: en el intento 3 quedó un permiso huérfano). Quita concesiones y denegaciones en todo el árbol.
+    if ($sid) {
+        icacls $Carpeta /remove:g "*$sid" /T /C /Q 2>$null | Out-Null
+        icacls $Carpeta /remove:d "*$sid" /T /C /Q 2>$null | Out-Null }
     net user $cuenta /delete 2>$null | Out-Null
     Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$cuenta*" } | Remove-CimInstance -ErrorAction SilentlyContinue
-    icacls $Carpeta /remove:g $cuenta /T /C /Q 2>$null | Out-Null
-    icacls $repo /remove:d $cuenta /T /C /Q 2>$null | Out-Null
     $restoAcl = 0
-    if ($sid) { $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count }
+    if ($sid) {   # tras borrar la cuenta, cualquier permiso suyo aparece como SID: se cuenta y, si queda, se reintenta
+        $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count
+        if ($restoAcl) {
+            icacls $Carpeta /remove "*$sid" /T /C /Q 2>$null | Out-Null
+            $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count } }
     $resumen.limpieza = [ordered]@{
         procesos_de_la_cuenta = @(Get-Process -IncludeUserName -ErrorAction SilentlyContinue |
             Where-Object { $_.UserName -like "*\$cuenta" }).Count
