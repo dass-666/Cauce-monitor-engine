@@ -142,11 +142,11 @@ $res.restaurado_distintos_shm = @($todosDistintos | Where-Object { $_ -like "*.d
 $res.restaurado_distintos = @($todosDistintos | Where-Object { $_ -notlike "*.db-shm" })
 $res.restaurado_faltantes = @($o.Keys | Where-Object { -not $d.ContainsKey($_) })
 $res.restaurado_sobrantes = @($d.Keys | Where-Object { -not $o.ContainsKey($_) })
-$dbs = @(Get-ChildItem -LiteralPath $R -Recurse -Force -File -Include *.db | Where-Object { $_.FullName -notmatch '\\(\.venv|node_modules|\.browsers)\\' })
+$dbs = @(Get-ChildItem -LiteralPath $R -Recurse -Force -File -Filter *.db | Where-Object { $_.FullName -notmatch '\\(\.venv|node_modules|\.browsers)\\' })
 $res.integridad_bases = [ordered]@{}
 foreach ($db in $dbs) {
   $uri = "file:" + ($db.FullName -replace '\\', '/') + "?mode=ro"
-  $res.integridad_bases[$db.FullName.Substring($R.Length + 1)] = (& $PY -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1], uri=True).execute('PRAGMA integrity_check').fetchone()[0])" $uri)
+  $res.integridad_bases[$db.FullName.Substring($R.Length + 1)] = "" + (& $PY -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1], uri=True).execute('PRAGMA integrity_check').fetchone()[0])" $uri 2>&1)
 }
 Herr @("--instalacion", $R, "--salida", $S, "instantanea", "restaurada") | Out-Null
 $rest = (Get-Content "$S\instantanea_restaurada.json" -Raw -Encoding UTF8 | ConvertFrom-Json).tablas
@@ -167,7 +167,7 @@ $res.copia_prueba_borrada = -not (Test-Path $R)
 $env:MONITOREO_ABRIR_NAVEGADOR = "0"
 $p = Start-Process -FilePath $PY -ArgumentList "-m", "monitoreo" -WorkingDirectory $I -WindowStyle Minimized -PassThru
 $ok = $false
-for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+for ($intento = 0; $intento -lt 60 -and -not $ok; $intento++) {  # ojo: PowerShell no distingue $i de $I
   Start-Sleep -Seconds 2
   try { $h = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -TimeoutSec 5; $ok = [bool]$h.ok; $res.health = $h } catch {}
 }
