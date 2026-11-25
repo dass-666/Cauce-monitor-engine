@@ -15,6 +15,8 @@ Uso (con el Python del venv de la instalación):
   login ESPERADO        POST /api/auth/login con la contraseña del .env; ESPERADO = 200 o 401
   auditoria DESDE       eventos de inicio de sesión/cambio de contraseña del admin desde DESDE (UTC ISO)
   retirar --confirmo    tras verificar la rotación: quita la línea del .env y la copia en texto plano viva
+  escanear --valor-desde ENV RUTA...  busca el valor de MONITOREO_ADMIN_PASSWORD de ese .env (p. ej. el de un
+                        respaldo) en las rutas dadas; imprime solo rutas
   emergencia --confirmo restablece la contraseña del admin con getpass (Monitor detenido; copia previa)
 Salida: JSON en DIR y una línea de resumen. Código 0 = OK, 1 = comprobación fallida, 2 = uso indebido.
 """
@@ -49,7 +51,11 @@ def ahora() -> str:
 
 
 def leer_env(inst: Path) -> tuple[list[bytes], dict[str, str]]:
-    crudo = (inst / ".env").read_bytes()
+    return leer_env_archivo(inst / ".env")
+
+
+def leer_env_archivo(ruta: Path) -> tuple[list[bytes], dict[str, str]]:
+    crudo = ruta.read_bytes()
     lineas = crudo.splitlines(keepends=True)
     valores = {}
     for ln in lineas:
@@ -317,6 +323,21 @@ def o_retirar(a, inst, salida, env):
     return 0 if d["env_sin_clave"] else 1
 
 
+def o_escanear(a, inst, salida, env):
+    _, otro = leer_env_archivo(a.valor_desde)
+    valor = otro.get(CLAVE) or ""
+    if not valor:
+        print("ERROR: ese .env no tiene la clave"); return 2
+    hallados = escanear(a.rutas, valor)
+    valor = None
+    d = {"cuando": ahora(), "rutas": [str(r) for r in a.rutas], "archivos_con_la_contrasena": hallados}
+    guardar(salida, f"escaneo_{ahora().replace(':', '')}.json", d)
+    print(f"escanear: {len(hallados)} archivo(s)")
+    for h in hallados:
+        print("  " + h["ruta"])
+    return 0
+
+
 def o_emergencia(a, inst, salida, env):
     import getpass
     if not a.confirmo:
@@ -347,12 +368,13 @@ def main() -> int:
     sub.add_parser("auditoria").add_argument("desde")
     r = sub.add_parser("retirar"); r.add_argument("--confirmo", action="store_true")
     r.add_argument("--respaldos", type=Path, nargs="+", help="copias de la instalación donde .env y el .txt deben ser idénticos")
+    e = sub.add_parser("escanear"); e.add_argument("--valor-desde", required=True, type=Path); e.add_argument("rutas", type=Path, nargs="+")
     sub.add_parser("emergencia").add_argument("--confirmo", action="store_true")
     a = ap.parse_args()
     _, env = leer_env(a.instalacion)
     return {"inventario": o_inventario, "instantanea": o_instantanea, "comparar": o_comparar,
             "prueba-emergencia": o_prueba_emergencia, "login": o_login, "auditoria": o_auditoria,
-            "retirar": o_retirar, "emergencia": o_emergencia}[a.orden](a, a.instalacion, a.salida, env)
+            "retirar": o_retirar, "escanear": o_escanear, "emergencia": o_emergencia}[a.orden](a, a.instalacion, a.salida, env)
 
 
 if __name__ == "__main__":
