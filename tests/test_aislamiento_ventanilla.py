@@ -165,7 +165,7 @@ def preparar_raiz_conector(raiz: Path, cuenta: str) -> tuple[Path, Path]:
 
 
 def procesos(cuenta: str) -> list[int]:
-    return [p.pid for p in al.procesos_de_la_cuenta(cuenta) if p.status() != psutil.STATUS_ZOMBIE]
+    return [p.pid for p in al.vivos_de_la_cuenta(cuenta)]
 
 
 def esperar_sin_procesos(cuenta: str, t: float = 10.0) -> list[int]:

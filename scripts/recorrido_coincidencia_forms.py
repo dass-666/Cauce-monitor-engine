@@ -169,7 +169,7 @@ class VigiaCuenta:
         import psutil
         fin = time.monotonic() + 10
         while time.monotonic() < fin:
-            vivos = [p.pid for p in self.al.procesos_de_la_cuenta(self.cuenta) if p.status() != psutil.STATUS_ZOMBIE]
+            vivos = [p.pid for p in self.al.vivos_de_la_cuenta(self.cuenta)]
             if not vivos:
                 return []
             time.sleep(0.2)

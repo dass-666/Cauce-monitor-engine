@@ -386,6 +386,19 @@ def procesos_de_la_cuenta(cuenta: str) -> list:
     return out
 
 
+def vivos_de_la_cuenta(cuenta: str) -> list:
+    """Procesos de la cuenta que siguen vivos (ni zombis ni terminados mientras se miraban)."""
+    import psutil
+    out = []
+    for p in procesos_de_la_cuenta(cuenta):
+        try:
+            if p.status() != psutil.STATUS_ZOMBIE:
+                out.append(p)
+        except psutil.Error:               # terminó entre la lista y la consulta: ya no cuenta
+            pass
+    return out
+
+
 def limpiar_huerfanos(cuenta: str, espera_s: float = 5.0) -> int:
     """La cuenta es SOLO del conector: cualquier proceso suyo vivo antes de lanzar es un resto (de un Monitor que
     murió de golpe en Linux, por ejemplo). Se terminan; devuelve cuántos quedan vivos (debe ser 0)."""
@@ -398,11 +411,10 @@ def limpiar_huerfanos(cuenta: str, espera_s: float = 5.0) -> int:
             pass
     fin = time.monotonic() + espera_s
     while time.monotonic() < fin:
-        restos = [p for p in procesos_de_la_cuenta(cuenta) if p.status() != psutil.STATUS_ZOMBIE]
-        if not restos:
+        if not vivos_de_la_cuenta(cuenta):
             return 0
         time.sleep(0.1)
-    return len([p for p in procesos_de_la_cuenta(cuenta) if p.status() != psutil.STATUS_ZOMBIE])
+    return len(vivos_de_la_cuenta(cuenta))
 
 
 # ------------------------------------------------------------------------------------------- comprobación activa
