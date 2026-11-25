@@ -284,6 +284,7 @@ async function tarjetaAutorrelleno(a) {
     // la operación del plan queda «vinculada» a Forms en cuanto se lanzó el autorrellenado con ella
     const vinculada = !!(k && !k.confirmada && (k.forms || (c && c.coincidencia)));
     const lista = !!(k && k.lista_para_confirmacion);
+    const interrumpida = !!(k && k.interrumpida);   // Monitor se cerró con la ventana abierta: reintento con motivo
     caja.dataset.vinculada = vinculada ? "si" : "no";
     ocultarFlujoAnterior(document.getElementById("flujo"), vinculada);
     const errs = h("div", { class: "error", role: "alert", id: "autorrelleno-error" });
@@ -296,9 +297,10 @@ async function tarjetaAutorrelleno(a) {
     };
     // con la operación LISTA el botón se desactiva: lo siguiente es registrar el folio
     const boton = h("button", { class: "btn " + (lista ? "" : "primary"), id: "btn-autorrellenar",
-      disabled: (!est.disponible || enCurso || lista) || null, title: lista ? "Forms ya dejó lista esta operación" : null,
+      disabled: (!est.disponible || enCurso || lista || interrumpida) || null, title: lista ? "Forms ya dejó lista esta operación" : null,
       onclick: () => lanzar(null, boton) }, lista ? "Autorrellenado completo" : "Autorrellenar formulario");
-    const motivoVisible = !est.disponible && est.motivo && !(lista && est.codigo === "OPERACION_YA_LISTA");
+    const motivoVisible = !est.disponible && est.motivo && !(lista && est.codigo === "OPERACION_YA_LISTA")
+      && !(interrumpida && est.codigo === "OPERACION_INTERRUMPIDA");
     caja.dataset.estado = c ? c.estado : "";
     caja.replaceChildren(...[      // replaceChildren escribiría «null» como texto: se filtran los vacíos
       h("h2", {}, "Autorrellenar formulario (Forms · laboratorio)"),
@@ -315,7 +317,9 @@ async function tarjetaAutorrelleno(a) {
       h("div", { class: "actions" }, boton), errs,
       c ? resumenAutorrelleno(c) : null,
       lista && !enCurso ? folioVerificado(k, a) : null,
-      lista && !enCurso ? reintentoForms(k, lanzar) : null].filter((x) => x));
+      interrumpida && !enCurso ? h("p", { class: "warn", id: "autorrelleno-interrumpido" },
+        "Monitor se cerró con el formulario abierto. Antes de volver a abrirlo, comprueba con la persona en el portal que no confirmó ya la cita.") : null,
+      (lista || interrumpida) && !enCurso ? reintentoForms(k, lanzar) : null].filter((x) => x));
   };
   let timer = null;
   const seguir = () => {

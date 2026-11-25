@@ -58,6 +58,7 @@ from ..conector import contrato as C
 from ..conector.registro import ErrorRegistro, Registro
 from ..db import Database, utcnow
 from ..models import Atencion, Expediente
+from . import aislamiento_lab as al
 from . import coincidencia as cz
 from .lanzador_lab import LanzadorLab
 
@@ -117,6 +118,7 @@ class Config:
     env: dict
     perfil: dict
     espera_s: int
+    aislamiento: al.ConfigAislamiento | None = None     # None = Forms con el mismo usuario que Monitor (como antes)
 
 
 def _es_local(url: str) -> bool:
@@ -271,7 +273,34 @@ def configuracion(env: dict | None = None) -> Config:
             sha = ""
         if sha != perfil["perfil_sha256"]:
             raise Negado("PERFIL_ALTERADO", "El perfil guardado en Forms no coincide con el aprobado: no se usa.")
-    return Config(comando, cwd, _env_forms(perfil, env, forms), perfil, espera)
+    env_forms = _env_forms(perfil, env, forms)
+    try:
+        ais = al.leer_config(env)
+    except al.ErrorAislamiento as e:
+        raise Negado(e.codigo, e.mensaje, e.http) from None
+    if ais is not None:
+        env_forms = al.entorno(env_forms, ais)
+    return Config(comando, cwd, env_forms, perfil, espera, ais)
+
+
+def _cwd(cfg: Config) -> str | None:
+    """En modo aislado el proceso arranca en una carpeta que la cuenta puede abrir (nunca la de Monitor)."""
+    if cfg.cwd or cfg.aislamiento is None:
+        return cfg.cwd
+    return str(cfg.aislamiento.trabajo)
+
+
+def comprobar_aislamiento(cfg: Config) -> dict | None:
+    """Modo aislado: la sonda corre como la cuenta del conector y todo lo privado de Monitor debe darle «denegado».
+    Sin modo aislado devuelve None (laboratorio como antes). Falla cerrado con Negado."""
+    if cfg.aislamiento is None:
+        return None
+    try:
+        return al.verificar(cfg.aislamiento, cfg.comando[0], _cwd(cfg), cfg.env, cfg.cwd)
+    except al.ErrorAislamiento as e:
+        n = Negado(e.codigo, e.mensaje, e.http)
+        n.informe = e.informe
+        raise n from None
 
 
 def estado_configuracion() -> dict:
@@ -280,6 +309,7 @@ def estado_configuracion() -> dict:
     except Negado as n:
         return {"habilitado": False, "codigo": n.codigo, "motivo": n.mensaje}
     return {"habilitado": True, "codigo": "", "motivo": "", "formulario_id": cfg.perfil["formulario_id"],
+            "aislamiento": cfg.aislamiento.vista()["modo"] if cfg.aislamiento else "ninguno",
             "espera_revision_s": cfg.espera_s, "externo": cfg.perfil.get("externo") is True,
             "sitio": (urlsplit(cfg.perfil["url"]).hostname or "") if cfg.perfil.get("externo") is True else ""}
 
@@ -439,7 +469,8 @@ class Corrida:
     coincidencia: dict | None = None         # operación del plan a la que vuelve el resultado
     resultado_operacion: str = ""            # LISTA_PARA_CONFIRMACION | FORMS_SIN_PREPARAR (solo con coincidencia)
     reintento: str = ""                      # motivo, si se volvió a abrir una operación ya LISTA
-    lanzador: LanzadorLab | None = field(default=None, repr=False)
+    aislamiento: dict | None = None          # resumen de la comprobación como la cuenta del conector (sin datos)
+    lanzador: object | None = field(default=None, repr=False)   # LanzadorLab o el de la cuenta restringida
 
     @property
     def en_curso(self) -> bool:
@@ -455,7 +486,7 @@ class Corrida:
                 "consentimiento": self.consentimiento_codigo, "informe": self.informe,
                 "procesos_restantes": self.procesos_restantes, "diagnostico": self.diagnostico,
                 "coincidencia": self.coincidencia, "resultado_operacion": self.resultado_operacion,
-                "reintento": self.reintento, "iniciada_en": iso(self.iniciada_en), "terminada_en": iso(self.terminada_en)}
+                "reintento": self.reintento, "aislamiento": self.aislamiento, "iniciada_en": iso(self.iniciada_en), "terminada_en": iso(self.terminada_en)}
 
 
 _LOCK = threading.Lock()
@@ -525,6 +556,9 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
             if otra is not None:
                 raise Negado("YA_HAY_UNA_EN_CURSO", "Ya hay un autorrellenado abierto (expediente "
                              f"{otra.expediente_codigo}). Cierra esa ventana primero.")
+            # Modo aislado: comprobación ACTIVA como la cuenta antes de crear nada. Dentro del candado a propósito:
+            # la comprobación termina cualquier proceso de la cuenta y no debe coincidir con otro lanzamiento.
+            ais = comprobar_aislamiento(cfg)
             sol = construir_solicitud(ctx, cfg, user)
             ahora = datetime.now(timezone.utc)
             try:
@@ -535,14 +569,18 @@ def iniciar(db: Database, user, aid: int, cfg: Config | None = None, esperar: bo
                 raise Negado("SOLICITUD_INVALIDA", f"La solicitud no cumple el contrato ({e.codigo}).") from e
             corrida = Corrida(sol["solicitud_id"], ctx.expediente_id, ctx.expediente_codigo, aid, user.username,
                               ctx.consentimiento_codigo, now, estado="AUTORIZADA", coincidencia=ctx.coincidencia,
-                              reintento=reintento or "")
+                              reintento=reintento or "", aislamiento=_resumen_aislamiento(cfg, ais))
             _CORRIDAS[ctx.expediente_id] = corrida
     except Negado as n:
-        _auditar(db, user, "autorrelleno_negado", f"atencion:{aid}", {"codigo": n.codigo})
+        det = {"codigo": n.codigo}
+        if getattr(n, "informe", None):
+            det["aislamiento"] = n.informe
+        _auditar(db, user, "autorrelleno_negado", f"atencion:{aid}", det)
         raise
     detalle = {"solicitud_id": sol["solicitud_id"], "consentimiento": ctx.consentimiento_codigo,
                "formulario_id": cfg.perfil["formulario_id"], "campos": sorted(ctx.campos), "sin_dato": ctx.sin_dato,
-               "sin_equivalencia": ctx.sin_equivalencia, "externo": cfg.perfil.get("externo") is True}
+               "sin_equivalencia": ctx.sin_equivalencia, "externo": cfg.perfil.get("externo") is True,
+               "aislamiento": corrida.aislamiento}
     with db.session() as s:
         ex.evento(s, ctx.expediente_id, "AUTORRELLENO_SOLICITADO", vt._actor(user), now, **detalle)
         if ctx.coincidencia is not None:
@@ -592,14 +630,14 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
     resp = None
     estado, codigo = "ERROR", "ERROR_INTERNO_MONITOR"
     try:
-        lz = LanzadorLab(modo_laboratorio=True)
+        lz = al.fabrica(cfg.aislamiento) if cfg.aislamiento is not None else LanzadorLab(modo_laboratorio=True)
         corrida.lanzador = lz
         if corrida.cancelacion:              # Monitor se está deteniendo: no se llega a lanzar nada útil
             lz.cancelar()
         _REGISTRO.mover(sid, "LANZADA", datetime.now(timezone.utc))
         corrida.estado = "LANZADA"
         threading.Thread(target=_vigilar, args=(db, corrida, parar), daemon=True).start()
-        res = lz.lanzar(cfg.comando, entrada=json.dumps(sol, ensure_ascii=False), cwd=cfg.cwd, env=cfg.env,
+        res = lz.lanzar(cfg.comando, entrada=json.dumps(sol, ensure_ascii=False), cwd=_cwd(cfg), env=cfg.env,
                         plazo_s=cfg.espera_s + C.MARGEN_PROCESO_S)
         ahora = datetime.now(timezone.utc)
         corrida.procesos_restantes = len(res.sobrevivientes)
@@ -650,6 +688,79 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
         corrida.informe, corrida.terminada_en = informe, utcnow()
         corrida.codigo = codigo
         corrida.estado = estado              # el último: deja de estar «en curso»
+
+
+def _resumen_aislamiento(cfg: Config, informe: dict | None) -> dict:
+    if cfg.aislamiento is None:
+        return {"modo": "ninguno"}
+    i = informe or {}
+    return {"modo": al.MODO_CUENTA, "verificado": bool(i.get("ok")), "rutas_denegadas": i.get("comprobadas", 0),
+            "red_bloqueada": i.get("red_bloqueada", 0), "api_sin_sesion": i.get("api_sin_sesion")}
+
+
+def al_arrancar() -> int | None:
+    """Al arrancar Monitor en modo aislado: termina procesos que la cuenta del conector dejó vivos. Devuelve cuántos
+    no se pudieron terminar (None si el modo aislado no está configurado)."""
+    try:
+        cfg = configuracion()
+    except Negado:
+        return None
+    if cfg.aislamiento is None:
+        return None
+    restos = al.limpiar_huerfanos(cfg.aislamiento.cuenta)
+    if restos:
+        log.error("autorrelleno: %d procesos de la cuenta del conector siguen vivos", restos)
+    return restos
+
+
+def recuperar_interrumpidas(db: Database, now: datetime | None = None, dias: int = 30) -> list[str]:
+    """Al arrancar Monitor (laboratorio): un autorrellenado SOLICITADO sin TERMINADO es uno que estaba abierto cuando
+    Monitor murió de golpe (corte, consola cerrada, kill). Las corridas viven en memoria y ya no existen; Forms y su
+    navegador los terminó el Job Object (Windows) o los termina `al_arrancar()` (Linux). Aquí se cierra su historial
+    como INTERRUMPIDA y, si llevaba una coincidencia, la operación queda FORMS_INTERRUMPIDO: no se sabe si la persona
+    llegó a confirmar en el portal, así que volver a abrir el formulario exige motivo (reintento) y nunca crea otra
+    reservación. Devuelve las solicitudes cerradas."""
+    from sqlalchemy import select
+
+    from ..models import ExpedienteEvento
+    now = now or utcnow()
+    desde = now - timedelta(days=dias)
+    tipos = ("AUTORRELLENO_SOLICITADO", "AUTORRELLENO_TERMINADO", "COINCIDENCIA_ENTREGADA_A_FORMS")
+    with db.session() as s:
+        evs = s.scalars(select(ExpedienteEvento).where(ExpedienteEvento.tipo.in_(tipos), ExpedienteEvento.ts >= desde)
+                        .order_by(ExpedienteEvento.id)).all()
+        filas = [(e.tipo, e.expediente_id, {**(e.detalle or {}), "_reservacion_id": e.reservacion_id}, e.actor)
+                 for e in evs]
+    terminadas = {d.get("solicitud_id") for t, _, d, _ in filas if t == "AUTORRELLENO_TERMINADO"}
+    entregas = {d.get("solicitud_id"): d for t, _, d, _ in filas if t == "COINCIDENCIA_ENTREGADA_A_FORMS"}
+    vivas = {c.solicitud_id for c in _CORRIDAS.values() if c.en_curso}
+    cerradas = []
+    for t, exp_id, d, actor in filas:
+        sid = d.get("solicitud_id")
+        if t != "AUTORRELLENO_SOLICITADO" or not sid or sid in terminadas or sid in vivas:
+            continue
+        detalle = {"solicitud_id": sid, "estado": "INTERRUMPIDA", "codigo": "MONITOR_REINICIADO",
+                   "campos_correctos": 0, "campos_total": 0, "confirmaciones_coinciden": 0,
+                   "envio_por_conector": False, "envio_humano_observado": False, "procesos_restantes": 0,
+                   "diagnostico": []}
+        usuario = actor.split(":", 1)[-1].split(" ", 1)[0]
+        with db.session() as s:
+            ex.evento(s, exp_id, "AUTORRELLENO_TERMINADO", "motor (arranque)", now, **detalle)
+            security.audit(s, "motor", "autorrelleno_interrumpido", f"expediente:{exp_id}",
+                           {"solicitud_id": sid, "usuario": usuario})
+        k = entregas.get(sid)
+        if k is not None and k.get("_reservacion_id"):
+            coin = {"reservacion_id": k["_reservacion_id"], "elemento_id": k.get("elemento_id"),
+                    "fecha": k.get("fecha"), "sucursal": k.get("sucursal")}
+            with db.session() as s:
+                previo = cz.forms_de(s, coin) or {}
+            coin.update(externo=bool(previo.get("externo")), sitio=previo.get("sitio"))
+            cz.registrar_resultado(db, coin, exp_id, "motor (arranque)", detalle, now,
+                                   "MONITOR_REINICIADO" if previo.get("resultado") == cz.LISTA else None)
+        cerradas.append(sid)
+    if cerradas:
+        log.warning("autorrelleno: %d autorrellenados quedaron INTERRUMPIDOS por un cierre de Monitor", len(cerradas))
+    return cerradas
 
 
 def reiniciar_para_pruebas() -> None:

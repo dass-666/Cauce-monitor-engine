@@ -15,8 +15,18 @@
 Con --interfaz, los pasos 4 y 6 los hace el operador SOLO con la pantalla de Ventanilla (Chromium automatizado,
 scripts/recorrido_coincidencia_ui.js): pulsa «Autorrellenar», ve la operación lista y teclea los folios.
 
+Con --aislado CUENTA (solo Linux como root, equipo de pruebas): Forms corre como esa OTRA cuenta del sistema
+(monitoreo/autorrelleno/aislamiento_lab.py). Monitor comprueba antes de lanzar que la cuenta no puede leer su base,
+datos, respaldos ni diario; el recorrido comprueba además que el navegador de Forms es de esa cuenta y que no queda
+ningún proceso suyo al terminar. En Windows el equivalente se prueba en el workflow «Aislamiento Forms Windows».
+Con --aislado también: regla de red de la cuenta (iptables --uid-owner, se quita al terminar) y comprobación de que
+Monitor llega al destino de prueba y la cuenta no; la API de Monitor rechaza a la cuenta sin sesión; un segundo clic
+con la ventana abierta no lanza otro Forms. Con --corte (solo API, no --interfaz): a mitad del primer autorrellenado
+se MATA Monitor (kill -9), se vuelve a arrancar y se comprueba la recuperación (ningún proceso de la cuenta, historial
+INTERRUMPIDO, reabrir exige motivo y usa la misma reservación).
+
 Uso: python scripts/recorrido_coincidencia_forms.py --forms <carpeta de Forms instalado> [--salida DIR] [--con-ventana]
-     [--observador calendario|web] [--interfaz]
+     [--observador calendario|web] [--interfaz] [--aislado CUENTA [--red-destino HOST:PUERTO] [--corte]]
 Código 0 si todo pasa, 1 si algo falla, 3 si falta Forms o Node.js/Playwright.
 """
 from __future__ import annotations
@@ -87,6 +97,85 @@ def persona_confirma(portal_base: str, p: dict, fecha: str, sucursal: str) -> st
         return m.group(1)
 
 
+def preparar_aislado(cuenta: str) -> Path | None:
+    """Carpeta del conector: perfil/ (la cuenta lo lee) y trabajo/ (solo la cuenta escribe). Linux como root."""
+    import os
+    if not sys.platform.startswith("linux") or os.geteuid() != 0:
+        print("--aislado solo en Linux como root (equipo de pruebas). En Windows: workflow «Aislamiento Forms Windows».")
+        return None
+    import pwd
+    try:
+        pw = pwd.getpwnam(cuenta)
+    except KeyError:
+        print(f"La cuenta {cuenta} no existe (useradd -M -s /usr/sbin/nologin {cuenta}).")
+        return None
+    raiz = Path(tempfile.mkdtemp(prefix="cauce_conector_", dir="/tmp"))
+    os.chmod(raiz, 0o755)
+    (raiz / "perfil").mkdir()
+    (raiz / "trabajo" / "tmp").mkdir(parents=True)
+    for d in (raiz / "trabajo", raiz / "trabajo" / "tmp"):
+        os.chown(d, pw.pw_uid, pw.pw_gid)
+    os.chmod(raiz / "trabajo", 0o700)
+    return raiz
+
+
+def regla_red(cuenta: str, poner: bool) -> bool:
+    """La cuenta del conector no sale a la red salvo 127.0.0.1 (lo que en Windows hace la regla del cortafuegos)."""
+    regla = ["OUTPUT", "-m", "owner", "--uid-owner", cuenta, "!", "-o", "lo", "-j", "REJECT",
+             "--reject-with", "icmp-admin-prohibited"]
+    if not shutil.which("iptables"):
+        return False
+    while subprocess.run(["iptables", "-D", *regla], capture_output=True).returncode == 0:
+        pass
+    return not poner or subprocess.run(["iptables", "-A", *regla], capture_output=True).returncode == 0
+
+
+def permisos_aislado(raiz: Path, cuenta: str, estado: Path) -> None:
+    import os
+    import pwd
+    pw = pwd.getpwnam(cuenta)
+    for d in (raiz / "perfil", *(raiz / "perfil").rglob("*")):
+        os.chmod(d, 0o755 if d.is_dir() else 0o644)      # el perfil aprobado: la cuenta lo lee, no lo cambia
+    for d in (estado, *estado.rglob("*")):
+        os.chown(d, pw.pw_uid, pw.pw_gid)                 # el estado de Forms: lo escribe la cuenta
+
+
+class VigiaCuenta:
+    """Mira cada 0,2 s los procesos de la cuenta mientras Forms trabaja: ¿hubo un navegador suyo?"""
+
+    def __init__(self, cuenta: str):
+        import threading
+        sys.path.insert(0, str(ROOT))
+        from monitoreo.autorrelleno import aislamiento_lab as al
+        self.al, self.cuenta, self.navegador, self.maximo = al, cuenta, False, 0
+        self._parar = threading.Event()
+        self._hilo = threading.Thread(target=self._mirar, daemon=True)
+        self._hilo.start()
+
+    def _mirar(self):
+        while not self._parar.wait(0.2):
+            try:
+                ps = self.al.procesos_de_la_cuenta(self.cuenta)
+                self.maximo = max(self.maximo, len(ps))
+                self.navegador = self.navegador or any("chrom" in (p.name() or "").lower() for p in ps)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def parar(self):
+        self._parar.set()
+        self._hilo.join(2)
+
+    def restos(self) -> list[int]:
+        import psutil
+        fin = time.monotonic() + 10
+        while time.monotonic() < fin:
+            vivos = [p.pid for p in self.al.vivos_de_la_cuenta(self.cuenta)]
+            if not vivos:
+                return []
+            time.sleep(0.2)
+        return vivos
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--forms", required=True)
@@ -97,6 +186,12 @@ def main() -> int:
                     help="web: el OBSERVADOR UNIVERSAL (fuente configurada por URL + perfil, sin código del portal)")
     ap.add_argument("--interfaz", action="store_true",
                     help="pasos 4 y 6 con la pantalla de Ventanilla (navegador automatizado), no con la API")
+    ap.add_argument("--aislado", metavar="CUENTA", default="",
+                    help="Forms como OTRA cuenta del sistema (solo Linux como root, equipo de pruebas)")
+    ap.add_argument("--red-destino", default="1.1.1.1:443",
+                    help="con --aislado: host:puerto que Monitor alcanza y la cuenta no (solo se abre la conexión TCP)")
+    ap.add_argument("--corte", action="store_true",
+                    help="con --aislado: matar Monitor a mitad del primer autorrellenado y comprobar la recuperación")
     a = ap.parse_args()
     out = Path(a.salida)
     out.mkdir(parents=True, exist_ok=True)
@@ -105,7 +200,25 @@ def main() -> int:
         return 3
     t0 = time.time() - 1
     tmp = Path(tempfile.mkdtemp(prefix="coincidencia-forms-"))
-    lab = Laboratorio(tmp / "lab", nuevo=True, forms=Path(a.forms))
+    raiz_conector = None
+    if a.corte and (a.interfaz or not a.aislado):
+        print("--corte va con --aislado y sin --interfaz.")
+        return 3
+    if a.aislado:
+        raiz_conector = preparar_aislado(a.aislado)
+        if raiz_conector is None:
+            return 3
+        if not regla_red(a.aislado, True):
+            print("No se pudo poner la regla de red de la cuenta (iptables): la red no se puede demostrar.")
+            return 3
+    lab = Laboratorio(tmp / "lab", nuevo=True, forms=Path(a.forms),
+                      carpeta_forms=(raiz_conector / "perfil") if raiz_conector else None)
+    if raiz_conector:
+        lab.env_extra.update({"MONITOREO_AUTORRELLENO_AISLAMIENTO": "cuenta_restringida",
+                              "MONITOREO_FORMS_CUENTA": a.aislado,
+                              "MONITOREO_FORMS_TRABAJO": str(raiz_conector / "trabajo"),
+                              "MONITOREO_AISLAMIENTO_RED_DESTINO": a.red_destino,
+                              "MONITOREO_AISLAMIENTO_API": "http://127.0.0.1:{puerto}/api/expedientes"})
     lab.env_extra.update({"MONITOREO_AUTORRELLENO_ESPERA_S": str(a.espera_s),
                           "MONITOREO_FORMS_HEADLESS": "0" if a.con_ventana else "1"})
     ck: list[dict] = []
@@ -144,6 +257,10 @@ def main() -> int:
         except FormsNoListo as e:
             print(e)
             return 3
+        if raiz_conector:
+            estado = Path(json.loads(lab.perfil_forms.read_text(encoding="utf-8"))["state_dir"])
+            permisos_aislado(raiz_conector, a.aislado, estado)
+            res["aislado"] = {"cuenta": a.aislado, "monitor_datos": str(tmp / "lab")}
         pin = json.loads(lab.perfil_forms.read_text(encoding="utf-8"))
         res["forms"] = {"commit": pin.get("forms_commit"), "perfil_sha256": pin["perfil_sha256"], "url": pin["url"]}
         adm = cliente(d["motor"], "admin", ADMIN_PWD)
@@ -243,12 +360,60 @@ def main() -> int:
         st = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()
         check("4 · Ventanilla muestra la coincidencia y el botón disponible",
               st["disponible"] and (st["coincidencia"] or {}).get("fecha") == fecha, st)
+        if a.corte:
+            # 4 corte. Monitor muere de golpe con el formulario abierto -> arranque -> recuperación
+            vg = VigiaCuenta(a.aislado)
+            r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
+            check("4 corte · autorrellenar lanzado (Forms real, como la cuenta)", r.status_code == 202, r.text[:200])
+            sid_cortada = r.json().get("solicitud_id") if r.status_code == 202 else None
+            vio = esperar(lambda: vg.navegador, 90, 0.2)
+            check("4 corte · el navegador de Forms está abierto como la cuenta", bool(vio), vg.maximo)
+            antes = len(vg.al.procesos_de_la_cuenta(a.aislado))
+            lab.motor.proc.kill()                                    # kill -9: sin apagado ordenado
+            lab.motor.proc.wait(20)
+            lab.motor.log.close()
+            vivos_tras_matar = len([p for p in vg.al.procesos_de_la_cuenta(a.aislado)])
+            lab.motor.start()
+            lab.motor.wait_ready()
+            vg.parar()
+            restos = vg.restos()
+            res["corte"] = {"procesos_antes": antes, "procesos_tras_matar_monitor": vivos_tras_matar,
+                            "procesos_tras_arrancar": len(restos)}
+            check("4 corte · tras arrancar Monitor no queda ningún proceso de la cuenta (Forms ni Chromium)",
+                  not restos, res["corte"])
+            op = cliente(d["motor"], *OPERADOR)
+            adm = cliente(d["motor"], "admin", ADMIN_PWD)
+            tl = adm.get(f"/api/expedientes/{exp_id}/trazabilidad").json().get("linea_de_tiempo", [])
+            inter = [x for x in tl if x.get("tipo") == "AUTORRELLENO_TERMINADO"]
+            check("4 corte · el historial cierra el autorrellenado cortado como INTERRUMPIDO",
+                  bool(inter) and "INTERRUMPIDA" in json.dumps(inter[-1], ensure_ascii=False), inter[-1:] or tl[-3:])
+            st = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()
+            k0 = st.get("coincidencia") or {}
+            check("4 corte · la operación queda INTERRUMPIDA (misma reservación, sigue PREPARADA, sin folio)",
+                  k0.get("interrumpida") is True and k0.get("reservacion_id") == rid
+                  and k0.get("estado_reservacion") == "PREPARADA" and not k0.get("folio"), k0)
+            r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
+            check("4 corte · reabrir sin motivo se rechaza (hay que comprobar antes que la persona no confirmó)",
+                  r.status_code == 409 and r.json()["detail"]["codigo"] == "OPERACION_INTERRUMPIDA", r.text[:200])
+            res["corte"]["solicitud_cortada"] = sid_cortada
         t = time.perf_counter()
+        vigia = VigiaCuenta(a.aislado) if a.aislado else None
         if a.interfaz:
             interfaz("autorrellenar", {"atencion": at2["id"], "fecha": fecha, "sucursal": "NOR-1", "espera_s": a.espera_s})
         else:
-            r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
-            check("4 · autorrellenar lanzado (Forms real)", r.status_code == 202, r.text[:200])
+            r = op.post(f"/api/autorrelleno/atenciones/{at2['id']}",
+                        json={"reintento": "VENTANA_CERRADA"} if a.corte else {})
+            check("4 · autorrellenar lanzado (Forms real)" + (" con motivo, tras el corte" if a.corte else ""),
+                  r.status_code == 202, r.text[:200])
+            if a.aislado and r.status_code == 202:
+                ais0 = r.json().get("aislamiento") or {}
+                check("4 · aislado: red demostrada (Monitor llega al destino de prueba, la cuenta no) y la API de "
+                      "Monitor rechaza a la cuenta sin sesión",
+                      ais0.get("red_bloqueada") == 1 and ais0.get("api_sin_sesion") in ("HTTP_401", "HTTP_403"), ais0)
+                r2 = op.post(f"/api/autorrelleno/atenciones/{at2['id']}")
+                check("4 · un segundo clic con la ventana abierta no lanza otro Forms",
+                      r2.status_code == 409 and r2.json()["detail"]["codigo"] in ("YA_HAY_UNA_EN_CURSO",
+                                                                                  "OPERACION_INTERRUMPIDA"), r2.text[:200])
         fin = esperar(lambda: (lambda c: c if c and not c["en_curso"] else None)(
             op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["corrida"]), a.espera_s + 180, 0.5)
         tiempos["forms_s"] = round(time.perf_counter() - t, 2)
@@ -260,6 +425,16 @@ def main() -> int:
               res["forms_resultado"])
         check("4 · la operación queda LISTA PARA CONFIRMACIÓN SUPERVISADA (no es cita)",
               fin and fin.get("resultado_operacion") == "LISTA_PARA_CONFIRMACION", res["forms_resultado"])
+        if vigia is not None:
+            vigia.parar()
+            ais = (fin or {}).get("aislamiento") or {}
+            res["aislado"].update(comprobacion=ais, navegador_de_la_cuenta=vigia.navegador, maximo_procesos=vigia.maximo)
+            check("4 · aislado: Monitor comprobó como la cuenta que no puede leer sus datos antes de lanzar Forms",
+                  ais.get("modo") == "cuenta_restringida" and ais.get("verificado") is True
+                  and ais.get("rutas_denegadas", 0) >= 3, ais)
+            check("4 · aislado: el navegador de Forms corrió como la cuenta del conector", vigia.navegador, vigia.maximo)
+            restos = vigia.restos()
+            check("4 · aislado: al terminar no queda ningún proceso de la cuenta", not restos, restos)
         res_ = op.get(f"/api/autorrelleno/atenciones/{at2['id']}").json()["coincidencia"]
         check("4 · reservación sigue PREPARADA, sin folio", res_ and res_["estado_reservacion"] == "PREPARADA"
               and not res_["folio"] and res_["lista_para_confirmacion"], res_)
@@ -328,6 +503,11 @@ def main() -> int:
             check("6 · el plan pasa a CONFIRMADO", r_json.get("estado_plan") == "CONFIRMADO", r_json.get("estado_plan"))
         exp = adm.get(f"/api/expedientes/{exp_id}").json()
         check("6 · el expediente queda RESERVACION_CONFIRMADA", exp["estado"] == "RESERVACION_CONFIRMADA", exp["estado"])
+        todas = reservaciones_del_expediente()
+        check("6 · una sola reservación para el expediente (ni el reintento ni el corte crearon otra), con la fecha y "
+              "la sucursal de la coincidencia", [x["id"] for x in todas] == [rid] and todas[0].get("fecha") == fecha
+              and todas[0].get("sucursal") == "NOR-1", [{k: x.get(k) for k in ("id", "estado", "fecha", "sucursal")}
+                                                        for x in todas])
         t = adm.get(f"/api/expedientes/{exp_id}/trazabilidad").json()
         tipos = [x.get("tipo") for x in t.get("linea_de_tiempo", [])]
         orden = ["PLAN_OPERACION_PREPARADA", "COINCIDENCIA_ENTREGADA_A_FORMS", "AUTORRELLENO_TERMINADO",
@@ -361,13 +541,16 @@ def main() -> int:
         valores = {k: persona[k] for k in ("nombre", "telefono", "correo", "fecha_nacimiento", "identificador")}
         valores["clave_identidad"] = MANUALES["clave_identidad"]
         forms = Path(a.forms)
-        hall = buscar_datos([tmp / "lab", forms / "logs", forms / "state", out], valores, desde=t0,
+        carpetas = [tmp / "lab", forms / "logs", forms / "state", out] + ([raiz_conector] if raiz_conector else [])
+        hall = buscar_datos(carpetas, valores, desde=t0,
                             excluir=(tmp / "lab" / "portal.json",))
         check("7 · ningún archivo de texto (motor, portal, Forms, evidencia) contiene los datos ficticios", not hall, hall)
     except Exception as e:  # noqa: BLE001
         check("el recorrido se detuvo por un error", False, f"{type(e).__name__}: {str(e)[:300]}")
     finally:
         lab.detener()
+        if a.aislado:
+            regla_red(a.aislado, False)
         res["tiempos"] = tiempos
         res["comprobaciones"] = ck
         res["ok"] = bool(ck) and all(x["ok"] for x in ck)

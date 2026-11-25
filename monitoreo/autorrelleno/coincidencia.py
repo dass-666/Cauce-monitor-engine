@@ -59,6 +59,8 @@ ETIQUETAS = {CAMPO_FECHA: "Fecha de la cita (coincidencia)", CAMPO_SUCURSAL: "Su
 # Estados de Forms en los que el formulario quedó rellenado y verificado sin que Forms enviara nada.
 ESTADOS_LISTOS = ("PREPARADO", "CADUCADA", "ENVIADA_POR_PERSONA")
 LISTA, SIN_PREPARAR = "LISTA_PARA_CONFIRMACION", "FORMS_SIN_PREPARAR"
+# Monitor se cerró de golpe con el formulario abierto: no se sabe si la persona llegó a confirmar en el portal.
+INTERRUMPIDO = "FORMS_INTERRUMPIDO"
 # Adaptador que sabe verificar un folio de cada contrato de reservación. Lo que no esté aquí no se verifica.
 ADAPTADOR_POR_CONTRATO = {"portal_laboratorio_dia": "laboratorio"}
 
@@ -162,6 +164,7 @@ def vista(s, exp_id: int, operator_id: int | None) -> dict | None:
     f = (res.evidencia or {}).get("forms") or None
     return {**coin, "estado_plan": pl.PREPARADO, "estado_reservacion": res.estado, "folio": None,
             "lista_para_confirmacion": bool(f and f.get("resultado") == LISTA), "confirmada": False, "forms": f,
+            "interrumpida": bool(f and f.get("resultado") == INTERRUMPIDO),
             "verificable": ADAPTADOR_POR_CONTRATO.get(res.contrato) is not None and not (f or {}).get("externo")}
 
 
@@ -185,16 +188,22 @@ def forms_de(s, coin: dict | None) -> dict | None:
 
 
 def forms_de_id(db: Database, coin: dict) -> bool:
-    """¿La operación ya estaba LISTA antes de este lanzamiento? (solo entonces cuenta como reintento)."""
+    """¿La operación ya estaba LISTA (o INTERRUMPIDA) antes de este lanzamiento? Solo entonces es un reintento."""
     with db.session() as s:
         f = forms_de(s, coin)
-    return bool(f and f.get("resultado") == LISTA)
+    return bool(f and f.get("resultado") in (LISTA, INTERRUMPIDO))
 
 
 def reintento_permitido(forms: dict | None, motivo: str | None) -> tuple[bool, str, str]:
-    """(permitido, codigo, mensaje). Sin operación LISTA no hace falta motivo: es un autorrellenado normal."""
-    if not forms or forms.get("resultado") != LISTA:
+    """(permitido, codigo, mensaje). Sin operación LISTA no hace falta motivo: es un autorrellenado normal.
+    Una operación INTERRUMPIDA (Monitor se cerró con la ventana abierta) también exige motivo: antes de volver a
+    abrir el formulario hay que comprobar en el portal que la persona no confirmó ya (evita una cita duplicada)."""
+    if not forms or forms.get("resultado") not in (LISTA, INTERRUMPIDO):
         return True, "", ""
+    if forms.get("resultado") == INTERRUMPIDO and not motivo:
+        return False, "OPERACION_INTERRUMPIDA", ("Monitor se cerró con el formulario abierto. Antes de volver a abrirlo, "
+                                                 "comprueba con la persona en el portal que no confirmó ya la cita; "
+                                                 "después usa «Reintentar» con su motivo (es la misma operación).")
     if not motivo:
         return False, "OPERACION_YA_LISTA", ("Forms ya dejó lista esta operación: registra el folio. Solo si hay que "
                                              "volver a abrir el formulario, usa «Reintentar» con su motivo.")
@@ -218,7 +227,7 @@ def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detal
     """Anota en la reservación (todavía PREPARADA) lo que hizo Forms. Devuelve LISTA o FORMS_SIN_PREPARAR.
     En un reintento sobre una operación ya LISTA, el resultado nuevo se añade a `reintentos`; si salió peor, la
     operación sigue LISTA (la persona pudo haber confirmado ya con el formulario anterior)."""
-    resultado = LISTA if listo(detalle) else SIN_PREPARAR
+    resultado = LISTA if listo(detalle) else (INTERRUMPIDO if detalle.get("estado") == "INTERRUMPIDA" else SIN_PREPARAR)
     forms = {"resultado": resultado, "solicitud_id": detalle.get("solicitud_id"), "estado": detalle.get("estado"),
              "codigo": detalle.get("codigo"), "campos_correctos": detalle.get("campos_correctos"),
              "campos_total": detalle.get("campos_total"),
@@ -246,7 +255,8 @@ def registrar_resultado(db: Database, coin: dict, exp_id: int, actor: str, detal
         s.execute(update(t).where(t.c.id == res.id, t.c.estado == rs.PREPARADA).values(
             evidencia={**(res.evidencia or {}), "forms": forms}, fecha=coin["fecha"], sucursal=coin["sucursal"],
             updated_at=now))
-        ex.evento(s, exp_id, "OPERACION_LISTA_CONFIRMACION" if resultado == LISTA else "OPERACION_FORMS_SIN_PREPARAR",
+        ex.evento(s, exp_id, {LISTA: "OPERACION_LISTA_CONFIRMACION", INTERRUMPIDO: "OPERACION_FORMS_INTERRUMPIDA"}
+                  .get(resultado, "OPERACION_FORMS_SIN_PREPARAR"),
                   actor, now, reservacion_id=res.id, elemento_id=coin["elemento_id"], fecha=coin["fecha"],
                   sucursal=coin["sucursal"], estado_forms=detalle.get("estado"), codigo=detalle.get("codigo"),
                   es_cita=False)

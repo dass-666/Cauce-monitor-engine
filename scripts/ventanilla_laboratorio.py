@@ -46,7 +46,8 @@ OPERADOR = ("operador1", "Operador-Laboratorio-2026")
 
 class Laboratorio:
     def __init__(self, carpeta: Path, nuevo: bool = False, rc1: bool = False, forms: Path | None = None,
-                 perfil_externo: Path | None = None, host_externo: str | None = None):
+                 perfil_externo: Path | None = None, host_externo: str | None = None,
+                 carpeta_forms: Path | None = None):
         self.carpeta = Path(carpeta)
         if nuevo and self.carpeta.exists():
             shutil.rmtree(self.carpeta)
@@ -68,6 +69,9 @@ class Laboratorio:
         # El host lo escribe quien abre el laboratorio (segunda llave), no sale del perfil.
         self.perfil_externo = Path(perfil_externo).resolve() if perfil_externo else None
         self.host_externo = host_externo
+        # Laboratorio AISLADO: el perfil aprobado y el estado de Forms van a una carpeta que la cuenta del conector
+        # puede leer (no a la del laboratorio, que es privada de Monitor). Por omisión, la del laboratorio.
+        self.carpeta_forms = Path(carpeta_forms) if carpeta_forms else None
 
     @staticmethod
     def _puerto_disponible(p: int) -> bool:
@@ -128,10 +132,10 @@ class Laboratorio:
             # (huella fijada por Monitor) y el motor recibe dónde está Forms. Ver docs/AUTORRELLENO_FORMS_LAB.md.
             from autorrelleno_forms import aprobar, aprobar_externo, variables_motor
             if self.perfil_externo is not None:
-                self.perfil_forms = aprobar_externo(self.forms, self.perfil_externo, c)
+                self.perfil_forms = aprobar_externo(self.forms, self.perfil_externo, self.carpeta_forms or c)
                 env.update(variables_motor(self.forms, self.perfil_forms, host_externo=self.host_externo))
             else:
-                self.perfil_forms = aprobar(self.forms, self.portal.base, c)
+                self.perfil_forms = aprobar(self.forms, self.portal.base, self.carpeta_forms or c)
                 env.update(variables_motor(self.forms, self.perfil_forms))
             for k in ("MONITOREO_FORMS_BROWSER_PATH", "MONITOREO_FORMS_HEADLESS", "MONITOREO_AUTORRELLENO_ESPERA_S"):
                 if os.environ.get(k):            # base_env() quita MONITOREO_*: se pasan solo estas, si se definieron

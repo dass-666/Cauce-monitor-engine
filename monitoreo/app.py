@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
@@ -110,6 +111,22 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             recuperacion.preparar(db)
         except Exception:  # noqa: BLE001 - la puerta de cada operación vuelve a evaluar y falla cerrada
             log.exception("recuperación: la comprobación de arranque falló")
+        # Laboratorio aislado: un Monitor que murió de golpe pudo dejar procesos de la cuenta del conector (en Linux
+        # no hay Job Object). Se terminan al arrancar; sin la variable no se importa nada del autorrellenado.
+        if os.environ.get("MONITOREO_AUTORRELLENO_AISLAMIENTO"):
+            try:
+                from .autorrelleno import adaptador as _ad
+                _ad.al_arrancar()
+            except Exception:  # noqa: BLE001 - la comprobación de cada lanzamiento vuelve a hacerlo y falla cerrada
+                log.exception("autorrelleno: limpieza de procesos de la cuenta del conector al arrancar falló")
+        # Laboratorio de autorrellenado: un autorrellenado que estaba abierto cuando Monitor murió de golpe se cierra en
+        # su historial como INTERRUMPIDO (y su operación exige motivo para volver a abrir el formulario).
+        if (os.environ.get("MONITOREO_AUTORRELLENO_LAB") or "").strip().lower() in ("1", "true", "si", "sí", "yes"):
+            try:
+                from .autorrelleno import adaptador as _ad
+                _ad.recuperar_interrumpidas(db)
+            except Exception:  # noqa: BLE001
+                log.exception("autorrelleno: no se pudo cerrar el historial de autorrellenados interrumpidos")
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()
