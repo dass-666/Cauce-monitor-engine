@@ -193,7 +193,8 @@ def aislado(lab, tmp_path, monkeypatch):
     env_privado = datos / "privado.env"                 # hace de .env de la instalación
     env_privado.write_text("MONITOREO_SECRET_KEY=secreto-de-monitor-que-no-debe-salir\n")
     proteger_privado(datos, cuenta)
-    raiz = Path(tempfile.mkdtemp(prefix="cauce_aisl_", dir=("C:\\" if ES_WINDOWS else "/tmp")))
+    raiz = Path(tempfile.mkdtemp(prefix="cauce_aisl_", dir=os.environ.get("CAUCE_AISLAMIENTO_RAIZ_TMP")
+                                 or ("C:\\" if ES_WINDOWS else "/tmp")))
     codigo, trabajo = preparar_raiz_conector(raiz, cuenta)
     espia = trabajo / "espia"
     monkeypatch.setenv(al.VARIABLE_MODO, al.MODO_CUENTA)
@@ -610,21 +611,28 @@ def test_recorrido_coincidencia_forms_folio_con_forms_aislado(aislado):
 # ================================================================ Forms REAL como la cuenta (Linux, FORMS_REPO)
 @pytest.fixture
 def forms_real_aislado(aislado, monkeypatch):
-    if not FORMS_REPO or ES_WINDOWS:
-        pytest.skip("FORMS_REPO no definido (o Windows: allí A11 del workflow): Forms real aislado no verificado aquí")
+    if not FORMS_REPO:
+        pytest.skip("FORMS_REPO no definido: Forms real aislado no verificado aquí")
     lab = aislado
     sys.path.insert(0, str(RAIZ / "scripts"))
     from autorrelleno_forms import aprobar, variables_motor
     forms = Path(FORMS_REPO).resolve()
     perfil = lab.raiz / "perfil"                         # el perfil aprobado: la cuenta lo LEE, no lo escribe
     pin = aprobar(forms, lab.portal.base, perfil, "rev_prueba")
-    import pwd
-    pw = pwd.getpwnam(lab.cuenta)
-    for d in (perfil, *perfil.rglob("*")):
-        os.chmod(d, 0o755 if d.is_dir() else 0o644)
     estado = Path(json.loads(pin.read_text())["state_dir"])
-    for d in (estado, *estado.rglob("*")):
-        os.chown(d, pw.pw_uid, pw.pw_gid)               # su estado: lo escribe la cuenta
+    if ES_WINDOWS:
+        # Windows (runner efímero o carpeta de laboratorio NUEVA de la MSI): Forms debe ser una COPIA de laboratorio;
+        # la cuenta lee Forms y el perfil, y escribe solo su estado.
+        _icacls(forms, "/grant", f"{lab.cuenta}:(OI)(CI)RX")
+        _icacls(perfil, "/grant", f"{lab.cuenta}:(OI)(CI)RX")
+        _icacls(estado, "/grant", f"{lab.cuenta}:(OI)(CI)M")
+    else:
+        import pwd
+        pw = pwd.getpwnam(lab.cuenta)
+        for d in (perfil, *perfil.rglob("*")):
+            os.chmod(d, 0o755 if d.is_dir() else 0o644)
+        for d in (estado, *estado.rglob("*")):
+            os.chown(d, pw.pw_uid, pw.pw_gid)               # su estado: lo escribe la cuenta
     monkeypatch.delenv("MONITOREO_FORMS_COMANDO")
     for k, v in variables_motor(forms, pin).items():
         monkeypatch.setenv(k, v)
