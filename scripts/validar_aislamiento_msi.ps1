@@ -77,10 +77,18 @@ try {
     net user $cuenta $clave /add /expires:never /y | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "net user /add devolvió $LASTEXITCODE" }
     $sid = (New-Object Security.Principal.NTAccount($cuenta)).Translate([Security.Principal.SecurityIdentifier]).Value
-    $resumen.cuenta_grupos = ((net user $cuenta | Select-String "Local Group|Grupos locales").Line).Trim()
+    # Grupos por SID, no por el texto de "net user" (cambia con el idioma de Windows). Si la cuenta quedara en
+    # Administradores (S-1-5-32-544), la prueba no tiene sentido: se detiene.
+    $grupos = @()
+    foreach ($g in Get-LocalGroup) {
+        try { if (@(Get-LocalGroupMember -Group $g -ErrorAction Stop | Where-Object { "$($_.SID)" -eq $sid }).Count) { $grupos += "$($g.SID)" } }
+        catch { $grupos += "$($g.SID)=?" } }
+    $resumen.cuenta_grupos = $grupos
+    if ($grupos -contains "S-1-5-32-544") { throw "la cuenta temporal quedó en Administradores: no se prueba" }
     # el Python que usará la cuenta: si está en el perfil de otra persona (H2), no podrá ejecutarlo y todo fallará
     # cerrado; la carpeta de laboratorio sí se le abre en lectura.
     icacls $Carpeta /grant "${cuenta}:(OI)(CI)RX" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls /grant devolvió $LASTEXITCODE" }
     # 3. Firewall: la cuenta no sale salvo a 127.0.0.1
     New-NetFirewallRule -DisplayName $regla -Direction Outbound -Action Block -LocalUser "D:(A;;CC;;;$sid)" `
         -RemoteAddress '0.0.0.0-126.255.255.255', '128.0.0.0-255.255.255.255', '::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff' | Out-Null
