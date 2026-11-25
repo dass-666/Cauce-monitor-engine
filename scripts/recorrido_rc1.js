@@ -140,9 +140,14 @@ const CLAVE = "QXZ482915";      // campo manual ficticio que se teclea en el for
 
     // ------------------------------------------------------------ 7b. el calendario del laboratorio publica una fecha
     await ir("laboratorio-calendario", "#calendario-lab[data-disponible=si]");
-    for (let k = 0; k < 6 && (await A.getAttribute("#calendario-lab", "data-mes")) !== E.mes; k++) {
+    // Un clic y esperar a que la pantalla muestre el mes nuevo antes del siguiente: con una espera fija, un clic podía
+    // caer sobre la pantalla recién repintada y saltarse un mes (se vio en la CI: 2027-02 en lugar de 2027-01).
+    for (let k = 0; k < 6; k++) {
+      const visto = await A.getAttribute("#calendario-lab", "data-mes");
+      if (visto === E.mes) break;
       await A.click("#calendario-lab button:has-text('Mes siguiente')");
-      await A.waitForTimeout(700);
+      await A.waitForFunction((v) => { const c = document.querySelector("#calendario-lab");
+        return c && c.getAttribute("data-mes") !== v; }, visto);
     }
     await A.click(`[data-abrir="${E.dia}"]`);
     await A.waitForSelector(`#calendario-lab-mes [data-fecha="${E.dia}"][data-estado=DISPONIBLE]`);
