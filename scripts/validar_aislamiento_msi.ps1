@@ -50,19 +50,6 @@ if (Get-LocalUser -Name $cuenta -ErrorAction SilentlyContinue) {
 if (Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue) {
     Falla "ya existe la regla de Firewall $regla. Revísala y bórrala: Remove-NetFirewallRule -DisplayName $regla" }
 
-# Permisos huérfanos de una ejecución anterior (cuenta ya borrada): solo se quitan si el SID es local de esta
-# máquina y ya no corresponde a ninguna cuenta (si se resuelve a un nombre, no se toca).
-if ($QuitarSidHuerfano) { $prefijoLocal = (Get-LocalUser | Select-Object -First 1).SID.AccountDomainSid.Value }
-foreach ($h in $QuitarSidHuerfano) {
-    if ($h -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$' -or -not $h.StartsWith($prefijoLocal + "-")) { Falla "$h no es un SID local de este equipo." }
-    $resuelto = $null
-    try { $resuelto = (New-Object Security.Principal.SecurityIdentifier($h)).Translate([Security.Principal.NTAccount]).Value } catch { }
-    if ($resuelto) { Falla "$h corresponde a la cuenta ${resuelto}: no es huérfano, no se toca." }
-    $ErrorActionPreference = "Continue"
-    icacls $Carpeta /remove "*$h" /T /C /Q 2>$null | Out-Null
-    $ErrorActionPreference = "Stop"
-    Write-Host "Quitado el permiso huérfano $h de $Carpeta" }
-
 $res = Join-Path $Carpeta "resultados"
 $tmp = Join-Path $Carpeta "tmp"
 New-Item -ItemType Directory -Force -Path $res, $tmp | Out-Null
@@ -80,6 +67,48 @@ $resumen.python_base = "$(& $Python -c "import sys; print(sys.base_prefix)" 2>&1
 $resumen.python_base_en_perfil = [bool]($resumen.python_base -match "\\Users\\")   # H2: otra cuenta no lo ejecutaría
 try { $resumen.firewall_perfiles = @(Get-NetFirewallProfile | ForEach-Object { "$($_.Name)=$($_.Enabled)" }) } catch { }
 try { $s0 = Get-Service seclogon; $resumen.seclogon = "$($s0.Status)/$($s0.StartType)" } catch { $resumen.seclogon = "?" }
+# Permisos huérfanos de una ejecución anterior (cuenta ya borrada): solo se quitan si el SID es local de esta
+# máquina y ya no corresponde a ninguna cuenta (si se resuelve a un nombre, no se toca). Se comprueba el
+# resultado: si el permiso sigue, se detiene ANTES de crear nada y queda la evidencia en el resumen.
+function Cuenta-Sid($ruta, $s) { @(icacls $ruta /T /C 2>$null | Select-String -SimpleMatch $s).Count }
+$resumen.huerfanos = @()
+if ($QuitarSidHuerfano) { $prefijoLocal = (Get-LocalUser | Select-Object -First 1).SID.AccountDomainSid.Value }
+foreach ($h in $QuitarSidHuerfano) {
+    if ($h -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$' -or -not $h.StartsWith($prefijoLocal + "-")) { Falla "$h no es un SID local de este equipo." }
+    $resuelto = $null
+    try { $resuelto = (New-Object Security.Principal.SecurityIdentifier($h)).Translate([Security.Principal.NTAccount]).Value } catch { }
+    if ($resuelto) { Falla "$h corresponde a la cuenta ${resuelto}: no es huérfano, no se toca." }
+    $ErrorActionPreference = "Continue"
+    $antes = Cuenta-Sid $Carpeta $h
+    $salida = @(icacls $Carpeta /remove "*$h" /T /C 2>&1 | Select-Object -Last 3 | ForEach-Object { "$_" })
+    $codigo = $LASTEXITCODE
+    $tras_icacls = Cuenta-Sid $Carpeta $h
+    $quitados_net = 0
+    if ($tras_icacls) {
+        # Respaldo: quitar con .NET solo las entradas EXPLÍCITAS de ese SID (las heredadas desaparecen solas).
+        $objetivo = New-Object Security.Principal.SecurityIdentifier($h)
+        foreach ($it in @(Get-Item -LiteralPath $Carpeta -Force) + @(Get-ChildItem -LiteralPath $Carpeta -Recurse -Force -ErrorAction SilentlyContinue)) {
+            try {
+                $acl = Get-Acl -LiteralPath $it.FullName
+                $mias = @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]) | Where-Object { $_.IdentityReference -eq $objetivo })
+                if ($mias.Count) {
+                    foreach ($r in $mias) { [void]$acl.RemoveAccessRuleSpecific($r) }
+                    Set-Acl -LiteralPath $it.FullName -AclObject $acl
+                    $quitados_net += $mias.Count }
+            } catch { } }
+    }
+    $despues = Cuenta-Sid $Carpeta $h
+    $ErrorActionPreference = "Stop"
+    $resumen.huerfanos += [ordered]@{ sid = $h; lineas_antes = $antes; icacls_codigo = $codigo; icacls_salida = $salida
+        lineas_tras_icacls = $tras_icacls; explicitas_quitadas_con_net = $quitados_net; lineas_despues = $despues }
+    Write-Host "Permiso huérfano $h en $Carpeta : $antes líneas antes, $tras_icacls tras icacls, $despues al final"
+    if ($despues) {
+        $resumen.error = "el permiso huérfano $h sigue en $despues líneas: no se ejecuta F2"
+        $resumen | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $res "msi_resumen.json") -Encoding UTF8
+        try { Stop-Transcript | Out-Null } catch { }
+        Falla $resumen.error }
+}
+
 $ErrorActionPreference = "Stop"
 
 try {
