@@ -1,6 +1,6 @@
 """Forms REAL con una persona SIMULADA dentro de la MISMA ventana (solo pruebas y recorridos de laboratorio).
 
-Uso: <python de Forms> forms_persona.py <carpeta de Forms> <fecha AAAA-MM-DD> <sucursal> <archivo folio> [clave]
+Uso: <python de Forms> forms_persona.py <carpeta de Forms> <fecha AAAA-MM-DD> <sucursal> <archivo folio> [clave] [quieta]
 Monitor lo lanza en lugar de `python -m cauce_form_connector preparar` (MONITOREO_FORMS_COMANDO). Corre el modo de
 integración de Forms tal cual (lee la solicitud por stdin, rellena y verifica, NUNCA envía) y, durante la revisión,
 hace de persona con clics y teclas reales en la ventana que Forms dejó abierta: teclea los campos manuales,
@@ -15,6 +15,7 @@ from pathlib import Path
 
 FORMS, FECHA, SUCURSAL, SALIDA = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
 CLAVE = sys.argv[5] if len(sys.argv) > 5 else "QXZ482915"
+QUIETA = len(sys.argv) > 6 and sys.argv[6] == "quieta"      # la persona no hace nada (pruebas de cortes)
 if (FORMS / ".pw-browsers").is_dir():
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(FORMS / ".pw-browsers"))
 sys.path.insert(0, str(FORMS))
@@ -25,6 +26,8 @@ estado = {"paso": 0, "llamadas_tras_envio": 0}
 
 def persona(s):
     p = s.page
+    if QUIETA:
+        return
     if estado["paso"] == 0:                       # revisa la ventana y teclea SOLO los campos manuales
         p.wait_for_timeout(int((I.GRACIA_ACTIVACION_S + 1) * 1000))
         p.locator("#clave_identidad").click()
