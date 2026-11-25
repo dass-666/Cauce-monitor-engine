@@ -693,8 +693,9 @@ def _correr(db: Database, corrida: Corrida, sol: dict, cfg: Config, ctx: Context
 def _resumen_aislamiento(cfg: Config, informe: dict | None) -> dict:
     if cfg.aislamiento is None:
         return {"modo": "ninguno"}
-    return {"modo": al.MODO_CUENTA, "verificado": bool(informe and informe.get("ok")),
-            "rutas_denegadas": (informe or {}).get("comprobadas", 0)}
+    i = informe or {}
+    return {"modo": al.MODO_CUENTA, "verificado": bool(i.get("ok")), "rutas_denegadas": i.get("comprobadas", 0),
+            "red_bloqueada": i.get("red_bloqueada", 0), "api_sin_sesion": i.get("api_sin_sesion")}
 
 
 def al_arrancar() -> int | None:
@@ -710,6 +711,56 @@ def al_arrancar() -> int | None:
     if restos:
         log.error("autorrelleno: %d procesos de la cuenta del conector siguen vivos", restos)
     return restos
+
+
+def recuperar_interrumpidas(db: Database, now: datetime | None = None, dias: int = 30) -> list[str]:
+    """Al arrancar Monitor (laboratorio): un autorrellenado SOLICITADO sin TERMINADO es uno que estaba abierto cuando
+    Monitor murió de golpe (corte, consola cerrada, kill). Las corridas viven en memoria y ya no existen; Forms y su
+    navegador los terminó el Job Object (Windows) o los termina `al_arrancar()` (Linux). Aquí se cierra su historial
+    como INTERRUMPIDA y, si llevaba una coincidencia, la operación queda FORMS_INTERRUMPIDO: no se sabe si la persona
+    llegó a confirmar en el portal, así que volver a abrir el formulario exige motivo (reintento) y nunca crea otra
+    reservación. Devuelve las solicitudes cerradas."""
+    from sqlalchemy import select
+
+    from ..models import ExpedienteEvento
+    now = now or utcnow()
+    desde = now - timedelta(days=dias)
+    tipos = ("AUTORRELLENO_SOLICITADO", "AUTORRELLENO_TERMINADO", "COINCIDENCIA_ENTREGADA_A_FORMS")
+    with db.session() as s:
+        evs = s.scalars(select(ExpedienteEvento).where(ExpedienteEvento.tipo.in_(tipos), ExpedienteEvento.ts >= desde)
+                        .order_by(ExpedienteEvento.id)).all()
+        filas = [(e.tipo, e.expediente_id, {**(e.detalle or {}), "_reservacion_id": e.reservacion_id}, e.actor)
+                 for e in evs]
+    terminadas = {d.get("solicitud_id") for t, _, d, _ in filas if t == "AUTORRELLENO_TERMINADO"}
+    entregas = {d.get("solicitud_id"): d for t, _, d, _ in filas if t == "COINCIDENCIA_ENTREGADA_A_FORMS"}
+    vivas = {c.solicitud_id for c in _CORRIDAS.values() if c.en_curso}
+    cerradas = []
+    for t, exp_id, d, actor in filas:
+        sid = d.get("solicitud_id")
+        if t != "AUTORRELLENO_SOLICITADO" or not sid or sid in terminadas or sid in vivas:
+            continue
+        detalle = {"solicitud_id": sid, "estado": "INTERRUMPIDA", "codigo": "MONITOR_REINICIADO",
+                   "campos_correctos": 0, "campos_total": 0, "confirmaciones_coinciden": 0,
+                   "envio_por_conector": False, "envio_humano_observado": False, "procesos_restantes": 0,
+                   "diagnostico": []}
+        usuario = actor.split(":", 1)[-1].split(" ", 1)[0]
+        with db.session() as s:
+            ex.evento(s, exp_id, "AUTORRELLENO_TERMINADO", "motor (arranque)", now, **detalle)
+            security.audit(s, "motor", "autorrelleno_interrumpido", f"expediente:{exp_id}",
+                           {"solicitud_id": sid, "usuario": usuario})
+        k = entregas.get(sid)
+        if k is not None and k.get("_reservacion_id"):
+            coin = {"reservacion_id": k["_reservacion_id"], "elemento_id": k.get("elemento_id"),
+                    "fecha": k.get("fecha"), "sucursal": k.get("sucursal")}
+            with db.session() as s:
+                previo = cz.forms_de(s, coin) or {}
+            coin.update(externo=bool(previo.get("externo")), sitio=previo.get("sitio"))
+            cz.registrar_resultado(db, coin, exp_id, "motor (arranque)", detalle, now,
+                                   "MONITOR_REINICIADO" if previo.get("resultado") == cz.LISTA else None)
+        cerradas.append(sid)
+    if cerradas:
+        log.warning("autorrelleno: %d autorrellenados quedaron INTERRUMPIDOS por un cierre de Monitor", len(cerradas))
+    return cerradas
 
 
 def reiniciar_para_pruebas() -> None:

@@ -16,7 +16,14 @@ Qué hace, en este orden (docs/PLAN_AISLAMIENTO_FORMS_WINDOWS.md, fase F3):
    y de Forms. Solo si TODO da «permiso denegado», la cuenta es otra distinta de la de Monitor y puede escribir en su
    carpeta de trabajo, se lanza Forms. Cualquier otra cosa (legible, error raro, sin respuesta) = no se lanza
    (falla cerrado) con el código AISLAMIENTO_NO_VERIFICADO.
-3. Antes de lanzar se buscan procesos vivos de la cuenta (huérfanos de un Monitor que murió): se terminan; si no se
+3. Red, comprobada en la misma sonda y de forma DIFERENCIAL: Monitor abre primero una conexión TCP al destino de
+   prueba (`MONITOREO_AISLAMIENTO_RED_DESTINO`, host:puerto; obligatorio en modo aislado) y, si la consigue, la
+   sonda intenta lo mismo como la cuenta. Solo se lanza si Monitor SÍ conecta y la cuenta NO (la diferencia la pone
+   la regla del cortafuegos por cuenta: Windows Firewall con -LocalUser, iptables --uid-owner en las pruebas Linux).
+   Si Monitor tampoco conecta no se puede demostrar nada: no se lanza (red_control:SIN_CONEXION). Opcional:
+   `MONITOREO_AISLAMIENTO_API` (URL de una ruta protegida del propio Monitor): la sonda la pide sin credenciales y
+   debe recibir 401/403 (el tráfico local no lo filtra el cortafuegos: lo protege la autenticación).
+4. Antes de lanzar se buscan procesos vivos de la cuenta (huérfanos de un Monitor que murió): se terminan; si no se
    puede, no se lanza (CUENTA_OCUPADA).
 
 Límites (no afirmar lo contrario):
@@ -24,6 +31,10 @@ Límites (no afirmar lo contrario):
 - Entre la comprobación y el lanzamiento pasan milisegundos: si alguien cambia los permisos justo ahí, no se detecta
   hasta el siguiente lanzamiento.
 - Un administrador o SYSTEM (o root) puede leerlo todo; la cuenta del conector nunca debe serlo.
+- Red: se demuestra el bloqueo hacia el destino de prueba, no hacia todo Internet; la regla debe ser «bloquear todo
+  salvo lo autorizado», y eso lo configura quien instala (Monitor solo lo comprueba). El tráfico a 127.0.0.1 no lo
+  filtra el cortafuegos de Windows: Forms puede hablar con el portal de laboratorio local (lo necesita) y con la API
+  de Monitor, que exige sesión. Las consultas DNS las hace el servicio del sistema, no la cuenta (no se bloquean).
 - Las rutas que se comprueban son las que Monitor conoce (base, datos, respaldos, diario, .env, copias). Otra
   carpeta con datos (una exportación a mano, por ejemplo) se añade con `MONITOREO_AISLAMIENTO_RUTAS_EXTRA`.
 """
@@ -42,6 +53,9 @@ VARIABLE_CUENTA = "MONITOREO_FORMS_CUENTA"
 VARIABLE_CLAVE = "MONITOREO_FORMS_CLAVE_DPAPI"
 VARIABLE_TRABAJO = "MONITOREO_FORMS_TRABAJO"
 VARIABLE_EXTRA = "MONITOREO_AISLAMIENTO_RUTAS_EXTRA"
+VARIABLE_RED = "MONITOREO_AISLAMIENTO_RED_DESTINO"
+VARIABLE_API = "MONITOREO_AISLAMIENTO_API"
+PLAZO_RED_S = 4.0
 ES_WINDOWS = sys.platform == "win32"
 PLAZO_SONDA_S = 60.0
 _ENTROPIA = b"cauce-cuenta-conector-v1"
@@ -63,6 +77,8 @@ class ConfigAislamiento:
     trabajo: Path
     clave_archivo: Path | None = None
     rutas_extra: list = field(default_factory=list)
+    red: list = field(default_factory=list)          # [(host, puerto)] que Monitor alcanza y la cuenta NO debe
+    api: str = ""                                    # ruta protegida de Monitor: sin sesión debe dar 401/403
 
     def vista(self) -> dict:
         return {"modo": MODO_CUENTA, "cuenta": self.cuenta}
@@ -98,7 +114,43 @@ def leer_config(env: dict) -> ConfigAislamiento | None:
         if pw.pw_uid == 0:
             raise ErrorAislamiento("AISLAMIENTO_INVALIDO", "La cuenta del conector no puede ser root.", 403)
     extra = [Path(x) for x in (env.get(VARIABLE_EXTRA) or "").split(os.pathsep) if x.strip()]
-    return ConfigAislamiento(cuenta, Path(trabajo), clave, extra)
+    red = leer_destinos(env.get(VARIABLE_RED) or "")
+    if not red:
+        raise ErrorAislamiento("AISLAMIENTO_INCOMPLETO", f"Falta {VARIABLE_RED} (host:puerto que Monitor alcanza y la "
+                               "cuenta del conector no debe alcanzar): sin él no se puede demostrar el bloqueo de red.",
+                               403)
+    api = (env.get(VARIABLE_API) or "").strip().replace("{puerto}", (env.get("MONITOREO_PUERTO") or "").strip())
+    if api and not api.lower().startswith(("http://127.0.0.1", "http://localhost")):
+        raise ErrorAislamiento("AISLAMIENTO_INVALIDO", f"{VARIABLE_API} debe ser una ruta local de Monitor.", 403)
+    return ConfigAislamiento(cuenta, Path(trabajo), clave, extra, red, api)
+
+
+def leer_destinos(texto: str) -> list[tuple[str, int]]:
+    """«host:puerto[,host:puerto]». Un valor mal formado no se ignora: invalida la configuración."""
+    out = []
+    for x in (t.strip() for t in texto.split(",")):
+        if not x:
+            continue
+        host, _, puerto = x.rpartition(":")
+        host = host.strip("[]")
+        if not host or not puerto.isdigit() or not 0 < int(puerto) < 65536:
+            raise ErrorAislamiento("AISLAMIENTO_INVALIDO", f"{VARIABLE_RED}: «host:puerto» separados por comas.", 403)
+        out.append((host, int(puerto)))
+    return out
+
+
+def control_de_red(cfg: ConfigAislamiento) -> list[dict]:
+    """Monitor (su propia cuenta) intenta cada destino. Si Monitor no llega, no se puede demostrar el bloqueo."""
+    import socket
+    out = []
+    for host, puerto in cfg.red:
+        try:
+            with socket.create_connection((host, puerto), timeout=PLAZO_RED_S):
+                r = "CONECTADO"
+        except OSError as e:
+            r = "SIN_CONEXION_" + type(e).__name__
+        out.append({"ref": f"{host}:{puerto}", "host": host, "puerto": puerto, "control": r})
+    return out
 
 
 def entorno(env_forms: dict, cfg: ConfigAislamiento) -> dict:
@@ -190,6 +242,30 @@ for x in d["privadas"]:
 for x in d["no_escribibles"]:
     r["escritura"].append({"ref": x["ref"], "resultado": intento(lambda p=x["ruta"]: escribir(p))})
 r["trabajo"] = intento(lambda: escribir(d["trabajo"]))
+import socket
+def red(host, puerto):
+    s = socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(d.get("plazo_red", 4))
+    try:
+        s.connect((host, puerto)); return "CONECTADO"
+    except PermissionError:
+        return "DENEGADO"
+    except socket.timeout:
+        return "SIN_RESPUESTA"
+    except OSError as e:
+        return "BLOQUEADO_" + (str(getattr(e, "errno", "")) or type(e).__name__)
+    finally:
+        s.close()
+r["red"] = [{"ref": x["ref"], "resultado": red(x["host"], x["puerto"])} for x in d.get("red", [])]
+if d.get("api"):
+    import urllib.request, urllib.error
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(d["api"], timeout=5) as resp:
+            r["api"] = "HTTP_%d" % resp.status
+    except urllib.error.HTTPError as e:
+        r["api"] = "HTTP_%d" % e.code
+    except Exception as e:
+        r["api"] = "ERROR_" + type(e).__name__
 print(json.dumps(r))
 '''
 
@@ -205,8 +281,10 @@ def _usuario_actual() -> str:
     return pwd.getpwuid(os.geteuid()).pw_name
 
 
-def evaluar_sonda(salida: dict | None, cfg: ConfigAislamiento, privadas: list[dict]) -> dict:
-    """Veredicto a partir de la respuesta de la sonda. Solo «DENEGADO» cuenta como protegido."""
+def evaluar_sonda(salida: dict | None, cfg: ConfigAislamiento, privadas: list[dict],
+                  control: list[dict] | None = None) -> dict:
+    """Veredicto a partir de la respuesta de la sonda. Archivos: solo «DENEGADO» cuenta como protegido. Red: solo
+    cuenta si Monitor SÍ conectó (control) y la cuenta NO. API local: solo 401/403."""
     fallos = []
     if not isinstance(salida, dict):
         return {"ok": False, "fallos": ["SONDA_SIN_RESPUESTA"], "comprobadas": 0}
@@ -227,8 +305,24 @@ def evaluar_sonda(salida: dict | None, cfg: ConfigAislamiento, privadas: list[di
         fallos.append(f"trabajo:{salida.get('trabajo')}")
     if not privadas:
         fallos.append("SIN_RUTAS_PRIVADAS")
+    control = control if control is not None else []
+    red_vista = {x.get("ref"): x.get("resultado") for x in salida.get("red", []) if isinstance(x, dict)}
+    for c in control:
+        if c["control"] != "CONECTADO":
+            fallos.append(f"red_control:{c['control']}")          # Monitor tampoco llega: no se demuestra nada
+            continue
+        res = red_vista.get(c["ref"])
+        if res is None or res == "CONECTADO":
+            fallos.append(f"red:{res or 'SIN_DATO'}")
+    if not control:
+        fallos.append("SIN_DESTINO_DE_RED")
+    if cfg.api and salida.get("api") not in ("HTTP_401", "HTTP_403"):
+        fallos.append(f"api_local:{salida.get('api') or 'SIN_DATO'}")
     return {"ok": not fallos, "fallos": fallos[:20], "comprobadas": len(privadas),
-            "escritura_comprobada": len(salida.get("escritura", []))}
+            "escritura_comprobada": len(salida.get("escritura", [])),
+            "red_bloqueada": sum(1 for c in control if c["control"] == "CONECTADO"
+                                 and red_vista.get(c["ref"]) not in (None, "CONECTADO")),
+            "api_sin_sesion": salida.get("api") if cfg.api else None}
 
 
 # ------------------------------------------------------------------------------------------- lanzador y clave
@@ -322,8 +416,11 @@ def verificar(cfg: ConfigAislamiento, python: str, cwd: str | None, env: dict, f
     except OSError:
         pass                            # si Monitor no puede crearla, la sonda lo detecta (trabajo no escribible)
     privadas = rutas_privadas(cfg)
+    control = control_de_red(cfg)
     entrada = json.dumps({"privadas": privadas, "no_escribibles": rutas_no_escribibles(forms_dir),
-                          "trabajo": str(cfg.trabajo)})
+                          "trabajo": str(cfg.trabajo), "plazo_red": PLAZO_RED_S, "api": cfg.api,
+                          "red": [{"ref": c["ref"], "host": c["host"], "puerto": c["puerto"]} for c in control
+                                  if c["control"] == "CONECTADO"]})
     try:
         lz = fabrica(cfg)
         res = lz.lanzar([python, "-I", "-c", python_sonda()], entrada=SONDA_LINEA + "\n" + entrada, cwd=cwd,
@@ -338,14 +435,14 @@ def verificar(cfg: ConfigAislamiento, python: str, cwd: str | None, env: dict, f
         salida = json.loads(res.stdout) if res.estado == "TERMINO" and res.stdout.strip() else None
     except ValueError:
         salida = None
-    informe = evaluar_sonda(salida, cfg, privadas)
+    informe = evaluar_sonda(salida, cfg, privadas, control)
     informe["procesos_restantes"] = len(res.sobrevivientes)
     if res.sobrevivientes:
         informe["ok"] = False
         informe["fallos"].append("PROCESOS_RESTANTES")
     if not informe["ok"]:
-        raise ErrorAislamiento("AISLAMIENTO_NO_VERIFICADO", "La cuenta del conector puede leer datos privados de "
-                               "Monitor o la comprobación no terminó bien: no se lanza Forms.", informe=informe)
+        raise ErrorAislamiento("AISLAMIENTO_NO_VERIFICADO", "No está demostrado que la cuenta del conector no pueda "
+                               "leer datos privados de Monitor ni salir a la red: no se lanza Forms.", informe=informe)
     return informe
 
 

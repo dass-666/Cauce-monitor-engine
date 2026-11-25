@@ -12,6 +12,7 @@ on:
       - "monitoreo/autorrelleno/lanzador_restringido.py"
       - "monitoreo/autorrelleno/aislamiento_lab.py"
       - "monitoreo/autorrelleno/adaptador.py"
+      - "monitoreo/autorrelleno/coincidencia.py"
       - "tests/test_aislamiento_ventanilla.py"
       - "scripts/aislamiento_*"
       - ".github/workflows/aislamiento.yml"
@@ -84,6 +85,15 @@ jobs:
           "CAUCE_AISLAMIENTO_CUENTA=cauce_conector_t" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "CAUCE_AISLAMIENTO_CLAVE=$clave" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           (net user cauce_conector_t | Select-String "Local Group|Grupos locales").Line
+      - name: Regla de Firewall de salida para la cuenta (todo salvo loopback)
+        shell: pwsh
+        run: |
+          $sid = (New-Object System.Security.Principal.NTAccount('cauce_conector_t')).Translate([System.Security.Principal.SecurityIdentifier]).Value
+          Get-NetFirewallProfile | Select-Object Name, Enabled, DefaultOutboundAction | Format-Table | Out-String | Write-Output
+          New-NetFirewallRule -DisplayName 'cauce-conector-sin-red' -Direction Outbound -Action Block `
+            -LocalUser "D:(A;;CC;;;$sid)" `
+            -RemoteAddress '0.0.0.0-126.255.255.255','128.0.0.0-255.255.255.255','::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff' | Out-Null
+          "CAUCE_AISLAMIENTO_REGLA_RED=cauce-conector-sin-red" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Pruebas de Ventanilla aislada y del lanzador restringido
         shell: pwsh
         env:
@@ -93,6 +103,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          Remove-NetFirewallRule -DisplayName 'cauce-conector-sin-red' -ErrorAction SilentlyContinue
           net user cauce_conector_t /delete
           Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*cauce_conector_t*" } | Remove-CimInstance -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4

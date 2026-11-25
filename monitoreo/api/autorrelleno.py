@@ -38,7 +38,7 @@ def ver(aid: int, user: CurrentUser = Depends(current_user), db: Database = Depe
         exp_id = a.expediente_id
         coin = cz.vista(s, exp_id, user.operator_id) if exp_id else None
     corrida = ad.corrida_de(exp_id) if exp_id else None
-    if coin is not None and coin.get("lista_para_confirmacion"):
+    if coin is not None and (coin.get("lista_para_confirmacion") or coin.get("interrumpida")):
         coin["reintentos"] = len((coin.get("forms") or {}).get("reintentos") or [])
         coin["max_reintentos"] = cz.MAX_REINTENTOS
         coin["motivos_reintento"] = cz.MOTIVOS_REINTENTO

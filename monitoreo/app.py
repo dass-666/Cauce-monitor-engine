@@ -119,6 +119,14 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
                 _ad.al_arrancar()
             except Exception:  # noqa: BLE001 - la comprobación de cada lanzamiento vuelve a hacerlo y falla cerrada
                 log.exception("autorrelleno: limpieza de procesos de la cuenta del conector al arrancar falló")
+        # Laboratorio de autorrellenado: un autorrellenado que estaba abierto cuando Monitor murió de golpe se cierra en
+        # su historial como INTERRUMPIDO (y su operación exige motivo para volver a abrir el formulario).
+        if (os.environ.get("MONITOREO_AUTORRELLENO_LAB") or "").strip().lower() in ("1", "true", "si", "sí", "yes"):
+            try:
+                from .autorrelleno import adaptador as _ad
+                _ad.recuperar_interrumpidas(db)
+            except Exception:  # noqa: BLE001
+                log.exception("autorrelleno: no se pudo cerrar el historial de autorrellenados interrumpidos")
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()

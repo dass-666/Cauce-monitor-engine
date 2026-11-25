@@ -8,6 +8,10 @@ Qué se demuestra aquí, con datos FICTICIOS, el portal de laboratorio propio y 
 - Revocar, cerrar la atención, detener Monitor, matar Monitor de golpe, árboles de procesos y desertores: no queda
   ningún proceso de la cuenta.
 - El recorrido coincidencia -> Forms -> folio verificado funciona igual con Forms aislado.
+- Red: Monitor alcanza el destino de prueba y la cuenta NO (regla de cortafuegos por cuenta: iptables --uid-owner en
+  Linux, Windows Firewall -LocalUser en el runner). Control negativo: sin la regla, no se lanza nada.
+- Un Monitor que muere con la ventana abierta deja el autorrellenado INTERRUMPIDO al arrancar; volver a abrir el
+  formulario exige motivo y usa la misma reservación. Cerrar la sesión del operador no deja nada colgado.
 
 Dónde corre:
 - Linux (contenedor o CI): necesita root (crea la cuenta `cauce_conector_t` con useradd si falta). Es el equivalente
@@ -67,6 +71,37 @@ def _cuenta() -> tuple[str, str] | None:
 
 
 CUENTA = _cuenta()
+# Destino de prueba de red: Monitor debe alcanzarlo y la cuenta no. Solo se abre la conexión TCP (no se envía nada).
+RED_DESTINO = os.environ.get("CAUCE_AISLAMIENTO_RED_DESTINO", "1.1.1.1:443")
+REGLA_WINDOWS = os.environ.get("CAUCE_AISLAMIENTO_REGLA_RED", "cauce-conector-sin-red")
+
+
+def _iptables(accion: str, cuenta: str) -> bool:
+    regla = ["OUTPUT", "-m", "owner", "--uid-owner", cuenta, "!", "-o", "lo", "-j", "REJECT",
+             "--reject-with", "icmp-admin-prohibited"]
+    return subprocess.run(["iptables", accion, *regla], capture_output=True).returncode == 0
+
+
+def bloquear_red(cuenta: str) -> bool:
+    """La regla «la cuenta del conector no sale a la red» (salvo 127.0.0.1). La configura quien instala."""
+    if ES_WINDOWS:
+        return subprocess.run(["powershell", "-NoProfile", "-Command",
+                               f"Enable-NetFirewallRule -DisplayName '{REGLA_WINDOWS}'"], capture_output=True).returncode == 0
+    if not shutil.which("iptables"):
+        return False
+    while _iptables("-D", cuenta):
+        pass
+    return _iptables("-A", cuenta)
+
+
+def abrir_red(cuenta: str) -> None:
+    """CONTROL NEGATIVO: sin la regla de red."""
+    if ES_WINDOWS:
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        f"Disable-NetFirewallRule -DisplayName '{REGLA_WINDOWS}'"], capture_output=True)
+    else:
+        while _iptables("-D", cuenta):
+            pass
 requiere_cuenta = pytest.mark.skipif(CUENTA is None, reason="sin cuenta de pruebas: Linux como root o runner Windows "
                                      "efímero (CAUCE_AISLAMIENTO_EFIMERO=1). NO verificado en esta corrida.")
 
@@ -165,6 +200,9 @@ def aislado(lab, tmp_path, monkeypatch):
     monkeypatch.setenv(al.VARIABLE_CUENTA, cuenta)
     monkeypatch.setenv(al.VARIABLE_TRABAJO, str(trabajo))
     monkeypatch.setenv(al.VARIABLE_EXTRA, str(env_privado))
+    monkeypatch.setenv(al.VARIABLE_RED, RED_DESTINO)
+    if not bloquear_red(cuenta):
+        pytest.skip("no se pudo poner la regla de red de la cuenta (iptables / Windows Firewall): red NO verificada")
     monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps(
         [sys.executable, str(codigo / "tests" / "herramientas" / "forms_espia.py"), str(espia)]))
     if ES_WINDOWS:
@@ -176,6 +214,8 @@ def aislado(lab, tmp_path, monkeypatch):
     lab.env_privado = env_privado
     yield lab
     esperar_sin_procesos(cuenta, 15)
+    if not ES_WINDOWS:
+        abrir_red(cuenta)
     if ES_WINDOWS:
         subprocess.run(["icacls", str(RAIZ), "/remove:d", cuenta], capture_output=True)
         subprocess.run(["icacls", str(raiz), "/reset", "/T", "/Q"], capture_output=True)
@@ -223,6 +263,26 @@ def test_configuracion_aislada_incompleta_o_invalida_niega(lab, monkeypatch):
     with pytest.raises(ad.Negado) as e:
         ad.configuracion()
     assert e.value.codigo == "AISLAMIENTO_INCOMPLETO"
+    if not ES_WINDOWS and os.geteuid() == 0:
+        # sin destino de red no se puede demostrar el bloqueo de red: no hay modo aislado
+        subprocess.run(["useradd", "-M", "-s", "/usr/sbin/nologin", "cauce_conector_cfg"], capture_output=True)
+        monkeypatch.setenv(al.VARIABLE_CUENTA, "cauce_conector_cfg")
+        monkeypatch.setenv(al.VARIABLE_TRABAJO, "/tmp/x")
+        with pytest.raises(ad.Negado) as e:
+            ad.configuracion()
+        assert e.value.codigo == "AISLAMIENTO_INCOMPLETO" and al.VARIABLE_RED in e.value.mensaje
+        for valor, var in (("sin-puerto", al.VARIABLE_RED), ("h:99999", al.VARIABLE_RED),
+                           ("http://192.0.2.1/api", al.VARIABLE_API)):
+            monkeypatch.setenv(al.VARIABLE_RED, "192.0.2.1:443" if var == al.VARIABLE_API else valor)
+            if var == al.VARIABLE_API:
+                monkeypatch.setenv(al.VARIABLE_API, valor)
+            with pytest.raises(ad.Negado) as e:
+                ad.configuracion()
+            assert e.value.codigo == "AISLAMIENTO_INVALIDO", valor
+        monkeypatch.delenv(al.VARIABLE_API)
+        monkeypatch.setenv(al.VARIABLE_RED, "192.0.2.1:443, [2001:db8::1]:80")
+        assert ad.configuracion().aislamiento.red == [("192.0.2.1", 443), ("2001:db8::1", 80)]
+        monkeypatch.delenv(al.VARIABLE_RED)
     if not ES_WINDOWS:
         monkeypatch.setenv(al.VARIABLE_CUENTA, "cuenta_que_no_existe_zz")
         monkeypatch.setenv(al.VARIABLE_TRABAJO, "/tmp/x")
@@ -266,22 +326,39 @@ def test_entorno_aislado_no_apunta_al_perfil_de_monitor():
 def test_veredicto_de_la_sonda_solo_acepta_denegado():
     cfg = al.ConfigAislamiento("cauce_conector_t", Path("/w"))
     priv = [{"ref": "base", "ruta": "/d/a.db", "tipo": "archivo"}, {"ref": ".env", "ruta": "/i/.env", "tipo": "archivo"}]
+    ctl = [{"ref": "192.0.2.1:443", "host": "192.0.2.1", "puerto": 443, "control": "CONECTADO"}]
     bueno = {"usuario": "cauce_conector_t", "privadas": [{"ref": "base", "resultado": "DENEGADO"},
                                                          {"ref": ".env", "resultado": "DENEGADO"}],
-             "escritura": [{"ref": "codigo_de_monitor", "resultado": "DENEGADO"}], "trabajo": "PERMITIDO"}
-    assert al.evaluar_sonda(bueno, cfg, priv)["ok"] is True
+             "escritura": [{"ref": "codigo_de_monitor", "resultado": "DENEGADO"}], "trabajo": "PERMITIDO",
+             "red": [{"ref": "192.0.2.1:443", "resultado": "BLOQUEADO_113"}]}
+    v = al.evaluar_sonda(bueno, cfg, priv, ctl)
+    assert v["ok"] is True and v["red_bloqueada"] == 1, v
+    for r in ("DENEGADO", "SIN_RESPUESTA"):           # con el control conectado, cualquier «no conectó» es bloqueo
+        assert al.evaluar_sonda({**bueno, "red": [{"ref": "192.0.2.1:443", "resultado": r}]}, cfg, priv, ctl)["ok"]
+    # red: la cuenta conecta / Monitor tampoco conecta (no se demuestra nada) / sin destino / sin dato
+    assert "red:CONECTADO" in al.evaluar_sonda({**bueno, "red": [{"ref": "192.0.2.1:443", "resultado": "CONECTADO"}]},
+                                               cfg, priv, ctl)["fallos"]
+    sin = [{**ctl[0], "control": "SIN_CONEXION_TimeoutError"}]
+    assert "red_control:SIN_CONEXION_TimeoutError" in al.evaluar_sonda(bueno, cfg, priv, sin)["fallos"]
+    assert "SIN_DESTINO_DE_RED" in al.evaluar_sonda(bueno, cfg, priv, [])["fallos"]
+    assert "red:SIN_DATO" in al.evaluar_sonda({**bueno, "red": []}, cfg, priv, ctl)["fallos"]
+    # API local de Monitor: sin sesión solo vale 401/403
+    capi = al.ConfigAislamiento("cauce_conector_t", Path("/w"), api="http://127.0.0.1:1/api/expedientes")
+    assert al.evaluar_sonda({**bueno, "api": "HTTP_401"}, capi, priv, ctl)["ok"]
+    for r in ("HTTP_200", "ERROR_URLError", None):
+        assert al.evaluar_sonda({**bueno, "api": r}, capi, priv, ctl)["ok"] is False, r
     for cambio, fallo in (({"privadas": [{"ref": "base", "resultado": "PERMITIDO"}, {"ref": ".env", "resultado": "DENEGADO"}]}, "base:PERMITIDO"),
                           ({"privadas": [{"ref": "base", "resultado": "NO_EXISTE"}, {"ref": ".env", "resultado": "DENEGADO"}]}, "base:NO_EXISTE"),
                           ({"privadas": [{"ref": "base", "resultado": "DENEGADO"}]}, ".env:SIN_DATO"),
                           ({"escritura": [{"ref": "codigo_de_monitor", "resultado": "PERMITIDO"}]}, "escribir_codigo_de_monitor:PERMITIDO"),
                           ({"trabajo": "DENEGADO"}, "trabajo:DENEGADO"),
                           ({"usuario": "otra"}, "CUENTA_INESPERADA")):
-        v = al.evaluar_sonda({**bueno, **cambio}, cfg, priv)
+        v = al.evaluar_sonda({**bueno, **cambio}, cfg, priv, ctl)
         assert v["ok"] is False and fallo in v["fallos"], (cambio, v)
-    assert al.evaluar_sonda(None, cfg, priv)["fallos"] == ["SONDA_SIN_RESPUESTA"]
-    assert "SIN_RUTAS_PRIVADAS" in al.evaluar_sonda(bueno, cfg, [])["fallos"]
+    assert al.evaluar_sonda(None, cfg, priv, ctl)["fallos"] == ["SONDA_SIN_RESPUESTA"]
+    assert "SIN_RUTAS_PRIVADAS" in al.evaluar_sonda(bueno, cfg, [], ctl)["fallos"]
     yo = al._usuario_actual()
-    assert "MISMA_CUENTA_QUE_MONITOR" in al.evaluar_sonda({**bueno, "usuario": yo}, al.ConfigAislamiento(yo, Path("/w")), priv)["fallos"]
+    assert "MISMA_CUENTA_QUE_MONITOR" in al.evaluar_sonda({**bueno, "usuario": yo}, al.ConfigAislamiento(yo, Path("/w")), priv, ctl)["fallos"]
 
 
 def test_rutas_privadas_cubren_base_datos_respaldos_diario_y_env(lab, tmp_path, monkeypatch):
@@ -593,4 +670,224 @@ def test_forms_real_aislado_revocar_a_mitad_termina_chromium(forms_real_aislado,
     assert r.status_code == 200
     c = esperar(lab, a["id"], h, t=60)
     assert c["estado"] == "CANCELADA" and c["procesos_restantes"] == 0, c
+    assert esperar_sin_procesos(lab.cuenta) == []
+
+
+# ================================================================ red, sesión, doble clic, interrupción (etapa Windows)
+def _espia_lento(lab, monkeypatch, segundos=60):
+    monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps(
+        [sys.executable, str(lab.codigo / "tests" / "herramientas" / "forms_espia.py"), str(lab.espia), "ok",
+         str(segundos)]))
+
+
+@requiere_cuenta
+def test_red_la_cuenta_no_sale_y_sin_la_regla_no_se_lanza(aislado, monkeypatch):
+    """Diferencial: Monitor alcanza el destino de prueba y la cuenta no. Sin la regla de red, 409 y nada se lanza."""
+    lab = aislado
+    h = lab.ops["op1"]
+    a, _ = atencion(lab, h)
+    r = pulsar(lab, a["id"], h)
+    assert r.status_code == 202, r.text
+    assert r.json()["aislamiento"]["red_bloqueada"] == 1, r.json()["aislamiento"]
+    assert esperar(lab, a["id"], h)["estado"] == "PREPARADO"
+    abrir_red(lab.cuenta)
+    try:
+        a2, _ = atencion(lab, h)
+        r = pulsar(lab, a2["id"], h)
+        assert r.status_code == 409 and r.json()["detail"]["codigo"] == "AISLAMIENTO_NO_VERIFICADO", r.text
+        with lab.db.session() as s:
+            det = s.scalars(select(AuditLog).where(AuditLog.action == "autorrelleno_negado")).all()[-1].detail
+        assert "red:CONECTADO" in det["aislamiento"]["fallos"], det
+        assert not (lab.espia / "pid").exists() or int((lab.espia / "pid").read_text()) not in procesos(lab.cuenta)
+    finally:
+        assert bloquear_red(lab.cuenta)
+    assert pulsar(lab, a2["id"], h).status_code == 202
+    assert esperar(lab, a2["id"], h)["estado"] == "PREPARADO"
+    # un destino que ni Monitor alcanza no demuestra nada: tampoco se lanza
+    monkeypatch.setenv(al.VARIABLE_RED, "127.0.0.1:9")              # puerto «discard», cerrado
+    a3, _ = atencion(lab, h)
+    r = pulsar(lab, a3["id"], h)
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "AISLAMIENTO_NO_VERIFICADO", r.text
+    assert esperar_sin_procesos(lab.cuenta) == []
+
+
+class _ApiFalsa:
+    """Un servidor local que hace de API de Monitor: responde `codigo` a cualquier GET."""
+
+    def __init__(self, codigo: int):
+        import http.server
+        cod = codigo
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                self.send_response(cod)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.srv.server_address[1]}/api/expedientes"
+
+    def cerrar(self):
+        self.srv.shutdown()
+
+
+@requiere_cuenta
+def test_api_local_de_monitor_sin_sesion_debe_rechazar_a_la_cuenta(aislado, monkeypatch):
+    lab = aislado
+    h = lab.ops["op1"]
+    bien, mal = _ApiFalsa(401), _ApiFalsa(200)
+    try:
+        monkeypatch.setenv(al.VARIABLE_API, bien.url)
+        a, _ = atencion(lab, h)
+        r = pulsar(lab, a["id"], h)
+        assert r.status_code == 202 and r.json()["aislamiento"]["api_sin_sesion"] == "HTTP_401", r.text
+        assert esperar(lab, a["id"], h)["estado"] == "PREPARADO"
+        monkeypatch.setenv(al.VARIABLE_API, mal.url)                # CONTROL NEGATIVO: una API abierta
+        a2, _ = atencion(lab, h)
+        r = pulsar(lab, a2["id"], h)
+        assert r.status_code == 409 and r.json()["detail"]["codigo"] == "AISLAMIENTO_NO_VERIFICADO", r.text
+    finally:
+        bien.cerrar()
+        mal.cerrar()
+
+
+@requiere_cuenta
+def test_doble_clic_y_clics_simultaneos_lanzan_un_solo_forms(aislado, monkeypatch):
+    lab = aislado
+    _espia_lento(lab, monkeypatch, 8)
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)
+    resultados = []
+    barrera = threading.Barrier(3)
+
+    def clic():
+        barrera.wait()
+        try:
+            resultados.append(ad.iniciar(lab.db, _usuario(lab, "op1"), k["aid"])["solicitud_id"])
+        except ad.Negado as n:
+            resultados.append(n.codigo)
+    hilos = [threading.Thread(target=clic) for _ in range(3)]
+    for t in hilos:
+        t.start()
+    for t in hilos:
+        t.join(90)
+    lanzadas = [x for x in resultados if x.startswith("sol_")]
+    assert len(lanzadas) == 1 and resultados.count("YA_HAY_UNA_EN_CURSO") == 2, resultados
+    r = pulsar(lab, k["aid"], h)                                # otro clic con la ventana abierta
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "YA_HAY_UNA_EN_CURSO", r.text
+    fin = esperar(lab, k["aid"], h, t=60)
+    assert fin["resultado_operacion"] == cz.LISTA, fin
+    r = pulsar(lab, k["aid"], h)                                # ya LISTA: sin motivo no se vuelve a abrir
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "OPERACION_YA_LISTA", r.text
+    with lab.db.session() as s:
+        assert len(s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()) == 1
+    assert esperar_sin_procesos(lab.cuenta) == []
+
+
+def _usuario(lab, nombre):
+    from monitoreo.api.deps import CurrentUser  # noqa: F401 - solo para documentar el tipo
+    from monitoreo.models import Operator, User
+    with lab.db.session() as s:
+        u = s.scalar(select(User).where(User.username == nombre))
+        op = s.scalar(select(Operator).where(Operator.user_id == u.id))
+        from types import SimpleNamespace
+        return SimpleNamespace(username=u.username, is_admin=False, operator_id=op.id, id=u.id, role=u.role)
+
+
+@requiere_cuenta
+def test_perder_la_sesion_del_operador_no_deja_nada_colgado(aislado, monkeypatch):
+    """El operador cierra sesión (o caduca) con la ventana abierta: Forms termina igual, su resultado queda en la
+    operación, la sesión vieja ya no sirve y al volver a entrar ve el estado; no queda ningún proceso."""
+    from .captura_util import OP_PWD
+    lab = aislado
+    _espia_lento(lab, monkeypatch, 4)
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)
+    assert pulsar(lab, k["aid"], h).status_code == 202
+    esperar_pid(lab)
+    assert lab.c.post("/api/auth/logout", headers=h).status_code in (200, 204)
+    assert lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h).status_code == 401
+    h2 = lab.login("op1", OP_PWD)
+    fin = esperar(lab, k["aid"], h2, t=60)
+    assert fin["estado"] == "PREPARADO" and fin["resultado_operacion"] == cz.LISTA and fin["procesos_restantes"] == 0
+    st = lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h2).json()
+    assert st["coincidencia"]["lista_para_confirmacion"] and st["coincidencia"]["reservacion_id"] == k["rid"]
+    assert esperar_sin_procesos(lab.cuenta) == []
+
+
+@requiere_cuenta
+def test_monitor_cae_con_la_ventana_abierta_queda_interrumpida_y_se_recupera_sin_duplicar(aislado, monkeypatch):
+    """Simula el corte: la corrida muere sin escribir su final (como un kill de Monitor) y la memoria se pierde.
+    Al «arrancar»: no quedan procesos de la cuenta, el historial dice INTERRUMPIDA, la operación pide motivo para
+    reabrir (la persona pudo haber confirmado ya), el reintento usa la MISMA reservación, y fecha, sucursal,
+    expediente y operación siguen vinculados hasta el folio verificado."""
+    from monitoreo.models import ExpedienteEvento, PlanElemento
+    lab = aislado
+    _espia_lento(lab, monkeypatch, 60)
+    h = lab.ops["op1"]
+    k = preparar_coincidencia(lab, h)
+    assert pulsar(lab, k["aid"], h).status_code == 202
+    esperar_pid(lab)
+    corrida = ad.en_curso()
+    # «Monitor muere»: lo que haría el proceso al terminar ya no ocurre (ni TERMINADO ni resultado en la operación)
+    real_evento = ad.ex.evento
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(ad.ex, "evento", lambda s_, e, tipo, *a, **kw: None if tipo == "AUTORRELLENO_TERMINADO"
+                   else real_evento(s_, e, tipo, *a, **kw))
+        mp.setattr(ad.cz, "registrar_resultado", lambda *a, **kw: "")
+        corrida.lanzador.cancelar()
+        fin = time.monotonic() + 20
+        while corrida.en_curso and time.monotonic() < fin:
+            time.sleep(0.1)
+    monkeypatch.setenv("MONITOREO_FORMS_COMANDO", json.dumps(
+        [sys.executable, str(lab.codigo / "tests" / "herramientas" / "forms_espia.py"), str(lab.espia)]))
+    ad.reiniciar_para_pruebas()                                  # la memoria de Monitor se pierde con el proceso
+    # --- arranque
+    assert ad.al_arrancar() == 0 and esperar_sin_procesos(lab.cuenta) == []
+    cerradas = ad.recuperar_interrumpidas(lab.db)
+    assert cerradas == [corrida.solicitud_id], cerradas
+    assert ad.recuperar_interrumpidas(lab.db) == []              # idempotente: un segundo arranque no repite nada
+    with lab.db.session() as s:
+        tipos = [(e.tipo, (e.detalle or {}).get("estado")) for e in s.scalars(
+            select(ExpedienteEvento).where(ExpedienteEvento.expediente_id == k["exp_id"]).order_by(ExpedienteEvento.id))]
+        res = s.get(Reservacion, k["rid"])
+        assert res.estado == "PREPARADA" and res.evidencia["forms"]["resultado"] == cz.INTERRUMPIDO
+    assert ("AUTORRELLENO_TERMINADO", "INTERRUMPIDA") in tipos
+    assert any(t == "OPERACION_FORMS_INTERRUMPIDA" for t, _ in tipos), tipos
+    st = lab.c.get(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h).json()
+    assert st["coincidencia"]["interrumpida"] is True and not st["disponible"], st
+    assert st["codigo"] == "OPERACION_INTERRUMPIDA" and st["coincidencia"]["motivos_reintento"], st
+    r = pulsar(lab, k["aid"], h)
+    assert r.status_code == 409 and r.json()["detail"]["codigo"] == "OPERACION_INTERRUMPIDA", r.text
+    # el folio no se puede registrar sobre una operación interrumpida (Forms no dejó nada verificado)
+    assert folio(lab, h, k["rid"], "DIA-20991231-99999Z").status_code == 409
+    # reintento con motivo: misma reservación, ninguna nueva
+    r = lab.c.post(f"/api/autorrelleno/atenciones/{k['aid']}", headers=h, json={"reintento": "VENTANA_CERRADA"})
+    assert r.status_code == 202, r.text
+    fin = esperar(lab, k["aid"], h, t=60)
+    assert fin["resultado_operacion"] == cz.LISTA and fin["reintento"] == "VENTANA_CERRADA", fin
+    with lab.db.session() as s:
+        reservas = s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()
+        assert [x.id for x in reservas] == [k["rid"]]
+        el = s.get(PlanElemento, k["elid"])
+        assert (reservas[0].fecha, reservas[0].sucursal) == (k["fecha"], k["sucursal"]) == (el.fecha_asignada,
+                                                                                            el.sucursal_asignada)
+        entregas = [{**e.detalle, "reservacion_id": e.reservacion_id} for e in s.scalars(select(ExpedienteEvento).where(
+            ExpedienteEvento.expediente_id == k["exp_id"], ExpedienteEvento.tipo == "COINCIDENCIA_ENTREGADA_A_FORMS"))]
+    assert len(entregas) == 2 and all(e["reservacion_id"] == k["rid"] and e["elemento_id"] == k["elid"]
+                                      and e["fecha"] == k["fecha"] and e["sucursal"] == k["sucursal"] for e in entregas)
+    sol = json.loads((lab.espia / "solicitud.json").read_text(encoding="utf-8"))
+    assert sol["solicitud_id"] == fin["solicitud_id"]
+    # la persona confirma y el folio se comprueba con el portal: queda la cita una sola vez
+    f = persona_confirma_en_portal(lab, k["exp_id"], k["fecha"], k["sucursal"])
+    r = folio(lab, h, k["rid"], f)
+    assert r.status_code == 200 and r.json()["reservacion"]["estado"] == "CONFIRMADA", r.text
+    ev = r.json()["reservacion"]["evidencia"]
+    assert ev["comprobado"] and all(ev["comprobado"].values()), ev
+    assert folio(lab, h, k["rid"], f).json()["repetida"] is True             # repetir no crea otra
+    with lab.db.session() as s:
+        assert len(s.scalars(select(Reservacion).where(Reservacion.expediente_id == k["exp_id"])).all()) == 1
+        assert s.get(Expediente, k["exp_id"]).estado == "RESERVACION_CONFIRMADA"
     assert esperar_sin_procesos(lab.cuenta) == []
