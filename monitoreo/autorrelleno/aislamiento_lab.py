@@ -124,9 +124,13 @@ def rutas_privadas(cfg: ConfigAislamiento) -> list[dict]:
         if not p.exists():
             return
         out.append({"ref": ref, "ruta": str(p), "tipo": tipo or ("carpeta" if p.is_dir() else "archivo")})
-    url = settings.db_url
-    if url.startswith("sqlite:///"):
-        db = Path(url[len("sqlite:///"):])
+    from sqlalchemy.engine import make_url
+    try:
+        u = make_url(settings.db_url)
+        db = Path(u.database) if u.get_backend_name() == "sqlite" and u.database not in (None, "", ":memory:") else None
+    except Exception:  # noqa: BLE001 - una URL rara no puede abrir el paso: sin base no hay «base» comprobada
+        db = None
+    if db is not None:
         add("base", db, "archivo")
         for suf in ("-wal", "-shm", "-journal"):
             add(f"base{suf}", Path(str(db) + suf), "archivo")

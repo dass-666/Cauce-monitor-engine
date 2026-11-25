@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -57,7 +58,8 @@ def test_linea_de_comando_con_espacios_y_sin_shell():
 
 def test_la_prueba_de_extremo_a_extremo_se_niega_fuera_de_un_equipo_efimero():
     r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "aislamiento_windows_lanzador.py"), "--salida",
-                        "no_debe_existir.json"], capture_output=True, text=True)
+                        "no_debe_existir.json"], capture_output=True, text=True,
+                       env={k: v for k, v in os.environ.items() if k != "CAUCE_AISLAMIENTO_EFIMERO"})
     assert r.returncode == 2
     assert not Path("no_debe_existir.json").exists()
 

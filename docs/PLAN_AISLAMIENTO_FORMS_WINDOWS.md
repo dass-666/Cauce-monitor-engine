@@ -25,7 +25,8 @@ en la máquina real. Solo entonces tiene sentido que `puede_lanzar()` devuelva `
 - `monitoreo/autorrelleno/lanzador_restringido.py`: lanza un proceso **como otra cuenta** (`CreateProcessWithLogonW`),
   nace **suspendido**, se mete en un Job Object con «matar al cerrar» y **solo entonces** se reanuda; si no se puede
   meter en el Job, se mata sin haber ejecutado nada. stdin/stdout por tuberías, entorno explícito (sin `MONITOREO_*`).
-  Solo laboratorio (`modo_laboratorio=True`) y solo Windows. **No** está conectado a Ventanilla todavía.
+  Solo laboratorio (`modo_laboratorio=True`) y solo Windows. Desde la rama `claude/project-thread-vaxyhp` está
+  conectado a Ventanilla en modo laboratorio (ver F3 y `docs/AISLAMIENTO_VENTANILLA_LAB.md`).
 - `scripts/aislamiento_sonda.py`: lo que corre como la cuenta: intenta leer la base, `.env`, respaldos, clave del
   diario; escribir en el código; conectarse a una IP pública; y recorre **toda** la raíz buscando cualquier archivo legible.
 - `scripts/aislamiento_windows_lanzador.py`: prueba de extremo a extremo (A1–A11) que crea una cuenta de un solo uso,
@@ -64,7 +65,9 @@ Responde: ¿las carpetas dan acceso a «Usuarios autenticados»? (H1) · ¿el Py
    `Remove-NetFirewallRule -DisplayName cauce-aislamiento-*`, borrar `C:\cauce-aislamiento-lab`.
    No toca `C:\cauce-msi`, `D:\cauce-demo-8328e2c`, `C:\cauce-autorrelleno` ni otras instalaciones.
 
-### F3 — integración en Monitor (código)
+### F3 — integración en Monitor (código) — HECHA EN CÓDIGO (rama vaxyhp), solo laboratorio
+Detalle, evidencia y lo que falta: `docs/AISLAMIENTO_VENTANILLA_LAB.md`. Lo de abajo era la propuesta; se implementó así,
+salvo que la regresión «falla si alguien amplía permisos» es la propia comprobación activa (se repite en cada lanzamiento).
 - Clave de la cuenta guardada con **DPAPI** de la cuenta de Monitor (nunca en `.env`).
 - **Comprobación activa antes de cada lanzamiento**: Monitor ejecuta la sonda como la cuenta contra la instalación real
   (~1 s) y solo lanza Forms si la base, el `.env`, los respaldos y la clave del diario dan `PermissionError`. Así

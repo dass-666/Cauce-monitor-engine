@@ -169,6 +169,7 @@ def aislado(lab, tmp_path, monkeypatch):
         [sys.executable, str(codigo / "tests" / "herramientas" / "forms_espia.py"), str(espia)]))
     if ES_WINDOWS:
         archivo = datos / "claves" / "conector.dpapi"
+        archivo.parent.mkdir(exist_ok=True)
         archivo.write_bytes(al.proteger_clave(clave))
         monkeypatch.setenv(al.VARIABLE_CLAVE, str(archivo))
     lab.espia, lab.codigo, lab.trabajo, lab.datos, lab.cuenta, lab.raiz = espia, codigo, trabajo, datos, cuenta, raiz
