@@ -26,6 +26,12 @@ código, sin verificar hoy · **[F]** falta.
 | Recorrido previo observador web + Ventanilla con navegador automatizado | 46/46 |
 
 Evidencia: `resultados/recorrido_v1/recorrido_v1.json`, `resultados/demo_base_web/`.
+Control negativo: el mismo recorrido con el Forms anterior da 18/23 (la ventana se cierra al primer «Continuar» y no
+hay folio): `resultados/recorrido_v1_control_sin_correccion/`.
+
+Suites en la MSI: Monitor 794 pasan / 34 omitidas / 2 fallaban y se corrigieron (un `.bat` nuevo con un carácter
+no ASCII y una prueba del observador que dependía de la zona horaria del equipo: 21600 s = UTC-6; defecto de la
+prueba, no del producto); excluida `test_autodiagnostico` (falta psycopg). Forms 215 pasan / 7 omitidas.
 
 ## 2. Implementado, pero falta validar
 
