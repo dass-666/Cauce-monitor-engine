@@ -14,7 +14,7 @@
 #      manifiesto idéntico, integridad de todas las bases, base igual tabla a tabla, sin la contraseña antigua.
 #   5. Borra SOLO la copia de prueba sin cifrar.
 #   6. Arranca Monitor sin portal, comprueba /api/health, lo detiene y comprueba que los datos protegidos no cambiaron.
-param([switch]$Confirmo)
+param([switch]$Confirmo, [string]$Archivo)  # -Archivo: reutiliza un .7z ya creado (no lo vuelve a crear)
 $ErrorActionPreference = "Continue"
 $I = "C:\cauce-msi"
 $PY = "$I\.venv\Scripts\python.exe"
@@ -27,7 +27,7 @@ $TS = Get-Date -Format "yyyyMMdd_HHmm"
 $L = "$W\respaldo_$TS"
 $S = "$L\salida"
 $R = "D:\cauce-respaldos\prueba_restauracion_$TS"
-$ARCH = "$DEST\cauce-msi_$TS.7z"
+$ARCH = if ($Archivo) { $Archivo } else { "$DEST\cauce-msi_$TS.7z" }
 $PROTEGIDAS = "expedientes","expediente_eventos","reservaciones","consentimientos","consentimiento_eventos","atenciones",
               "importaciones","importacion_filas","capturas_manuales","planes_diarios","plan_elementos","operators",
               "requests","request_events","assignments"
@@ -86,13 +86,18 @@ if (($res.acl_destino -join " ") -match 'S-1-5-11|Usuarios autentificados|Authen
 Write-Host ""
 Write-Host "7-Zip pedirá ahora la CLAVE DEL RESPALDO dos veces (no se ve al escribir). Usa una frase larga (16+ caracteres)" -ForegroundColor Yellow
 Write-Host "y guárdala FUERA de este equipo (gestor de contraseñas o papel en lugar seguro). Sin ella el respaldo no se puede abrir." -ForegroundColor Yellow
-& $SZ a -t7z -mhe=on -mx=5 -bsp1 -p $ARCH "$I\*"
-$res.siete_zip_crear = $LASTEXITCODE
-if ($res.siete_zip_crear -ne 0 -or -not (Test-Path $ARCH)) { Fin "CIFRADO_FALLIDO" }
+if ($Archivo) {
+  if (-not (Test-Path -LiteralPath $ARCH)) { Fin "NO_EXISTE_EL_ARCHIVO_INDICADO" }
+  $res.reutilizado = $true
+} else {
+  & $SZ a -t7z -mhe=on -mx=5 -bsp1 -p $ARCH "$I\*"
+  $res.siete_zip_crear = $LASTEXITCODE
+  if ($res.siete_zip_crear -ne 0 -or -not (Test-Path $ARCH)) { Fin "CIFRADO_FALLIDO" }
+}
 $res.archivo_bytes = (Get-Item $ARCH).Length
 $res.archivo_sha256 = (Get-FileHash -LiteralPath $ARCH -Algorithm SHA256).Hash
 "$($res.archivo_sha256)  $(Split-Path $ARCH -Leaf)" | Set-Content -LiteralPath "$ARCH.sha256" -Encoding ASCII
-Copy-Item "$L\manifiesto_origen.csv" "$DEST\cauce-msi_$TS.manifiesto.csv"
+Copy-Item "$L\manifiesto_origen.csv" ([IO.Path]::ChangeExtension($ARCH, ".manifiesto.csv"))
 
 # ---- 4. restauración en copia aislada
 New-Item -ItemType Directory -Force $R | Out-Null
@@ -100,13 +105,17 @@ $res.acl_prueba = @(icacls $R | Select-Object -SkipLast 2)
 if (($res.acl_prueba -join " ") -match 'S-1-5-11|Usuarios autentificados|Authenticated Users|Todos|Everyone') { Fin "PRUEBA_NO_PROTEGIDA" }
 Write-Host ""
 Write-Host "Prueba de restauración: 7-Zip pedirá la CLAVE DEL RESPALDO una vez más." -ForegroundColor Yellow
-& $SZ x $ARCH "-o$R" -bsp1 -p
+& $SZ x $ARCH "-o$R" -bsp1   # sin -p: con nombres cifrados 7-Zip pide la clave él mismo (-p vacío = clave vacía)
 $res.siete_zip_restaurar = $LASTEXITCODE
 if ($res.siete_zip_restaurar -ne 0) { Fin "RESTAURACION_FALLIDA" }
 $res.archivos_restaurados = Manifiesto $R "$L\manifiesto_restaurado.csv"
 $o = @{}; Import-Csv "$L\manifiesto_origen.csv" | ForEach-Object { $o[$_.ruta] = $_.sha256 }
 $d = @{}; Import-Csv "$L\manifiesto_restaurado.csv" | ForEach-Object { $d[$_.ruta] = $_.sha256 }
-$res.restaurado_distintos = @($o.Keys | Where-Object { $d.ContainsKey($_) -and $d[$_] -ne $o[$_] })
+# *.db-shm es el índice temporal del WAL: SQLite lo reescribe al abrir la base (incluso en solo lectura) y lo
+# reconstruye si falta, así que puede diferir sin pérdida; se informa aparte y no cuenta como diferencia.
+$todosDistintos = @($o.Keys | Where-Object { $d.ContainsKey($_) -and $d[$_] -ne $o[$_] })
+$res.restaurado_distintos_shm = @($todosDistintos | Where-Object { $_ -like "*.db-shm" })
+$res.restaurado_distintos = @($todosDistintos | Where-Object { $_ -notlike "*.db-shm" })
 $res.restaurado_faltantes = @($o.Keys | Where-Object { -not $d.ContainsKey($_) })
 $res.restaurado_sobrantes = @($d.Keys | Where-Object { -not $o.ContainsKey($_) })
 $dbs = @(Get-ChildItem -LiteralPath $R -Recurse -Force -File -Include *.db | Where-Object { $_.FullName -notmatch '\\(\.venv|node_modules|\.browsers)\\' })
