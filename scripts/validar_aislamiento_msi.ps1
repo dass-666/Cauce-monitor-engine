@@ -70,6 +70,22 @@ try { $s0 = Get-Service seclogon; $resumen.seclogon = "$($s0.Status)/$($s0.Start
 # Permisos huérfanos de una ejecución anterior (cuenta ya borrada): solo se quitan si el SID es local de esta
 # máquina y ya no corresponde a ninguna cuenta (si se resuelve a un nombre, no se toca). Se comprueba el
 # resultado: si el permiso sigue, se detiene ANTES de crear nada y queda la evidencia en el resumen.
+# icacls /remove "*SID" devuelve 1332 (ERROR_NONE_MAPPED) cuando la cuenta ya no existe y no quita nada (visto en la
+# MSI). Por eso, con .NET, se quitan solo las entradas EXPLÍCITAS de ese SID; las heredadas desaparecen solas.
+function Quitar-ExplicitasDeSid($ruta, $s) {
+    $n = 0
+    $objetivo = New-Object Security.Principal.SecurityIdentifier($s)
+    foreach ($it in @(Get-Item -LiteralPath $ruta -Force) + @(Get-ChildItem -LiteralPath $ruta -Recurse -Force -ErrorAction SilentlyContinue)) {
+        try {
+            $acl = Get-Acl -LiteralPath $it.FullName
+            $mias = @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]) | Where-Object { $_.IdentityReference -eq $objetivo })
+            if ($mias.Count) {
+                foreach ($r in $mias) { [void]$acl.RemoveAccessRuleSpecific($r) }
+                Set-Acl -LiteralPath $it.FullName -AclObject $acl
+                $n += $mias.Count }
+        } catch { } }
+    return $n
+}
 function Cuenta-Sid($ruta, $s) { @(icacls $ruta /T /C 2>$null | Select-String -SimpleMatch $s).Count }
 $resumen.huerfanos = @()
 if ($QuitarSidHuerfano) { $prefijoLocal = (Get-LocalUser | Select-Object -First 1).SID.AccountDomainSid.Value }
@@ -85,17 +101,7 @@ foreach ($h in $QuitarSidHuerfano) {
     $tras_icacls = Cuenta-Sid $Carpeta $h
     $quitados_net = 0
     if ($tras_icacls) {
-        # Respaldo: quitar con .NET solo las entradas EXPLÍCITAS de ese SID (las heredadas desaparecen solas).
-        $objetivo = New-Object Security.Principal.SecurityIdentifier($h)
-        foreach ($it in @(Get-Item -LiteralPath $Carpeta -Force) + @(Get-ChildItem -LiteralPath $Carpeta -Recurse -Force -ErrorAction SilentlyContinue)) {
-            try {
-                $acl = Get-Acl -LiteralPath $it.FullName
-                $mias = @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]) | Where-Object { $_.IdentityReference -eq $objetivo })
-                if ($mias.Count) {
-                    foreach ($r in $mias) { [void]$acl.RemoveAccessRuleSpecific($r) }
-                    Set-Acl -LiteralPath $it.FullName -AclObject $acl
-                    $quitados_net += $mias.Count }
-            } catch { } }
+        $quitados_net = Quitar-ExplicitasDeSid $Carpeta $h
     }
     $despues = Cuenta-Sid $Carpeta $h
     $ErrorActionPreference = "Stop"
@@ -176,7 +182,7 @@ try {
     if ($sid) {   # tras borrar la cuenta, cualquier permiso suyo aparece como SID: se cuenta y, si queda, se reintenta
         $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count
         if ($restoAcl) {
-            icacls $Carpeta /remove "*$sid" /T /C /Q 2>$null | Out-Null
+            $resumen.limpieza_explicitas_net = Quitar-ExplicitasDeSid $Carpeta $sid
             $restoAcl = @(icacls $Carpeta /T /C 2>$null | Select-String -SimpleMatch $sid).Count } }
     $resumen.limpieza = [ordered]@{
         procesos_de_la_cuenta = @(Get-Process -IncludeUserName -ErrorAction SilentlyContinue |
@@ -186,6 +192,8 @@ try {
         cuenta_existe = [bool](Get-LocalUser -Name $cuenta -ErrorAction SilentlyContinue)
         regla_existe = [bool](Get-NetFirewallRule -DisplayName $regla -ErrorAction SilentlyContinue)
         perfil_existe = [bool](Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$cuenta*" }) }
+    # La carpeta temporal de pytest se crea elevada y solo es legible elevado: se revisa arriba y se borra aquí.
+    Remove-Item -LiteralPath (Join-Path $tmp "pytest") -Recurse -Force -ErrorAction SilentlyContinue
     $x = Join-Path $res "msi_aislamiento.xml"
     if (Test-Path $x) { try {
         [xml]$j = Get-Content $x

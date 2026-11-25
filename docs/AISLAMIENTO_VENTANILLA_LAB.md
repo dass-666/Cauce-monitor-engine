@@ -1,7 +1,8 @@
 # Laboratorio aislado: Ventanilla → Forms como OTRA cuenta (PR #13 conectado al recorrido actual)
 
 Estado: **solo laboratorio, datos ficticios.** `conector.aislamiento.puede_lanzar()` sigue en `False`. No hay despliegue
-operativo, no se tocó ninguna instalación (MSI incluida) y no se usa con datos reales.
+operativo, no se tocó ninguna instalación operativa y no se usa con datos reales. En la MSI solo se usó una carpeta de
+laboratorio NUEVA (`C:\cauce-aislamiento-lab`, F2, sección 4 ter).
 Marcas: **[V]** verificado con evidencia · **[I]** inferido · **[P]** pendiente.
 
 ## 1. Qué faltaba en el PR #13 y qué se hizo
@@ -99,10 +100,53 @@ NTFS reales. **Un runner efímero no es la MSI.**
 - **H11 [I] DNS:** las consultas las hace el servicio del sistema, no la cuenta, así que una regla por cuenta no las bloquea. Es un canal de salida estrecho; cerrarlo exige un resolvedor controlado o AppContainer.
 - **H12 [I] Lista de destinos:** la regla actual es «nada salvo 127.0.0.1», y sirve para el laboratorio. Un portal real necesitará una lista de destinos permitidos (por IP en Firewall), que depende de una autorización que hoy no existe.
 
+## 4 ter. F2 en la MSI Windows 11 (2026-11-25, autorizado por Diego) — [V]
+Carpeta nueva `C:\cauce-aislamiento-lab`, datos ficticios, cuenta `cauce_conector_t` de un solo uso y regla de Firewall
+temporal, con `scripts/validar_aislamiento_msi.ps1`. Python portable (CPython 3.13.17 de NuGet) dentro del laboratorio,
+porque el de Forms en la MSI es el de Microsoft Store (H2: otra cuenta no lo ejecuta). Forms ff117da, Chromium 1255.
+
+| Intento | Commit | Resultado | Causa / corrección |
+|---|---|---|---|
+| 1 | 176591e | No corrió nada (código 1 antes de crear la cuenta) | PowerShell 5.1 + `Stop`: el stderr de un programa nativo corta el script; `RandomNumberGenerator.GetBytes(int)` no existe en .NET Framework → 4951f48 |
+| 2 | 4951f48 | Se cortó tras crear la cuenta (limpieza OK) | Leía grupos por el texto en inglés de `net user`; Windows en español dice otra cosa → grupos por SID (ae66c36) |
+| 3 | ae66c36 | **25 pasan / 3 fallan / 3 omitidas** | Las 3 con Forms real: la sonda **negó** el lanzamiento (correcto). El laboratorio heredaba de `C:\` «Usuarios autentificados: Modificar» y la cuenta podía escribir el código de Forms (confirmado con icacls). Además quedó un permiso huérfano (se quitaba por nombre tras borrar la cuenta) → 58eee0c/ddcfd7f |
+| 4 | ddcfd7f | **28 pasan / 0 fallan / 3 omitidas** | Laboratorio sin herencia; limpieza de la corrida OK. El huérfano del intento 3 seguía: `icacls /remove "*SID"` devuelve 1332 con un SID sin cuenta → 7def789 |
+| 5 | 7def789 | **28 pasan / 0 fallan / 3 omitidas; huérfano quitado (2 entradas explícitas con .NET; 12209 → 0)** | — |
+
+Intento 5 (`msi_resumen.json`): `pytest_codigo 0`, `cuenta_grupos ["S-1-5-32-545"]` (solo Usuarios),
+`laboratorio_endurecido true`; limpieza: 0 procesos de la cuenta, 0 permisos residuales, 0 carpetas temporales, sin
+cuenta, regla ni perfil. Verificación posterior aparte: 0 SID locales sin resolver en todo el árbol, 0 «Usuarios
+autentificados»; `C:\cauce-msi`, `C:\cauce-autorrelleno`, `C:\cauce-respaldos` y `D:\cauce-*` con 0 archivos modificados
+(solo cambió la fecha de la carpeta `D:\cauce-forms-interfaz\.git` por el clon de lectura previo a F2). Evidencia en la MSI:
+`C:\cauce-aislamiento-lab\resultados` y `resultados_intento1..4`.
+
+Cubierto en la MSI: ACL de datos privados (base, respaldos, diario, `.env`), escritura de código de Monitor y Forms,
+bloqueo de red con control positivo de Monitor, API local sin sesión, Forms y Chromium como la cuenta, revocar/cerrar/
+detener/caída brusca sin procesos restantes, doble clic, sesión perdida, corte con recuperación sin duplicar reservación,
+y el recorrido Monitor → Forms real aislado → confirmación simulada → folio verificado. `puede_lanzar()` sigue en False.
+
+Omitidas (3, por diseño): «Linux sin root» (solo Linux); «Python que la cuenta no puede ejecutar» (en Windows lo cubre H2
+y aquí `python_base_en_perfil=false`); «resto de la cuenta antes de lanzar» (en Windows el Job Object no deja restos).
+
+Hallazgos de F2:
+- **H13 [V]** Una carpeta nueva en `C:\` hereda «Usuarios autentificados: Modificar». Sin endurecerla, cualquier cuenta
+  local puede modificar el código de Forms, y también el Python y el venv que usa Monitor. La sonda detecta lo primero
+  (Forms) pero **no comprueba el intérprete de Monitor**: F3/F4 debe endurecer la instalación real igual que el script
+  endurece el laboratorio, y conviene añadir el intérprete a `rutas_no_escribibles` (pendiente; puede volver rojo el
+  runner efímero si `C:\hostedtoolcache` hereda lo mismo).
+- **H14 [V]** `icacls /remove "*SID"` no quita permisos de un SID cuya cuenta ya no existe (código 1332). Hay que quitar
+  por SID **antes** de borrar la cuenta, o con .NET (`RemoveAccessRuleSpecific`) sobre las entradas explícitas.
+- **H15 [V]** Los scripts deben ser independientes del idioma de Windows (SID en vez de nombres o textos) y robustos a
+  PowerShell 5.1 (stderr nativo con `Stop`, API de .NET Framework).
+- El servicio «Inicio de sesión secundario» (seclogon, inicio manual) queda en ejecución tras usarlo; vuelve a parar al
+  reiniciar.
+
+Después del intento 5 se cambió solo la limpieza del script (b2: usar también .NET al final, y borrar `tmp\pytest`, que
+se crea elevado y solo es legible elevado). **Ese cambio no se ha ejecutado en la MSI** (solo lint de CI).
+
 ## 5. Bloqueos para fusionar y para pasar de laboratorio
 1. Que la base estable (4131367) quede validada (su CI estaba pendiente al empezar). Intermitente conocido sin relación: «Reservaciones de laboratorio · Windows» (repintado del calendario, ver PR #5).
 2. CI de esta rama en verde, incluido «Ventanilla aislada (Windows)».
-3. **F2 en la MSI** (cuenta de un solo uso, carpeta nueva, sin tocar instalaciones): requiere tu aprobación. Responde H1
-   (herencia de `C:\`) y H2 (Python «solo para mí» en la MSI: Forms no arrancaría con otra cuenta).
+3. ~~F2 en la MSI~~ **hecho** (sección 4 ter): 28/0/3 con Forms real y limpieza completa en el intento 5.
 4. F4 (cuenta permanente + ACL en la instalación que use Forms): otra aprobación, después de F2.
 5. Datos reales: siguen prohibidos (base legal y consentimiento) y `puede_lanzar()` en False.
