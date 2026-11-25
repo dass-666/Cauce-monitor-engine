@@ -610,6 +610,14 @@ def test_recorrido_coincidencia_forms_folio_con_forms_aislado(aislado):
 
 # ================================================================ Forms REAL como la cuenta (Linux, FORMS_REPO)
 
+def _nombre(p) -> str:
+    """Nombre del proceso en minúsculas; vacío si terminó mientras se consultaba (carrera normal con Chromium)."""
+    try:
+        return (p.name() or "").lower()
+    except psutil.Error:
+        return ""
+
+
 def motivo_negado(lab) -> str:
     """Para el mensaje de una aserción: los fallos de la última comprobación negada (sin valores personales)."""
     try:
@@ -662,7 +670,7 @@ def test_forms_real_aislado_rellena_y_chromium_es_de_la_cuenta(forms_real_aislad
     fin = time.monotonic() + 60
     navegador = []
     while time.monotonic() < fin and not navegador:
-        navegador = [p for p in al.procesos_de_la_cuenta(lab.cuenta) if "chrom" in (p.name() or "").lower()]
+        navegador = [p for p in al.procesos_de_la_cuenta(lab.cuenta) if "chrom" in _nombre(p)]
         time.sleep(0.3)
     assert navegador, "Chromium no corre como la cuenta del conector"
     c = esperar(lab, a["id"], h, t=150)
@@ -683,7 +691,7 @@ def test_forms_real_aislado_revocar_a_mitad_termina_chromium(forms_real_aislado,
     assert r.status_code == 202, r.text + " | " + motivo_negado(lab)
     fin = time.monotonic() + 60
     while time.monotonic() < fin and not [p for p in al.procesos_de_la_cuenta(lab.cuenta)
-                                          if "chrom" in (p.name() or "").lower()]:
+                                          if "chrom" in _nombre(p)]:
         time.sleep(0.3)
     r = lab.c.post(f"/api/consentimientos/{a['consentimiento']['id']}/revocar", headers=lab.h,
                    json={"medio": "PRESENCIAL", "motivo": "PERSONA_LO_PIDE"})
