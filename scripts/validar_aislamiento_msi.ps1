@@ -1,4 +1,4 @@
-<#
+﻿<#
  F2 del plan (docs/PLAN_AISLAMIENTO_FORMS_WINDOWS.md): prueba del aislamiento de Forms en un Windows REAL (la MSI),
  en una carpeta de LABORATORIO NUEVA, con datos FICTICIOS. No toca ninguna instalación que funcione.
 
