@@ -362,11 +362,56 @@ function folioVerificado(k, a) {
       refresh(true, true);
     } catch (err) { errs.textContent = err.message; boton.disabled = false; }
   } }, "Registrar folio");
-  if (!k.verificable) return h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este sitio no tiene una vía autorizada para comprobar folios: Cauce no marcará la cita como confirmada desde aquí. Hace falta una vía de verificación autorizada por ese sitio.");
+  if (!k.verificable) return folioDeclarado(k);
   return h("div", { class: "section", id: "folio-forms-caja" },
     h("h3", {}, "Registrar folio"),
     h("p", { class: "muted" }, `Con la persona, en la ventana del portal: teclea los campos manuales, elige el ${k.fecha} en ${k.sucursal} y confirma. Después escribe aquí el folio dos veces: Monitor lo comprueba con el portal antes de marcar la cita.`),
     h("label", { for: "folio-forms" }, "Folio"), f1, h("label", { for: "folio-forms-2" }, "Confirma el folio"), f2,
+    h("div", { class: "actions" }, boton), errs);
+}
+
+// Portal SIN vía autorizada de verificación: el operador deja constancia del folio. Queda PENDIENTE DE
+// VERIFICACIÓN (nunca «cita confirmada»); se puede volver a intentar la verificación más tarde.
+function folioDeclarado(k) {
+  const errs = h("div", { class: "error", role: "alert", id: "folio-declarado-error" });
+  const d = k.folio_declarado;
+  if (d) {
+    const reintentar = h("button", { class: "btn", id: "btn-verificar-declarado", onclick: async () => {
+      reintentar.disabled = true; errs.textContent = "";
+      try {
+        await api(`/api/autorrelleno/reservaciones/${k.reservacion_id}/folio-declarado/verificar`, { method: "POST" });
+        toast("Folio comprobado con el portal: cita confirmada", 4000);
+      } catch (err) { errs.textContent = err.message; }
+      refresh(true, true);
+    } }, "Intentar verificar ahora");
+    return h("div", { class: "section", id: "folio-declarado", "data-estado": d.estado },
+      h("h3", {}, "Folio declarado"),
+      h("p", {}, h("b", { id: "folio-declarado-folio" }, d.folio), " ",
+        h("span", { class: "badge " + (d.estado === "DISCREPANCIA" ? "b-bad" : "b-warn") },
+          d.estado === "PENDIENTE_DE_VERIFICACION" ? "PENDIENTE DE VERIFICACIÓN" : d.estado)),
+      h("p", { class: "muted" }, `Registrado por ${d.operador} · ${fmtTime(d.registrado_en)} · portal ${d.portal || "—"} · ` +
+        "NO es una cita confirmada: Monitor no tiene una vía autorizada para comprobarlo con el portal." +
+        (d.motivo ? ` Último intento: ${d.motivo}.` : "")),
+      d.estado === "PENDIENTE_DE_VERIFICACION" ? h("div", { class: "actions" }, reintentar) : null, errs);
+  }
+  const f1 = h("input", { id: "folio-declarado-1", autocomplete: "off", placeholder: "Folio que muestra el portal" });
+  const f2 = h("input", { id: "folio-declarado-2", autocomplete: "off", placeholder: "Vuelve a teclearlo" });
+  const visto = h("input", { type: "checkbox", id: "folio-declarado-visto" });
+  const boton = h("button", { class: "btn primary", id: "btn-folio-declarado", onclick: async () => {
+    boton.disabled = true; errs.textContent = "";
+    try {
+      await api(`/api/autorrelleno/reservaciones/${k.reservacion_id}/folio-declarado`, { method: "POST",
+        body: { folio: f1.value, folio_confirmacion: f2.value, folio_visto: visto.checked } });
+      toast("Folio registrado como PENDIENTE DE VERIFICACIÓN", 4000);
+      refresh(true, true);
+    } catch (err) { errs.textContent = err.message; boton.disabled = false; }
+  } }, "Declarar folio");
+  return h("div", { class: "section", id: "folio-declarado-caja" },
+    h("h3", {}, "Declarar folio (pendiente de verificación)"),
+    h("p", { class: "muted", id: "folio-forms-sin-api" }, "Este sitio no tiene una vía autorizada para comprobar folios: Cauce no marcará la cita como confirmada. " +
+      "Puedes dejar constancia del folio que mostró el portal; quedará PENDIENTE DE VERIFICACIÓN."),
+    h("label", { for: "folio-declarado-1" }, "Folio"), f1, h("label", { for: "folio-declarado-2" }, "Confirma el folio"), f2,
+    h("label", { class: "casilla" }, visto, " El portal mostró este folio a la persona"),
     h("div", { class: "actions" }, boton), errs);
 }
 

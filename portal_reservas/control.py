@@ -11,6 +11,11 @@ import httpx
 CABECERA = "X-Control-Token"
 
 
-def peticion(base: str, token: str, metodo: str, ruta: str, timeout: float = 10, **kw) -> httpx.Response:
+def peticion(base: str, token: str, metodo: str, ruta: str, timeout: float = 10,
+             cliente: httpx.Client | None = None, **kw) -> httpx.Response:
+    """`cliente`: para varias peticiones seguidas (una sola conexión). Sin él, cada petición crea su cliente: en
+    Windows eso cuesta ~0,2-0,35 s y deja un socket en TIME_WAIT por llamada."""
+    if cliente is not None:
+        return cliente.request(metodo, base.rstrip("/") + ruta, headers={CABECERA: token}, timeout=timeout, **kw)
     return httpx.request(metodo, base.rstrip("/") + ruta, headers={CABECERA: token}, timeout=timeout,
                          trust_env=False, **kw)

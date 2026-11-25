@@ -46,12 +46,12 @@ def _estado() -> tuple[bool, str]:
     return True, ""
 
 
-def _ctl(metodo: str, ruta: str, **kw):
+def _ctl(metodo: str, ruta: str, cliente: httpx.Client | None = None, **kw):
     ok, motivo = _estado()
     if not ok:
         raise HTTPException(409, motivo)
     try:
-        r = control.peticion(portal.url(), os.environ[VARIABLE], metodo, ruta, **kw)
+        r = control.peticion(portal.url(), os.environ[VARIABLE], metodo, ruta, cliente=cliente, **kw)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"El portal de laboratorio no responde ({type(e).__name__})") from None
     if r.status_code >= 400:
@@ -121,10 +121,13 @@ def registros(desde: int = 0, cuantos: int = 8, tramite: str | None = None,
               user: CurrentUser = Depends(require_admin)):
     """Registros previos FICTICIOS que el portal de laboratorio reconoce (para dar de alta personas de prueba)."""
     out, n = [], max(0, desde)
-    while len(out) < min(max(1, cuantos), 20) and n < desde + 400:
-        x = _ctl("GET", "/control/registro-ejemplo", params={"n": n})
-        if not tramite or x.get("tramite") == tramite:
-            out.append({"identificador": x["identificador"], "fecha_nacimiento": x["fecha_nacimiento"],
-                        "tramite": x["tramite"]})
-        n += 1
+    # Una sola conexión para todas las consultas: antes, ~15 clientes nuevos por pantalla tardaban ~5 s en Windows y
+    # el repintado del «Calendario lab» quedaba ocupado todo ese tiempo.
+    with httpx.Client(trust_env=False) as cl:
+        while len(out) < min(max(1, cuantos), 20) and n < desde + 400:
+            x = _ctl("GET", "/control/registro-ejemplo", cliente=cl, params={"n": n})
+            if not tramite or x.get("tramite") == tramite:
+                out.append({"identificador": x["identificador"], "fecha_nacimiento": x["fecha_nacimiento"],
+                            "tramite": x["tramite"]})
+            n += 1
     return {"registros": out, "siguiente": n, "nota": "Registros sintéticos del portal de laboratorio: no son personas reales."}

@@ -9,6 +9,8 @@ async function diagnosticarCalendario(page, dia, pasos) {
       pendiente: S.pendingForce || false, sucio: S.dirty || false, sin_conexion: !!S.offline };
     const c = document.querySelector(`#calendario-lab-mes [data-fecha="${d}"]`);
     r.celda_en_pantalla = c ? c.getAttribute("data-estado") : "NO_HAY_CELDA";
+    const cal = document.querySelector("#calendario-lab");
+    r.mes_en_pantalla = cal ? cal.getAttribute("data-mes") : null;   // NO_HAY_CELDA con otro mes = se pasó de mes
     const er = document.querySelector("#calendario-lab-error");
     r.error_en_pantalla = er ? er.textContent.slice(0, 160) : null;
     r.tarjeta_error = !!document.querySelector("#view .error:not(#calendario-lab-error)");

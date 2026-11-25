@@ -83,3 +83,29 @@ def registrar_folio(rid: int, body: FolioIn, user: CurrentUser = Depends(current
         return cz.verificar_folio(db, user, rid, body.folio, body.folio_confirmacion, utcnow())
     except cz.ErrorFolio as e:
         raise HTTPException(e.http, {"mensaje": e.mensaje, "codigo": e.codigo, **e.detalle})
+
+
+class FolioDeclaradoIn(FolioIn):
+    folio_visto: bool = False
+
+
+@router.post("/reservaciones/{rid}/folio-declarado")
+def declarar_folio(rid: int, body: FolioDeclaradoIn, user: CurrentUser = Depends(current_user),
+                   db: Database = Depends(get_db)):
+    """Portal SIN vía autorizada de verificación: el operador deja constancia del folio que vio la persona. Queda
+    PENDIENTE_DE_VERIFICACION; la reservación no se confirma."""
+    from ..autorrelleno import folio_declarado as fd
+    try:
+        return fd.declarar(db, user, rid, body.folio, body.folio_confirmacion, body.folio_visto, utcnow())
+    except cz.ErrorFolio as e:
+        raise HTTPException(e.http, {"mensaje": e.mensaje, "codigo": e.codigo, **e.detalle})
+
+
+@router.post("/reservaciones/{rid}/folio-declarado/verificar")
+def verificar_folio_declarado(rid: int, user: CurrentUser = Depends(current_user), db: Database = Depends(get_db)):
+    """Intento posterior: con vía autorizada se comprueba con el portal; sin ella sigue PENDIENTE."""
+    from ..autorrelleno import folio_declarado as fd
+    try:
+        return fd.verificar(db, user, rid, utcnow())
+    except cz.ErrorFolio as e:
+        raise HTTPException(e.http, {"mensaje": e.mensaje, "codigo": e.codigo, **e.detalle})
