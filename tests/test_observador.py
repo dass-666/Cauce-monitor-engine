@@ -7,7 +7,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 
 import pytest
 from sqlalchemy import func, select
@@ -109,7 +109,7 @@ def test_detecta_dia_nuevo_y_que_desaparece_sin_recargar_con_ambas_estrategias(e
     e = ev[0]
     assert e.sucursal == "NOR-1" and e.tramite == "alta" and e.estado == "DISPONIBLE"
     assert e.evidencia.get("sha256") and (e.evidencia.get("html") or e.evidencia.get("imagen"))
-    latencia = e.detectado_en.timestamp() - t0
+    latencia = e.detectado_en.replace(tzinfo=timezone.utc).timestamp() - t0   # UTC sin zona (convención interna)
     assert -1 < latencia < 5, latencia
     # la página NO se recargó: una sola apertura (INICIAL por estrategia)
     assert sum(1 for x in o.lineas if x.get("tipo") == "INICIAL") == 2
