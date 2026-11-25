@@ -68,8 +68,39 @@ NTFS reales. **Un runner efímero no es la MSI.**
 - Un administrador/SYSTEM/root lo lee todo; la cuenta del conector nunca debe serlo (en Linux se rechaza root).
 - `LanzadorCuentaPosix` exige Monitor como root: **solo** para pruebas, no es una forma de operar.
 
+## 4 bis. Etapa 2 (2026-11-25): red, recuperación tras un corte, sesión y doble clic
+| Pieza | Qué hace | Dónde |
+|---|---|---|
+| **Red, diferencial y obligatoria** | `MONITOREO_AISLAMIENTO_RED_DESTINO=host:puerto` (sin él: 403 `AISLAMIENTO_INCOMPLETO`). Antes de cada lanzamiento Monitor abre una conexión TCP a ese destino y la sonda intenta lo mismo como la cuenta. Solo se lanza si Monitor **sí** conecta y la cuenta **no**. Si Monitor tampoco llega, no se demuestra nada y no se lanza (`red_control:SIN_CONEXION_*`). La regla la pone quien instala: Windows Firewall `-LocalUser` (todo salvo 127.0.0.1), o `iptables --uid-owner` en las pruebas Linux | `aislamiento_lab.control_de_red`, `SONDA`, `evaluar_sonda` |
+| **API local de Monitor** | `MONITOREO_AISLAMIENTO_API` (admite `{puerto}`): la sonda la pide sin sesión y debe recibir 401 o 403. El tráfico a 127.0.0.1 no lo filtra el cortafuegos: lo protege la autenticación | idem |
+| **Recuperación tras un corte** | Al arrancar (laboratorio), un autorrellenado SOLICITADO sin TERMINADO se cierra como `INTERRUMPIDA` (`MONITOR_REINICIADO`). Su operación queda `FORMS_INTERRUMPIDO`: reabrir el formulario **exige motivo** (la persona pudo haber confirmado ya en el portal), usa la **misma** reservación y bloquea el folio hasta que Forms vuelva a dejarla LISTA. Es idempotente | `adaptador.recuperar_interrumpidas`, `coincidencia.reintento_permitido`, `app.py`, Ventanilla |
+| Pantalla | Con la operación interrumpida, el botón se desactiva, aparece el aviso «comprueba en el portal…» y el reintento con motivo | `web/ventanilla.js` |
+
+### Evidencia [V]
+- **Linux** (contenedor, Python 3.13, Forms real ff117da): `tests/test_aislamiento_ventanilla.py` + `test_lanzador_restringido.py` **30/30**. Pruebas nuevas:
+  - red y su control negativo (sin la regla: 409 `red:CONECTADO`, Forms no se lanza);
+  - destino inalcanzable para el propio Monitor: 409;
+  - API sin sesión 401; con una API abierta (control negativo): 409;
+  - tres clics simultáneos: 1 lanzado y 2 `YA_HAY_UNA_EN_CURSO`; operación LISTA sin motivo: 409; una sola reservación;
+  - el operador cierra sesión con la ventana abierta: la sesión vieja da 401, Forms termina, el resultado queda en la operación y no quedan procesos;
+  - corte simulado: INTERRUMPIDA, reabrir sin motivo 409, folio bloqueado, reintento con motivo sobre la misma reservación, folio verificado una sola vez (repetirlo no crea otra), fecha/sucursal/expediente/operación iguales en reservación, plan y entregas a Forms.
+- **Recorridos Linux con Forms real y kill -9 real de Monitor a mitad** (`--aislado --corte`):
+  - observador universal (`--observador web`): **39/39**;
+  - calendario: **37/37**.
+  - Medido: 12 procesos de la cuenta antes del kill y 12 vivos justo después (Linux no tiene Job Object, ver H8). Al arrancar Monitor quedaron 0, el historial dice INTERRUMPIDA y queda una sola reservación con la fecha y la sucursal de la coincidencia.
+- **Otros recorridos**:
+  - aislado con pantalla de Ventanilla (`--interfaz`): **49/49**;
+  - sin aislamiento (regresión): calendario **26/26**, web + interfaz **46/46**.
+- **Suite completa Linux**: 825 pasan, 15 omitidas (Forms real y PostgreSQL), 1 excluida (`test_database_down…`: falta psycopg en el contenedor).
+- **Windows, runner efímero** (11948f4): job «Ventanilla aislada» **25 pasan / 5 omitidas**, incluidas red con regla de Firewall `-LocalUser` y su control negativo, API sin sesión, doble clic, sesión perdida y corte/recuperación. Forms real vía Ventanilla en Windows: añadido al job en 6e4431e (ver el PR).
+
+### Hallazgos nuevos
+- **H10 [V] La cuenta del conector debe ser de UN solo Monitor.** La limpieza de restos termina **todo** proceso de la cuenta. Dos Monitores (o un recorrido y unas pruebas) que comparten la cuenta se matan los Forms entre sí, y quitarle la regla de red a uno se la quita al otro. Pasó en este hilo al ejecutar pruebas a la vez.
+- **H11 [I] DNS:** las consultas las hace el servicio del sistema, no la cuenta, así que una regla por cuenta no las bloquea. Es un canal de salida estrecho; cerrarlo exige un resolvedor controlado o AppContainer.
+- **H12 [I] Lista de destinos:** la regla actual es «nada salvo 127.0.0.1», y sirve para el laboratorio. Un portal real necesitará una lista de destinos permitidos (por IP en Firewall), que depende de una autorización que hoy no existe.
+
 ## 5. Bloqueos para fusionar y para pasar de laboratorio
-1. Que la base estable (4131367) quede validada (su CI estaba pendiente al empezar).
+1. Que la base estable (4131367) quede validada (su CI estaba pendiente al empezar). Intermitente conocido sin relación: «Reservaciones de laboratorio · Windows» (repintado del calendario, ver PR #5).
 2. CI de esta rama en verde, incluido «Ventanilla aislada (Windows)».
 3. **F2 en la MSI** (cuenta de un solo uso, carpeta nueva, sin tocar instalaciones): requiere tu aprobación. Responde H1
    (herencia de `C:\`) y H2 (Python «solo para mí» en la MSI: Forms no arrancaría con otra cuenta).
