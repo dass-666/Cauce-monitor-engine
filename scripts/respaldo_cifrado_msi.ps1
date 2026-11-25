@@ -1,4 +1,4 @@
-# F3 · Respaldo CIFRADO de la instalación de Cauce Monitor (7-Zip, AES-256, nombres cifrados) y prueba de restauración.
+﻿# F3 · Respaldo CIFRADO de la instalación de Cauce Monitor (7-Zip, AES-256, nombres cifrados) y prueba de restauración.
 #
 # Lo ejecuta el administrador del equipo en SU PowerShell (sin elevar). La clave del cifrado la escribe él cuando
 # 7-Zip la pide (no se ve en pantalla, no se pasa por la línea de comandos y no queda en el registro).
