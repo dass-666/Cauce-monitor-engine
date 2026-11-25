@@ -1,7 +1,7 @@
 ﻿# F3 · Respaldo CIFRADO de la instalación de Cauce Monitor (7-Zip, AES-256, nombres cifrados) y prueba de restauración.
 #
-# Lo ejecuta el administrador del equipo en SU PowerShell (sin elevar). La clave del cifrado la escribe él cuando
-# 7-Zip la pide (no se ve en pantalla, no se pasa por la línea de comandos y no queda en el registro).
+# Lo ejecuta el administrador del equipo en SU PowerShell (sin elevar). La clave del cifrado la escribe él en
+# Read-Host (asteriscos), dos veces y comparadas, y otra vez para la prueba; nunca se imprime ni queda en el registro.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File respaldo_cifrado_msi.ps1 -Confirmo
 #
@@ -9,8 +9,8 @@
 #   1. Monitor detenido; contraseña nueva intacta (tabla users igual que tras la rotación) y tablas protegidas
 #      sin cambios; la contraseña ANTIGUA no aparece en la instalación.
 #   2. Manifiesto SHA-256 de la instalación.
-#   3. Archivo .7z cifrado en D:\cauce-respaldos\cifrados\ (7-Zip pide la clave dos veces) y su SHA-256.
-#   4. Restauración en D:\cauce-respaldos\prueba_restauracion_<fecha> (carpeta protegida; 7-Zip pide la clave):
+#   3. Archivo .7z cifrado en D:\cauce-respaldos\cifrados\ (clave pedida dos veces y comparada) y su SHA-256.
+#   4. Restauración en D:\cauce-respaldos\prueba_restauracion_<fecha> (carpeta protegida; clave pedida otra vez):
 #      manifiesto idéntico, integridad de todas las bases, base igual tabla a tabla, sin la contraseña antigua.
 #   5. Borra SOLO la copia de prueba sin cifrar.
 #   6. Arranca Monitor sin portal, comprueba /api/health, lo detiene y comprueba que los datos protegidos no cambiaron.
@@ -54,6 +54,12 @@ function Manifiesto($raiz, $csv) {
   return $n
 }
 
+function PedirClave([string]$msg) {
+  # Read-Host muestra un asterisco por carácter (se ve cuántos se escribieron, no cuáles) y no queda en el registro.
+  $sec = Read-Host $msg -AsSecureString
+  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
+}
 if (-not $Confirmo) { Fin "FALTA_CONFIRMO" }
 $SZ = @("C:\Program Files\7-Zip\7z.exe", "C:\Program Files (x86)\7-Zip\7z.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $SZ) { Fin "FALTA_7ZIP" }
@@ -84,13 +90,28 @@ New-Item -ItemType Directory -Force $DEST | Out-Null
 $res.acl_destino = @(icacls $DEST | Select-Object -SkipLast 2)
 if (($res.acl_destino -join " ") -match 'S-1-5-11|Usuarios autentificados|Authenticated Users|Todos|Everyone') { Fin "DESTINO_NO_PROTEGIDO" }
 Write-Host ""
-Write-Host "7-Zip pedirá ahora la CLAVE DEL RESPALDO dos veces (no se ve al escribir). Usa una frase larga (16+ caracteres)" -ForegroundColor Yellow
+Write-Host "Ahora se pide la CLAVE DEL RESPALDO dos veces (verás asteriscos). Solo minúsculas, números y guiones, 16 o más." -ForegroundColor Yellow
 Write-Host "y guárdala FUERA de este equipo (gestor de contraseñas o papel en lugar seguro). Sin ella el respaldo no se puede abrir." -ForegroundColor Yellow
 if ($Archivo) {
   if (-not (Test-Path -LiteralPath $ARCH)) { Fin "NO_EXISTE_EL_ARCHIVO_INDICADO" }
   $res.reutilizado = $true
 } else {
-  & $SZ a -t7z -mhe=on -mx=5 -bsp1 -p $ARCH "$I\*"
+  # La clave se pide aquí dos veces y se comparan (7-Zip no siempre pide confirmación). Solo minúsculas, números y
+  # guiones: así no depende de mayúsculas, acentos, distribución de teclado ni del teclado del móvil, y no necesita comillas.
+  $k1 = $null
+  for ($n = 0; $n -lt 3 -and -not $k1; $n++) {
+    $a1 = PedirClave "Clave NUEVA del respaldo (solo minúsculas, números y guiones; 16 o más)"
+    $a2 = PedirClave "Repite la clave"
+    if ($a1 -cne $a2) { Write-Host "No coinciden. Otra vez." -ForegroundColor Yellow }
+    elseif ($a1 -cnotmatch '^[a-z0-9-]{16,}$') { Write-Host "Solo minúsculas, números y guiones, 16 o más. Otra vez." -ForegroundColor Yellow }
+    else { $k1 = $a1 }
+    $a1 = $null; $a2 = $null
+  }
+  if (-not $k1) { Fin "CLAVE_NO_VALIDA" }
+  # Se pasa como argumento (-p...): no se imprime ni queda en el registro; mientras 7-Zip trabaja, su línea de
+  # comandos solo la puede consultar esta misma cuenta o un administrador del equipo.
+  & $SZ a -t7z -mhe=on -mx=5 -bsp1 "-p$k1" $ARCH "$I\*"
+  $k1 = $null
   $res.siete_zip_crear = $LASTEXITCODE
   if ($res.siete_zip_crear -ne 0 -or -not (Test-Path $ARCH)) { Fin "CIFRADO_FALLIDO" }
 }
@@ -104,8 +125,11 @@ New-Item -ItemType Directory -Force $R | Out-Null
 $res.acl_prueba = @(icacls $R | Select-Object -SkipLast 2)
 if (($res.acl_prueba -join " ") -match 'S-1-5-11|Usuarios autentificados|Authenticated Users|Todos|Everyone') { Fin "PRUEBA_NO_PROTEGIDA" }
 Write-Host ""
-Write-Host "Prueba de restauración: 7-Zip pedirá la CLAVE DEL RESPALDO una vez más." -ForegroundColor Yellow
-& $SZ x $ARCH "-o$R" -bsp1   # sin -p: con nombres cifrados 7-Zip pide la clave él mismo (-p vacío = clave vacía)
+Write-Host "Prueba de restauración." -ForegroundColor Yellow
+# Se vuelve a pedir (no se reutiliza la de arriba): así se comprueba que la clave que guardaste abre el respaldo.
+$k3 = PedirClave "Escribe otra vez la clave del respaldo para la prueba de restauración"
+& $SZ x $ARCH "-o$R" -bsp1 "-p$k3"
+$k3 = $null
 $res.siete_zip_restaurar = $LASTEXITCODE
 if ($res.siete_zip_restaurar -ne 0) { Fin "RESTAURACION_FALLIDA" }
 $res.archivos_restaurados = Manifiesto $R "$L\manifiesto_restaurado.csv"
