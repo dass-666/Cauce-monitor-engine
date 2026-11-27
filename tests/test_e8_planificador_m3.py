@@ -29,10 +29,10 @@ def _reabrir_pagina(lab, fecha, libres, now):
     return observaciones.registrar(lab.db, o, ctx, now)
 
 
-def _fecha_libre(lab, desde=120):
+def _fecha_libre(lab, desde=60):
     d = lab.portal.ctl("GET", "/control/dias")
     usadas = {x["fecha"] for x in d["dias"].values() if x["sucursal"] == "NOR-1" and x["tramite"] == "alta"}
-    return next(f for f in ((date.fromisoformat(d["hoy"]) + timedelta(days=i)).isoformat() for i in range(desde, desde + 20))
+    return next(f for f in ((date.fromisoformat(d["hoy"]) + timedelta(days=i)).isoformat() for i in range(desde, 119))   # el plan no acepta fechas a más de 120 días
                 if f not in usadas)
 
 
@@ -107,7 +107,7 @@ def test_pagina_que_tarda_en_descontar_sigue_contando_la_confirmada(lab):
 def test_leer_sin_cambios_no_escribe_en_cada_lectura(lab):
     """visto_en se anota como mucho cada VISTO_CADA_S: una lectura sin cambios no es una escritura por día y lectura
     (con SQLite eso bloquea al resto de escritores)."""
-    fecha = _fecha_libre(lab, 100)
+    fecha = _fecha_libre(lab, 70)
     clave = f"NOR-1|alta|{fecha}"
     t0 = utcnow()
     _reabrir_pagina(lab, fecha, 3, t0)
