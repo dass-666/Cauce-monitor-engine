@@ -31,6 +31,21 @@ const RED_FASE = { activa: "b-ok", recuperada: "b-ok", iniciada: "b-info", perdi
 const RED_PRUEBA = { PASA: "b-ok", FALLA: "b-bad", PENDIENTE: "b-warn", OMITIDA: "", INFO: "b-info" };
 const RED_MATRIZ = { "Aprobado físicamente": "b-ok", "Aprobado en simulación": "b-info", Fallido: "b-bad", Pendiente: "b-warn" };
 
+// E5: códigos de Network Engine en español para la persona (si llega uno nuevo, se muestra el código legible)
+const RED_TEXTO = {
+  no_active_links: "ninguna interfaz con enlace", all_measured_connections_down: "todas las interfaces medidas están caídas",
+  insufficient_measurements: "aún no hay mediciones suficientes", stale_measurements: "las mediciones están desactualizadas",
+  connection_down: "su conexión está caída", no_usable_connection: "sin conexión utilizable",
+  heartbeat_timeout: "sin latidos recientes", no_heartbeat: "aún no ha latido", awaiting_first_heartbeat: "esperando el primer latido",
+  engine_restarted: "Network Engine se reinició", operation_interrupted: "operación interrumpida",
+  engine_restart_during_operation: "reinicio con una operación en curso", session_expired: "la sesión del portal caducó",
+  page_unreachable: "página inaccesible", navigation_timeout: "la página tardó demasiado", browser_closed: "navegador cerrado",
+  network_error: "error de red", other: "otro error", expired: "caducada sin latidos", expired_after_restart: "caducada tras reinicio",
+  replaced_after_restart: "sustituida tras reinicio",
+  ok: "bien", degraded: "degradada", down: "caída", unknown: "sin medir",
+};
+function redTexto(c) { return c ? (RED_TEXTO[c] || String(c).replace(/_/g, " ")) : "—"; }
+
 function redSesiones(s) {
   if (!s) return h("p", { class: "muted" }, "Network Engine no informa sesiones de navegador (versión sin sesiones o sin datos).");
   const filas = [...s.activas, ...s.cerradas];
@@ -43,8 +58,8 @@ function redSesiones(s) {
       { t: "Fase", f: (x) => h("span", { class: "badge " + (RED_FASE[x.fase_codigo] || ""), "data-red-fase": x.fase_codigo || "" }, x.fase) },
       { t: "Persona", f: (x) => x.requiere_persona ? "sí, revisar" : "no" },
       { t: "Operación", f: (x) => x.operacion_en_curso ? "en curso" : "—" },
-      { t: "Red", f: (x) => x.red || "—" },
-      { t: "Motivo", f: (x) => x.motivo ? x.motivo.replace(/_/g, " ") : "—" },
+      { t: "Red", f: (x) => redTexto(x.red) },
+      { t: "Motivo", f: (x) => redTexto(x.motivo) },
       { t: "Último latido", f: (x) => x.cerrada_hace_s !== null && x.cerrada_hace_s !== undefined ? `cerrada ${redSeg(x.cerrada_hace_s)}` : redSeg(x.latido_hace_s) }],
       filas));
 }
@@ -80,7 +95,7 @@ async function viewRed() {
         RED_MOTOR_AYUDA[d.network_engine] || (d.ultima_respuesta ? `última respuesta ${fmtTime(d.ultima_respuesta)}` : "")
         + (d.antiguedad_s !== null && d.antiguedad_s !== undefined ? ` (${redSeg(d.antiguedad_s)})` : "")),
       kpi("Conectividad", h("span", { "data-red-internet": d.internet || "" }, redBadge(inet)),
-        d.degradada ? "con latencia alta o fallos parciales" : (d.razon && d.internet !== "DISPONIBLE" ? d.razon.replace(/_/g, " ") : "")),
+        d.degradada ? "con latencia alta o fallos parciales" : (d.razon && d.internet !== "DISPONIBLE" ? redTexto(d.razon) : "")),
       kpi("Interfaces", num(d.interfaces.length), d.interfaces.length ? `${sanas} sanas · ${degradadas} degradadas` : "ninguna informada"),
       kpi("Origen de los datos", h("span", { "data-red-origen": d.origen_datos || "" }, origen ? redBadge(origen) : "—"),
         origen ? origen[2] : "Sin datos de Network Engine.")),
