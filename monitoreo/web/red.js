@@ -6,16 +6,18 @@ const RED_MOTOR = {
   credencial_rechazada: ["b-bad", "Credencial rechazada"], no_configurado: ["", "No configurado"], desactivado: ["", "Desactivado"],
   paquete_no_instalado: ["b-warn", "No encontrado"], directorio_invalido: ["b-warn", "Carpeta no válida"],
   token_ilegible: ["b-warn", "Credencial ilegible"], puerto_invalido: ["b-warn", "Puerto no válido"],
-  error_al_iniciar: ["b-bad", "Error al iniciar"],
+  error_al_iniciar: ["b-bad", "Error al iniciar"], desactualizado: ["b-warn", "Datos desactualizados"],
 };
 const RED_MOTOR_AYUDA = {
   no_configurado: "Para activarlo: MONITOREO_NETWORK_TOKEN_FILE (credencial read de Network Engine) y MONITOREO_NETWORK_DIR (carpeta de Network Engine).",
   no_disponible: "Network Engine no responde (apagado o reiniciándose). Monitor sigue funcionando; el estado de red queda como desconocido.",
   credencial_rechazada: "Network Engine rechazó la credencial (revocada o sin permiso). Monitor dejó de consultarlo hasta que se corrija y se reinicie.",
   paquete_no_instalado: "No se encontró Network Engine. Revisa MONITOREO_NETWORK_DIR.",
+  desactualizado: "Monitor no recibe datos nuevos de Network Engine desde hace un rato. Ninguna interfaz se da por sana hasta que vuelva a responder.",
 };
 const RED_INTERNET = { DISPONIBLE: ["b-ok", "Con conexión"], NO_DISPONIBLE: ["b-bad", "Sin conexión utilizable"], DESCONOCIDO: ["", "Sin información"] };
-const RED_SALUD = { SANA: "b-ok", DEGRADADA: "b-warn", "CAÍDA": "b-bad", "SIN MEDIR": "" };
+const RED_SALUD = { SANA: "b-ok", DEGRADADA: "b-warn", "CAÍDA": "b-bad", "SIN MEDIR": "", "SIN VERIFICAR": "b-warn", "RECUPERÁNDOSE": "b-info" };
+const redSeg = (s) => s === null || s === undefined ? "—" : (s < 90 ? `hace ${num(s, 0)} s` : `hace ${num(s / 60, 0)} min`);
 const RED_EVENTO = { perdida: "b-bad", recuperada: "b-ok", degradada: "b-warn", info: "b-info" };
 const redBadge = (par) => h("span", { class: "badge " + par[0] }, par[1]);
 
@@ -31,7 +33,8 @@ async function viewRed() {
         h("b", {}, "Es lo que mide el motor de red, no una prueba física de los enlaces.")))),
     h("div", { class: "grid kpis" },
       kpi("Network Engine", h("span", { "data-red-motor": d.network_engine }, redBadge(motor)),
-        RED_MOTOR_AYUDA[d.network_engine] || (d.ultima_respuesta ? `última respuesta ${fmtTime(d.ultima_respuesta)}` : "")),
+        RED_MOTOR_AYUDA[d.network_engine] || (d.ultima_respuesta ? `última respuesta ${fmtTime(d.ultima_respuesta)}` : "")
+        + (d.antiguedad_s !== null && d.antiguedad_s !== undefined ? ` (${redSeg(d.antiguedad_s)})` : "")),
       kpi("Conectividad", h("span", { "data-red-internet": d.internet || "" }, redBadge(inet)),
         d.degradada ? "con latencia alta o fallos parciales" : (d.razon && d.internet !== "DISPONIBLE" ? d.razon.replace(/_/g, " ") : "")),
       kpi("Interfaces", num(d.interfaces.length), d.interfaces.length ? `${sanas} sanas · ${degradadas} degradadas` : "ninguna informada")),
@@ -41,7 +44,9 @@ async function viewRed() {
       { t: "Salud", f: (i) => h("span", { class: "badge " + (RED_SALUD[i.salud] || "") }, i.salud) },
       { t: "Disponible", f: (i) => i.disponible ? "sí" : "no" },
       { t: "Latencia media", num: true, f: (i) => i.latencia_ms === null ? "—" : `${num(i.latencia_ms, 1)} ms` },
-      { t: "Disponibilidad", num: true, f: (i) => i.disponibilidad_pct === null ? "—" : `${num(i.disponibilidad_pct, 1)} %` }],
+      { t: "Disponibilidad", num: true, f: (i) => i.disponibilidad_pct === null ? "—" : `${num(i.disponibilidad_pct, 1)} %` },
+      { t: "Medida", f: (i) => redSeg(i.medida_hace_s) },
+      { t: "Próximo sondeo", f: (i) => i.proximo_sondeo_s === null || i.proximo_sondeo_s === undefined ? "—" : `en ${num(i.proximo_sondeo_s, 0)} s` }],
       d.interfaces) : h("p", { class: "muted" }, d.network_engine === "disponible" ? "Network Engine aún no informa interfaces." : "Sin datos de Network Engine."))),
     h("div", { class: "section" }, card("Pérdidas y recuperaciones de conectividad", d.eventos.length ? table([
       { t: "Cuándo", f: (e) => fmtTime(e.ts) },

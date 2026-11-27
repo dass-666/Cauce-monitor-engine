@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: dass-666/cauce-network-engine
-          ref: 4b2f183f255938eef94de2ab919192d1cb4fbca3
+          ref: 9111b7ceb27839af1b0077a862a0520024f648f2
           path: network-engine
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -34,10 +34,10 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -r requirements.txt
         # el conftest de Monitor importa sqlalchemy y otras dependencias del motor
-      - name: Commit de Network Engine (debe ser 4b2f183, rama claude/consolidacion-integracion) y pruebas
+      - name: Commit de Network Engine (debe ser 9111b7c, rama claude/consolidacion-integracion) y pruebas
         shell: bash
         run: |
-          test "$(git -C network-engine rev-parse HEAD)" = "4b2f183f255938eef94de2ab919192d1cb4fbca3"
+          test "$(git -C network-engine rev-parse HEAD)" = "9111b7ceb27839af1b0077a862a0520024f648f2"
           python -m pytest tests/test_red_lectura.py tests/test_red_servicio.py -v -rs --junitxml=red-lectura.xml
         env:
           NETWORK_ENGINE_REPO: ${{ github.workspace }}/network-engine

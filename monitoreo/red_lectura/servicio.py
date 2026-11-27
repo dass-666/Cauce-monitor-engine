@@ -28,6 +28,11 @@ log = logging.getLogger("monitoreo.red_lectura")
 TIPOS = {"ethernet": "Cable (Ethernet)", "wifi": "Wi-Fi", "mobile": "Datos móviles", "tether": "Teléfono (anclaje)",
          "vpn": "VPN", "virtual": "Virtual", "loopback": "Este equipo"}
 SALUD = {"healthy": "SANA", "degraded": "DEGRADADA", "down": "CAÍDA", "unknown": "SIN MEDIR"}
+SIN_VERIFICAR = "SIN VERIFICAR"       # había una medición, pero ya no se puede confirmar que siga valiendo
+RECUPERANDO = "RECUPERÁNDOSE"         # estaba caída y respondió bien una vez; Network Engine la está confirmando
+# Si la última respuesta buena de Network Engine es más vieja que esto, lo que Monitor tiene ya no es estado actual
+# (hilo atascado, Network Engine colgado sin cerrar la conexión…): se muestra «desactualizado», nunca «sana».
+DESACTUALIZADO_MIN_S = 30.0
 # Razones del lector que significan «Monitor no está configurado para leer la red» (no es un fallo de Network Engine)
 RAZONES_INACTIVO = {"no_configurado", "desactivado", "paquete_no_instalado", "token_ilegible", "puerto_invalido",
                     "directorio_invalido"}
@@ -71,11 +76,17 @@ class ServicioRed:
             nombre = f"{tipo} {cuenta[tipo]}"
             if isinstance(c.get("id"), str):
                 nombres[c["id"]] = nombre
+            vieja = c.get("stale") is True                     # Network Engine ya no está midiendo esta interfaz
+            salud = SIN_VERIFICAR if vieja else SALUD.get(str(c.get("health")), "SIN MEDIR")
+            if not vieja and c.get("health") == "down" and c.get("recovering") is True:
+                salud = RECUPERANDO
             filas.append({"nombre": nombre, "tipo": tipo, "enlace": "activo" if c.get("link") == "up" else "sin enlace",
-                          "salud": SALUD.get(str(c.get("health")), "SIN MEDIR"), "disponible": c.get("available") is True,
-                          # una interfaz caída no tiene latencia actual (la media del motor sería de antes de caer)
-                          "latencia_ms": None if c.get("health") == "down" else _num(c.get("avg_latency_ms"), 60_000),
-                          "disponibilidad_pct": _num(c.get("availability_pct"), 100)})
+                          "salud": salud, "disponible": c.get("available") is True and not vieja,
+                          # una interfaz caída o sin verificar no tiene latencia actual
+                          "latencia_ms": None if vieja or c.get("health") == "down" else _num(c.get("avg_latency_ms"), 60_000),
+                          "disponibilidad_pct": _num(c.get("availability_pct"), 100),
+                          "medida_hace_s": _num(c.get("last_probe_age_s"), 86_400),
+                          "proximo_sondeo_s": _num(c.get("next_probe_in_s"), 86_400)})
         epoca = (v.get("engine") or {}).get("epoch")
         with self._lock:
             self._interfaces, self._nombres = filas[:16], nombres
@@ -162,7 +173,8 @@ class ServicioRed:
 
     # ----------------------------------------------------------------- vista
     def _estado_motor(self, lectura) -> str:
-        """disponible | no_disponible | credencial_rechazada | consultando | razón de inactividad del lector."""
+        """disponible | no_disponible | credencial_rechazada | consultando | razón de inactividad del lector.
+        (estado() añade «desactualizado» cuando la última respuesta buena es demasiado vieja.)"""
         if lectura is None:
             return "consultando"
         if self.lector.detenido:
@@ -173,19 +185,30 @@ class ServicioRed:
             return "consultando"
         return "disponible" if self._motor_responde else "no_disponible"
 
+    def umbral_desactualizado_s(self) -> float:
+        return max(DESACTUALIZADO_MIN_S, 3 * float(self.lector.intervalo_s))
+
     def estado(self) -> dict:
         with self._lock:
             l = self._lectura
             motor = self._estado_motor(l)
+            antiguedad = self._reloj() - self._ultima_ok if self._ultima_ok else None
+            interfaces = list(self._interfaces) if motor == "disponible" else []
+            internet = l.internet.value if l else None
+            if motor == "disponible" and antiguedad is not None and antiguedad > self.umbral_desactualizado_s():
+                # La copia de Monitor es vieja: se conserva qué interfaces había, pero ninguna se da por sana.
+                motor, internet = "desactualizado", "DESCONOCIDO"
+                interfaces = [{**i, "salud": SIN_VERIFICAR, "disponible": False, "latencia_ms": None} for i in interfaces]
             return {
                 "fuente": "network_engine",
                 "network_engine": motor,
-                "internet": l.internet.value if l else None,
+                "internet": internet,
                 "razon": l.razon if l else None,
                 "degradada": bool(l and l.degradada),
                 "conexiones": l.conexiones if l else None,
                 "disponibles": l.disponibles if l else None,
-                "interfaces": list(self._interfaces) if motor == "disponible" else [],
+                "interfaces": interfaces,
+                "antiguedad_s": round(antiguedad, 1) if antiguedad is not None else None,
                 "eventos": list(self._eventos),
                 "actualizado": _iso(self._actualizado),
                 "ultima_respuesta": _iso(self._ultima_ok),
@@ -196,7 +219,7 @@ class ServicioRed:
 
 def estado_no_configurado(razon: str = "no_configurado") -> dict:
     return {"fuente": "network_engine", "network_engine": razon, "internet": None, "razon": razon, "degradada": False,
-            "conexiones": None, "disponibles": None, "interfaces": [], "eventos": [], "actualizado": None,
+            "conexiones": None, "disponibles": None, "interfaces": [], "eventos": [], "actualizado": None, "antiguedad_s": None,
             "ultima_respuesta": None, "reinicios": 0,
             "nota": "Monitor no está configurado para leer Network Engine (MONITOREO_NETWORK_TOKEN_FILE). Monitor funciona igual."}
 

@@ -1,7 +1,7 @@
 # Consumidor opcional de Network Engine (solo lectura) — laboratorio
 
 Marcas: **[V]** verificado con una ejecución (local y/o CI de esta rama) · **[I]** inferido · **[P]** pendiente / no verificado.
-Proveedor: `dass-666/cauce-network-engine` fijado en `4b2f183f255938eef94de2ab919192d1cb4fbca3` (rama `claude/consolidacion-integracion`, v0.2.0.dev0; antes `d6db87f`). Guía: `docs/GUIA_CONSUMIDOR_MONITOR.md` de ese repositorio.
+Proveedor: `dass-666/cauce-network-engine` fijado en `9111b7ceb27839af1b0077a862a0520024f648f2` (rama `claude/consolidacion-integracion`, v0.2.0.dev0; antes `d6db87f`). Guía: `docs/GUIA_CONSUMIDOR_MONITOR.md` de ese repositorio.
 
 ## Qué es
 `monitoreo/red_lectura/`: un adaptador que responde «¿hay alguna conexión utilizable según Network Engine?» con tres estados:
@@ -38,7 +38,9 @@ importación de `monitoreo.app` sigue sin cargar `cauce` [V].
 - DPAPI no aísla procesos del mismo usuario de Windows (límite del proveedor, ver su guía §10): la credencial `read` protege de errores del consumidor, no de malware con el mismo usuario.
 - La pantalla solo **informa**: Monitor no decide nada con este estado (no pausa tareas ni cambia de conexión). Usarlo para decidir es otro paso.
 - El gestor propio `monitoreo/conexiones/` sigue existiendo y lo usa el portal (`captura/portal.py`); ver `docs/RETIRO_GESTOR_CONEXIONES.md`.
-- La recuperación puede tardar hasta ~60 s en verse (espera creciente de Network Engine tras fallos).
+- **Datos viejos nunca se muestran como sanos** [V: `test_medicion_vieja_de_network_engine_no_se_muestra_como_sana`, `test_copia_vieja_en_monitor_pasa_a_desactualizado`]: si Network Engine marca una medición como vieja (`stale`), la interfaz sale «SIN VERIFICAR»; si Monitor no recibe respuesta nueva en `max(30 s, 3 × intervalo)`, la pantalla dice «Datos desactualizados» y ninguna interfaz cuenta como sana.
+- Tras reiniciar Network Engine, Monitor se reengancha solo con la misma credencial y lo anota [V: prueba contra el motor real simulado].
+- La recuperación puede tardar hasta ~65 s en verse (espera creciente de Network Engine tras fallos).
 - La lectura no dice si un servicio externo funciona; solo si el equipo tiene una conexión utilizable según el motor.
 
 ## Para validar en Windows físico (cuando se autorice)

@@ -135,6 +135,47 @@ def test_motor_apagado_no_disponible_sin_detalle_viejo():
     assert e["ultima_respuesta"]                             # se conserva cuándo respondió por última vez
 
 
+def test_medicion_vieja_de_network_engine_no_se_muestra_como_sana():
+    conns = vista()["connections"]
+    conns[0].update(stale=True, last_probe_age_s=300.0)
+    conns[1].update(health="down", recovering=True, last_probe_age_s=2.0, next_probe_in_s=5.0)
+    f = Falso()
+    f.conn = [vista(conns=conns)]
+    svc, _ = servicio(f)
+    svc.paso()
+    wifi, cable = svc.estado()["interfaces"]
+    assert (wifi["salud"], wifi["disponible"], wifi["latencia_ms"], wifi["medida_hace_s"]) == ("SIN VERIFICAR", False, None, 300.0)
+    assert (cable["salud"], cable["latencia_ms"], cable["proximo_sondeo_s"]) == ("RECUPERÁNDOSE", None, 5.0)
+
+
+def test_copia_vieja_en_monitor_pasa_a_desactualizado():
+    """Network Engine respondió, pero desde entonces Monitor no recibe nada (hilo atascado o motor colgado)."""
+    svc, reloj = servicio(Falso())
+    svc.paso()
+    assert svc.estado()["network_engine"] == "disponible"
+    reloj.t += svc.umbral_desactualizado_s() + 1             # sin paso(): no llegó ninguna respuesta nueva
+    e = svc.estado()
+    assert (e["network_engine"], e["internet"]) == ("desactualizado", "DESCONOCIDO")
+    assert e["interfaces"] and all(i["salud"] == "SIN VERIFICAR" and i["latencia_ms"] is None and not i["disponible"]
+                                   for i in e["interfaces"])
+    assert e["antiguedad_s"] > 30
+
+
+def test_reinicio_del_motor_vuelve_a_disponible_y_lo_anota():
+    f = Falso()
+    f.conn = [vista(epoch="e1"), ConnectionRefusedError("x"), vista(epoch="e2", seq=1)]
+    svc, reloj = servicio(f)
+    svc.paso()
+    reloj.t += 11
+    svc.paso()
+    assert svc.estado()["network_engine"] == "no_disponible"
+    reloj.t += 60                                            # espera creciente del lector tras el fallo
+    svc.paso()
+    e = svc.estado()
+    assert (e["network_engine"], len(e["interfaces"])) == ("disponible", 2)
+    assert e["eventos"][0]["evento"] == "Network Engine se reinició"
+
+
 def test_credencial_rechazada_detiene_tambien_los_eventos():
     f = Falso()
     f.evs = [ErrorAPI(401, "token_revoked")]
@@ -246,5 +287,9 @@ def test_monitor_con_network_engine_real_en_simulacion(tmp_path, monkeypatch):
             assert e["interfaces"] == []
             assert c.get("/api/info", headers=h).status_code == 200
             assert time.time() - t0 < 40
+            # Network Engine vuelve (nueva época): Monitor se reengancha solo con la misma credencial
+            m.arrancar()
+            e = esperar(lambda e: e["network_engine"] == "disponible" and len(e["interfaces"]) == 3, limite=90)
+            assert any(x["evento"] == "Network Engine se reinició" for x in e["eventos"])
     finally:
         m.parar()
