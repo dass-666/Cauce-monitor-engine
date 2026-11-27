@@ -77,6 +77,7 @@ class Observador:
         self.eventos: list[dict] = []          # eventos nuevos (para el recorrido y las pruebas)
         self.lineas: list[dict] = []           # todo lo que emitió el observador (CELDA crudas incluidas)
         self._espera_reabrir = 2.0
+        self._vista_fresca_mono = float("-inf")   # RC3 (M3): última vez que se anotó la vista fresca
         self._reabrir_pedido: float | None = None     # monotónico: reapertura pedida y aún sin confirmar
         self._latido_mono = time.monotonic()
         self.stats["reinicios_por_vigilancia"] = 0
@@ -236,6 +237,7 @@ class Observador:
             self.stats["ultimo_latido"] = obs.get("ts_ms")
             self._latido_mono = time.monotonic()
             self._reintentar()
+            self._vista_fresca()
             return
         self.lineas.append(obs)
         if tipo in ("INICIAL", "CELDA", "VISTA"):
@@ -257,6 +259,20 @@ class Observador:
                 self._reaperturas_seguidas = 0
         if tipo in ("REABIERTA", "LISTO"):
             self._latido_mono = time.monotonic()
+
+    def _vista_fresca(self) -> None:
+        """RC3 (M3): con la vista DOM ACTIVA y nada pendiente de registrar, la página se vio fresca y sin cambios."""
+        if self.mes is None or self.pendientes or self.stats["vista"].get("dom") != "ACTIVA":
+            return
+        ahora = time.monotonic()
+        if ahora - self._vista_fresca_mono < observaciones.VISTO_CADA_S:
+            return
+        try:
+            observaciones.anotar_vista_fresca(self.db, self.sucursal, self.tramite, self.mes, utcnow())
+            self._vista_fresca_mono = ahora
+        except Exception as e:  # noqa: BLE001 - la base no responde: se intenta en el siguiente latido
+            self.stats["errores_bd"] += 1
+            log.warning("observador %s: no se pudo anotar la vista fresca (%s)", self.nombre, e.__class__.__name__)
 
     def _reabrir(self) -> None:
         espera = self._espera_reabrir

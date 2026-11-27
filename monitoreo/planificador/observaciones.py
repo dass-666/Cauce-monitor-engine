@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from ..models import ObservacionDia, ObservacionEvento, ObservacionVista
@@ -193,6 +193,21 @@ def _vista(s, ctx: dict, estado: str, estrategia: str, ts: datetime, detalle: st
     except IntegrityError:
         return None
     return e
+
+
+def anotar_vista_fresca(db, sucursal: str, tramite: str, mes: str, now: datetime) -> int:
+    """RC3 (M3): el observador del calendario solo emite CELDA cuando algo CAMBIA. Un LATIDO con la vista DOM ACTIVA
+    (el sello de actualización sigue cambiando y no hubo CELDA pendiente) significa que la página se vio fresca y sin
+    cambios: se anota en visto_en de los días de ese mes, como mucho cada VISTO_CADA_S. Sin esto, una reserva que la
+    página ya había descontado antes del folio se contaba dos veces y otra persona perdía su lugar (E7 M3)."""
+    if not (isinstance(mes, str) and len(mes) == 7):
+        return 0
+    t = ObservacionDia.__table__
+    limite = now - timedelta(seconds=VISTO_CADA_S)
+    with db.session() as s:
+        return s.execute(update(t).where(t.c.sucursal == sucursal, t.c.tramite == tramite, t.c.fecha.like(mes + "-%"),
+                                         or_(t.c.visto_en.is_(None), t.c.visto_en <= limite))
+                         .values(visto_en=now)).rowcount
 
 
 def _libres(d: dict, estrategia: str):

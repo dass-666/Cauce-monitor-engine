@@ -16,10 +16,16 @@ from .test_planificador import _elementos, _ver
 
 
 def _leer_pagina(lab, fecha, libres, now):
-    """El observador vuelve a leer la página (sin cambio): solo se anota que se vio."""
+    """La página sigue viva y sin cambios: el observador real NO emite CELDA (solo cambios); lo dice su LATIDO con la
+    vista DOM ACTIVA, que llama a anotar_vista_fresca (ver test_vista_fresca_con_el_observador_real)."""
+    return observaciones.anotar_vista_fresca(lab.db, "NOR-1", "alta", fecha[:7], now)
+
+
+def _reabrir_pagina(lab, fecha, libres, now):
+    """Reapertura: INICIAL con la misma celda (sin cambio)."""
     ctx = {"observador": "obs-test", "sucursal": "NOR-1", "tramite": "alta"}
-    o = {"tipo": "CELDA", "estrategia": "dom", "fecha": fecha, "estado": "DISPONIBLE", "ts_ms": now.timestamp() * 1000,
-         "libres": libres}
+    o = {"tipo": "INICIAL", "estrategia": "dom", "ts_ms": now.timestamp() * 1000,
+         "celdas": [{"fecha": fecha, "estado": "DISPONIBLE", "libres": libres}]}
     return observaciones.registrar(lab.db, o, ctx, now)
 
 
@@ -104,13 +110,13 @@ def test_leer_sin_cambios_no_escribe_en_cada_lectura(lab):
     fecha = _fecha_libre(lab, 100)
     clave = f"NOR-1|alta|{fecha}"
     t0 = utcnow()
-    _leer_pagina(lab, fecha, 3, t0)
+    _reabrir_pagina(lab, fecha, 3, t0)
     with lab.db.session() as s:
         v0 = s.get(ObservacionDia, clave).visto_en
-    _leer_pagina(lab, fecha, 3, t0 + timedelta(seconds=observaciones.VISTO_CADA_S - 1))
+    _reabrir_pagina(lab, fecha, 3, t0 + timedelta(seconds=observaciones.VISTO_CADA_S - 1))
     with lab.db.session() as s:
         assert s.get(ObservacionDia, clave).visto_en == v0
     t2 = t0 + timedelta(seconds=observaciones.VISTO_CADA_S + 1)
-    _leer_pagina(lab, fecha, 3, t2)
+    _reabrir_pagina(lab, fecha, 3, t2)
     with lab.db.session() as s:
         assert s.get(ObservacionDia, clave).visto_en == t2
