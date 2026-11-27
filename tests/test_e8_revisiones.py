@@ -164,3 +164,15 @@ def test_centro_de_revisiones_con_network_engine_real(tmp_path, monkeypatch):
             assert "cr1." not in texto
     finally:
         m.parar()
+
+
+def test_revisiones_js_solo_escribe_en_la_ruta_de_revisiones():
+    """red.js sigue de solo lectura; la única escritura de la interfaz de Red vive en revisiones.js."""
+    import re
+    from pathlib import Path
+    web = Path(__file__).resolve().parents[1] / "monitoreo" / "web"
+    assert "POST" not in (web / "red.js").read_text(encoding="utf-8")
+    js = (web / "revisiones.js").read_text(encoding="utf-8")
+    rutas = re.findall(r'api\(\s*[`"\']([^`"\']+)', js)
+    assert rutas and all(r.startswith("/api/red/revisiones/") for r in rutas), rutas
+    assert "revisiones.js" in (web / "index.html").read_text(encoding="utf-8")
