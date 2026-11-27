@@ -22,8 +22,21 @@ importación de `monitoreo.app` sigue sin cargar `cauce` [V].
 | `MONITOREO_NETWORK_DIR` | Carpeta del repositorio de Network Engine si el paquete `cauce` no está instalado en el entorno de Monitor. Si no existe: `directorio_invalido`. |
 | `MONITOREO_NETWORK_DESACTIVADO=1` o `CAUCE_STATUS_DISABLED=1` | Interruptor: cero peticiones. |
 | `MONITOREO_NETWORK_ARCHIVO_APAGADO` | Si el archivo existe: mismo efecto que el interruptor. |
+| `MONITOREO_RESULTADOS_VALIDACION` | Carpeta `informes` del laboratorio integrado. La pantalla Red muestra el resumen de la última validación integral (cifras por estado y evidencia y la matriz F1–F12, nunca el detalle libre). Sin ella: «sin resultados». |
 
-## Reglas y cómo se comprueban [V: `tests/test_red_lectura.py` (25) y `tests/test_red_servicio.py` (10), ver CI `red-lectura.yml`]
+## Pantalla Red desde E4 (2026-11-27) [V: `tests/test_red_servicio.py`, 4 pruebas nuevas]
+- **Origen de los datos**: `SIMULADO` si Network Engine está en su simulador, `MEDIDO` si mide las interfaces reales. Ni `MEDIDO`
+  es por sí una prueba física de conmutación: eso lo dicen los puntos «Aprobado físicamente» de la validación integral.
+- **Estado por interfaz** (`veredicto`): DISPONIBLE, DEGRADADA, CAÍDA o SIN VERIFICAR, tomado del campo `status` de Network Engine
+  (E4). Con un motor anterior se deduce de la salud, sin inventar: sin medir ⇒ SIN VERIFICAR.
+- **Sesiones de navegador** (si Network Engine trae el PR #10): etiqueta (validada), fase en texto, si requiere intervención humana,
+  si había una operación en curso, motivo y antigüedad del último latido; nunca ids, credenciales ni la conexión. Un motor sin
+  sesiones o un 404 muestra «no informa sesiones» y no detiene el lector.
+- **Eventos nuevos**: interfaz reconectada con otro identificador, reanudación tras suspensión, sesión que requiere intervención,
+  sesión recuperada y sesión revisada por una persona.
+- Sin cambios de versión: Monitor sigue en 2.2.2-dev (contrato con Jarvis).
+
+## Reglas y cómo se comprueban [V: `tests/test_red_lectura.py` (25) y `tests/test_red_servicio.py` (14), ver CI `red-lectura.yml`]
 - **`null` ≠ `false`**: `usable=None`, motor apagado, 503, JSON ilegible o respuesta incoherente ⇒ `DESCONOCIDO`, nunca `NO_DISPONIBLE`.
 - **Esperas**: intervalo ≥ 5 s (10 s por defecto); con fallos 2×, 4×, 8×… hasta 60 s; al primer éxito vuelve al normal. Una lectura buena anterior no se reutiliza tras un fallo.
 - **401 (incluida revocación), 403, 400**: el lector se **detiene** (cero peticiones) y avisa una vez, solo con el *código*; únicamente `reanudar()` explícito lo reactiva.

@@ -69,6 +69,7 @@ class LectorConectividad:
                  reloj: Callable[[], float] = time.monotonic, al_leer: Optional[Callable[[dict], None]] = None):
         self._leer = None
         self._eventos = None
+        self._sesiones = None
         # `al_leer` recibe la vista ya validada (solo si fue coherente). Lo usa monitoreo/red_lectura/servicio.py para
         # sacar el detalle por interfaz con su PROPIO saneado; esta clase sigue sin guardar ni registrar ese detalle.
         self._al_leer = al_leer
@@ -80,6 +81,8 @@ class LectorConectividad:
             self._leer = cliente.connectivity                # solo estas funciones: el resto del cliente no se conserva
             if callable(getattr(cliente, "events", None)):
                 self._eventos = cliente.events
+            if callable(getattr(cliente, "sessions", None)):     # Network Engine con sesiones de navegador (PR #10)
+                self._sesiones = cliente.sessions
         self._razon_inactivo = razon_inactivo
         self.intervalo_s = max(INTERVALO_MIN_S, float(intervalo_s))
         self._archivo_apagado = archivo_apagado
@@ -172,6 +175,20 @@ class LectorConectividad:
                 self._error(e, self._reloj())                                   # credencial rota: se detiene todo
             return None                                                         # lo demás lo cuenta leer(), no aquí
         return v if isinstance(v, dict) and v.get("schema") == "cauce.status-events/1" else None
+
+    def leer_sesiones(self) -> Optional[dict]:
+        """Sesiones de navegador (`/status/sessions`, solo lectura). None si el motor no las ofrece o no responde.
+        Nunca lanza; un 401/403/400 detiene el lector igual que en `leer()`; un 404 (motor sin sesiones) solo da None."""
+        if self._sesiones is None or self.detenido or self.desactivado():
+            return None
+        try:
+            v = self._sesiones()
+        except Exception as e:                                                  # noqa: BLE001
+            estado = getattr(e, "status", None)
+            if isinstance(estado, int) and not isinstance(estado, bool) and estado in _DETIENEN:
+                self._error(e, self._reloj())
+            return None
+        return v if isinstance(v, dict) and v.get("schema") == "cauce.sessions/1" else None
 
     def _error(self, e: Exception, ahora: float) -> Lectura:
         estado, codigo = getattr(e, "status", None), getattr(e, "code", None)
