@@ -49,8 +49,17 @@ FASES = {"iniciada": "Iniciada", "activa": "Activa", "perdida_conectividad": "P�
          "recuperada": "Recuperada", "requiere_intervencion": "Requiere intervención", "incierta": "Estado incierto",
          "interrumpida": "Interrumpida", "cerrada": "Cerrada"}
 MAX_SESIONES = 8
+# E8 (M1): antes se mostraban como máximo 16 filas y las caídas del final quedaban ocultas (y el total era 16). Ahora el
+# total y las cuentas se calculan sobre TODAS las interfaces; si hay más de MAX_FILAS, se muestran primero las alertas.
+MAX_FILAS = 64
+_PRIORIDAD = {"CAÍDA": 0, "SIN VERIFICAR": 1, "DEGRADADA": 2, "DISPONIBLE": 3}
+# E8 (M2): nombres estables. Un id del motor conserva su nombre mientras Monitor esté en marcha (aunque desaparezca y
+# vuelva, o lleguen otras interfaces delante en el orden). Con «inventory.reidentified» el nombre pasa al id nuevo.
+MAX_NOMBRES = 512
 _ETIQUETA = re.compile(r"^[A-Za-z0-9 _.-]{1,40}$")
 _CODIGO_S = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+_PENDIENTE_ID = re.compile(r"^pm_[0-9a-f]{12}$")   # id opaco de la marca en Network Engine (no es una credencial)
+MAX_REVISIONES = 64
 # Resultados de la validación integral del laboratorio (opcional; solo lectura de un JSON local)
 RESULTADOS_ENV = "MONITOREO_RESULTADOS_VALIDACION"
 _ESTADOS_PRUEBA = ("PASA", "FALLA", "PENDIENTE", "OMITIDA", "INFO")
@@ -72,6 +81,8 @@ class ServicioRed:
         self._reloj = reloj
         self._interfaces: list[dict] = []
         self._nombres: dict[str, str] = {}            # id del motor -> «Wi-Fi 1» (el id nunca sale de aquí)
+        self._cuenta_tipo: dict[str, int] = {}         # último número dado por tipo (no se reutiliza)
+        self._resumen: dict = _resumen([])
         self._eventos: collections.deque = collections.deque(maxlen=MAX_EVENTOS)
         self._desde: Optional[int] = None
         self._epoca: Optional[str] = None
@@ -87,16 +98,26 @@ class ServicioRed:
         self._hilo: Optional[threading.Thread] = None
 
     # ----------------------------------------------------------------- detalle saneado por interfaz
+    def _nombre(self, cid: Any, tipo: str, sin_id: dict[str, int]) -> str:
+        """Llamar con el lock tomado."""
+        if not isinstance(cid, str) or not cid:
+            sin_id[tipo] = sin_id.get(tipo, 0) + 1            # sin id no hay identidad: nombre solo de esta lectura
+            return f"{tipo} (sin identificar) {sin_id[tipo]}"
+        if cid not in self._nombres:
+            if len(self._nombres) >= MAX_NOMBRES:              # memoria acotada: se olvida el más antiguo
+                self._nombres.pop(next(iter(self._nombres)))
+            self._cuenta_tipo[tipo] = self._cuenta_tipo.get(tipo, 0) + 1
+            self._nombres[cid] = f"{tipo} {self._cuenta_tipo[tipo]}"
+        return self._nombres[cid]
+
     def _detalle(self, v: dict) -> None:
         conns = v.get("connections") if isinstance(v.get("connections"), list) else []
-        cuenta: dict[str, int] = {}
-        nombres, filas = {}, []
-        for c in sorted((c for c in conns if isinstance(c, dict)), key=lambda c: str(c.get("id"))):
+        filas, sin_id = [], {}
+        validas = sorted((c for c in conns if isinstance(c, dict)), key=lambda c: str(c.get("id")))
+        with self._lock:
+            nombres = [self._nombre(c.get("id"), TIPOS.get(str(c.get("kind")), "Otra"), sin_id) for c in validas]
+        for c, nombre in zip(validas, nombres):
             tipo = TIPOS.get(str(c.get("kind")), "Otra")
-            cuenta[tipo] = cuenta.get(tipo, 0) + 1
-            nombre = f"{tipo} {cuenta[tipo]}"
-            if isinstance(c.get("id"), str):
-                nombres[c["id"]] = nombre
             vieja = c.get("stale") is True                     # Network Engine ya no está midiendo esta interfaz
             salud = SIN_VERIFICAR if vieja else SALUD.get(str(c.get("health")), "SIN MEDIR")
             if not vieja and c.get("health") == "down" and c.get("recovering") is True:
@@ -118,7 +139,7 @@ class ServicioRed:
         epoca = (v.get("engine") or {}).get("epoch")
         origen = ORIGEN.get(str((v.get("engine") or {}).get("mode")), "DESCONOCIDO")
         with self._lock:
-            self._interfaces, self._nombres, self._origen = filas[:16], nombres, origen
+            self._interfaces, self._origen = filas, origen
             if epoca != self._epoca:
                 if self._epoca is not None:
                     self._evento("Network Engine se reinició", None, None)
@@ -149,6 +170,15 @@ class ServicioRed:
         elif kind == "inventory.removed":
             self._evento("Interfaz retirada", nombre, e.get("ts"), "perdida")
         elif kind == "inventory.reidentified":
+            # E8 (M2): el mismo adaptador con otro id (p. ej. otro puerto USB) conserva su nombre
+            prev, nuevo = e.get("previous_id"), e.get("connection_id")
+            if isinstance(prev, str) and isinstance(nuevo, str) and prev in self._nombres:
+                nombre = self._nombres[prev]
+                provisional = self._nombres.get(nuevo)
+                self._nombres[nuevo] = nombre
+                for f in self._interfaces:
+                    if f["nombre"] == provisional:
+                        f["nombre"] = nombre
             self._evento("Interfaz reconectada con otro identificador", nombre, e.get("ts"))
         elif kind == "system.resume_detected":
             self._evento("El equipo se reanudó (suspensión): se vuelve a medir", None, e.get("ts"))
@@ -174,6 +204,8 @@ class ServicioRed:
                          e.get("ts"), "perdida")
         elif kind == "session.state_recovered_from_backup":
             self._evento("Estado de sesiones recuperado de la copia anterior", None, e.get("ts"), "degradada")
+        elif kind == "session.pending_resolved":
+            self._evento("Revisión pendiente resuelta por una persona administradora", None, e.get("ts"), "recuperada")
         elif kind == "session.state_write_failed":
             self._evento("Network Engine no pudo guardar el estado de sesiones", None, e.get("ts"), "degradada")
 
@@ -235,8 +267,31 @@ class ServicioRed:
                     "cerrada_hace_s": _num(x.get("closed_age_s"), 86_400 * 30) if cerrada else None}
         activas = [f for f in (fila(x) for x in (v.get("sessions") or [])[:MAX_SESIONES]) if f]
         cerradas = [f for f in (fila(x, True) for x in (v.get("closed") or [])[:MAX_SESIONES]) if f]
-        return {"activas": activas, "cerradas": cerradas,
-                "requieren_persona": sum(1 for f in activas if f["requiere_persona"])}
+        # E8 (E): marcas «revisar a mano» cuya sesión ya no existe. Antes no se mostraban y el contador decía 0.
+        crudas = [p for p in (v.get("pending_human_review") or []) if isinstance(p, dict)]
+        revisiones = []
+        for p in crudas[:MAX_REVISIONES]:
+            pid = p.get("id") if isinstance(p.get("id"), str) and _PENDIENTE_ID.match(p["id"]) else None
+            etiqueta = p.get("label") if isinstance(p.get("label"), str) and _ETIQUETA.match(p["label"]) else None
+            general = p.get("kind") == "general" or (p.get("label") is None and p.get("kind") != "session")
+            conf = p.get("confirm_with")
+            revisiones.append({"id": pid, "tipo": "general" if general else "sesion", "etiqueta": etiqueta,
+                               "motivo": p["reason"] if isinstance(p.get("reason"), str) and _CODIGO_S.match(p["reason"]) else None,
+                               "hace_s": _num(p.get("age_s"), 86_400 * 365),
+                               "confirmar_con": conf if isinstance(conf, str) and _ETIQUETA.match(conf) else None})
+        activas_persona = sum(1 for f in activas if f["requiere_persona"])
+        return {"activas": activas, "cerradas": cerradas, "revisiones": revisiones,
+                "requieren_persona": activas_persona,
+                # el contador cuenta TODAS: sesiones activas que piden persona + marcas sin sesión (aunque no quepan)
+                "revisiones_pendientes": activas_persona + len(crudas)}
+
+    def quitar_revision(self, pid: str) -> None:
+        """Tras resolverla, deja de mostrarse sin esperar a la próxima lectura (la siguiente lo confirma)."""
+        with self._lock:
+            ses = self._sesiones
+            if ses and any(r.get("id") == pid for r in ses.get("revisiones", [])):
+                ses["revisiones"] = [r for r in ses["revisiones"] if r.get("id") != pid]
+                ses["revisiones_pendientes"] = max(0, ses["revisiones_pendientes"] - 1)
 
     def _bucle(self) -> None:
         while not self._stop.is_set():
@@ -278,12 +333,16 @@ class ServicioRed:
             l = self._lectura
             motor = self._estado_motor(l)
             antiguedad = self._reloj() - self._ultima_ok if self._ultima_ok else None
-            interfaces = list(self._interfaces) if motor == "disponible" else []
+            interfaces = [dict(i) for i in self._interfaces] if motor == "disponible" else []
             internet = l.internet.value if l else None
             if motor == "disponible" and antiguedad is not None and antiguedad > self.umbral_desactualizado_s():
                 # La copia de Monitor es vieja: se conserva qué interfaces había, pero ninguna se da por sana.
                 motor, internet = "desactualizado", "DESCONOCIDO"
                 interfaces = [{**i, "salud": SIN_VERIFICAR, "disponible": False, "latencia_ms": None} for i in interfaces]
+            resumen = _resumen(interfaces)
+            interfaces = _mostrar(interfaces)
+            resumen["mostradas"] = len(interfaces)
+            resumen["ocultas"] = resumen["total"] - len(interfaces)
             return {
                 "fuente": "network_engine",
                 "network_engine": motor,
@@ -293,6 +352,8 @@ class ServicioRed:
                 "conexiones": l.conexiones if l else None,
                 "disponibles": l.disponibles if l else None,
                 "interfaces": interfaces,
+                # E8 (M1): cuentas sobre TODAS las interfaces, aunque no quepan en la tabla
+                "resumen_interfaces": resumen,
                 "antiguedad_s": round(antiguedad, 1) if antiguedad is not None else None,
                 "eventos": list(self._eventos),
                 "actualizado": _iso(self._actualizado),
@@ -302,9 +363,36 @@ class ServicioRed:
                 # Ni siquiera MEDIDO es una prueba física de conmutación: eso lo dice la validación integral.
                 "origen_datos": self._origen if motor in ("disponible", "desactualizado") else None,
                 "sesiones": self._sesiones if motor == "disponible" else None,
+                # E8: ¿hay credencial admin SEPARADA para resolver desde Monitor? (si no, se muestra la orden del motor)
+                "revisiones_resolubles": bool((os.environ.get("MONITOREO_NETWORK_REVISIONES_TOKEN_FILE") or "").strip()),
                 "ultima_validacion": ultima_validacion(),
                 "nota": "Estado según Network Engine (solo lectura). No es una prueba física de los enlaces.",
             }
+
+
+def _alerta(i: dict) -> bool:
+    return i.get("veredicto") in ("CAÍDA", "SIN VERIFICAR", "DEGRADADA") or i.get("salud") in ("CAÍDA", RECUPERANDO,
+                                                                                                SIN_VERIFICAR)
+
+
+def _resumen(interfaces: list[dict]) -> dict:
+    por = {k: 0 for k in _PRIORIDAD}
+    for i in interfaces:
+        if i.get("veredicto") in por:
+            por[i["veredicto"]] += 1
+    alertas = sum(1 for i in interfaces if _alerta(i))
+    return {"total": len(interfaces), "por_veredicto": por, "caidas": por["CAÍDA"], "alertas": alertas,
+            "sanas": sum(1 for i in interfaces if i.get("salud") == "SANA"),
+            "degradadas": sum(1 for i in interfaces if i.get("salud") == "DEGRADADA"),
+            "mostradas": len(interfaces), "ocultas": 0}
+
+
+def _mostrar(interfaces: list[dict]) -> list[dict]:
+    """Todas si caben (en su orden estable). Si no, primero las alertas: una caída nunca queda fuera por una sana."""
+    if len(interfaces) <= MAX_FILAS:
+        return interfaces
+    orden = sorted(range(len(interfaces)), key=lambda k: (_PRIORIDAD.get(interfaces[k].get("veredicto"), 9), k))
+    return [interfaces[k] for k in orden[:MAX_FILAS]]
 
 
 _CACHE_VALIDACION: dict = {}
@@ -349,7 +437,7 @@ def ultima_validacion(entorno=None) -> Optional[dict]:
 
 def estado_no_configurado(razon: str = "no_configurado") -> dict:
     return {"fuente": "network_engine", "network_engine": razon, "internet": None, "razon": razon, "degradada": False,
-            "conexiones": None, "disponibles": None, "interfaces": [], "eventos": [], "actualizado": None, "antiguedad_s": None,
+            "conexiones": None, "disponibles": None, "interfaces": [], "resumen_interfaces": _resumen([]), "eventos": [], "actualizado": None, "antiguedad_s": None,
             "ultima_respuesta": None, "reinicios": 0, "origen_datos": None, "sesiones": None,
             "ultima_validacion": ultima_validacion(),
             "nota": "Monitor no está configurado para leer Network Engine (MONITOREO_NETWORK_TOKEN_FILE). Monitor funciona igual."}

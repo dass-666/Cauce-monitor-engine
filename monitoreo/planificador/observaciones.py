@@ -101,7 +101,8 @@ def _dia(s, ctx: dict, fecha: str, estado: str, libres, estrategia: str, ts: dat
         try:
             with s.begin_nested():
                 s.add(ObservacionDia(clave=clave, sucursal=ctx["sucursal"], tramite=ctx["tramite"], fecha=fecha,
-                                     estado=estado, libres=lib, version=1, actualizado_en=now, fuente=estrategia))
+                                     estado=estado, libres=lib, version=1, actualizado_en=now, fuente=estrategia,
+                                     visto_en=now))
             version = 1
         except IntegrityError:
             fila = s.execute(select(t.c.estado, t.c.libres, t.c.version).where(t.c.clave == clave)).first()
@@ -115,10 +116,13 @@ def _dia(s, ctx: dict, fecha: str, estado: str, libres, estrategia: str, ts: dat
         if lib is None:                    # la estrategia no ve cantidades: conserva la última conocida
             lib = ant_lib if anterior == "DISPONIBLE" else None
         if anterior == estado and lib == ant_lib:
+            # RC3 (M3): la página se leyó y no cambió; se anota CUÁNDO, para saber qué confirmaciones ya refleja
+            s.execute(update(t).where(t.c.clave == clave).values(visto_en=now))
             _anotar_deteccion(s, clave, estado, estrategia, ts)
             return None
         n = s.execute(update(t).where(t.c.clave == clave, t.c.version == v)
-                      .values(estado=estado, libres=lib, version=v + 1, actualizado_en=now, fuente=estrategia)).rowcount
+                      .values(estado=estado, libres=lib, version=v + 1, actualizado_en=now, fuente=estrategia,
+                              visto_en=now)).rowcount
         if n != 1:                                     # otro proceso lo cambió a la vez: lo registra él
             _anotar_deteccion(s, clave, estado, estrategia, ts)
             return None

@@ -64,6 +64,44 @@ function redSesiones(s) {
       filas));
 }
 
+// E8 · Centro de revisiones pendientes (marcas «revisar a mano» de Network Engine, también las de sesiones ya cerradas)
+function redRevisiones(s, resolubles) {
+  if (!s) return h("p", { class: "muted" }, "Sin datos de sesiones de Network Engine.");
+  const rv = s.revisiones || [];
+  const total = s.revisiones_pendientes ?? (s.requieren_persona || 0);
+  const cab = h("p", { "data-red-revisiones": total }, total
+    ? h("span", { class: "badge b-bad" }, `${total} revisiones pendientes`)
+    : h("span", { class: "badge b-ok" }, "Ninguna revisión pendiente"),
+    total ? ` (${s.requieren_persona || 0} en sesiones activas, ${rv.length} sin sesión activa). Nada se repite solo: `
+      + "revisa en el portal si la operación llegó a hacerse antes de resolver." : "");
+  if (!rv.length) return h("div", {}, cab);
+  const form = (r) => {
+    if (!r.id || !r.confirmar_con) return "—";
+    if (!isAdmin()) return h("span", { class: "muted" }, "solo administración");
+    if (!resolubles) return h("code", { class: "muted" }, `cauce revisiones resolver ${r.id} --nota "…" --confirmar "${r.confirmar_con}"`);
+    const nota = h("textarea", { rows: 2, maxlength: 500, placeholder: "Qué revisaste y qué hiciste (obligatorio)" });
+    const conf = h("input", { placeholder: `Escribe ${r.confirmar_con} para confirmar` });
+    const err = h("div", { class: "error", role: "alert" });
+    const btn = h("button", { class: "btn", onclick: async () => {
+      err.textContent = "";
+      if (nota.value.trim().length < 5) { err.textContent = "La nota es obligatoria (mínimo 5 caracteres)."; return; }
+      if (conf.value.trim() !== r.confirmar_con) { err.textContent = `Escribe exactamente ${r.confirmar_con}.`; return; }
+      btn.disabled = true;
+      try {
+        await api(`/api/red/revisiones/${r.id}/resolver`, { method: "POST", body: { nota: nota.value, confirmar: conf.value } });
+        go("red");
+      } catch (e) { err.textContent = String(e.message || e); btn.disabled = false; }
+    } }, "Marcar como revisada");
+    return h("div", { class: "revision-form" }, nota, conf, btn, err);
+  };
+  return h("div", {}, cab, table([
+    { t: "Sesión", f: (r) => r.tipo === "general" ? h("b", {}, "General (todo el motor)") : h("b", {}, r.etiqueta || "sesión") },
+    { t: "Motivo", f: (r) => redTexto(r.motivo) },
+    { t: "Desde", f: (r) => redSeg(r.hace_s) },
+    { t: "Estado", f: () => h("span", { class: "badge b-bad" }, "pendiente") },
+    { t: "Resolver", f: form }], rv));
+}
+
 function redValidacion(v) {
   if (!v) return h("p", { class: "muted" }, "Sin resultados de la validación integral (7_VALIDACION_INTEGRAL.cmd) en este equipo.");
   const p = v.pasos;
@@ -83,8 +121,8 @@ async function viewRed() {
   const d = await api("/api/red");
   const motor = RED_MOTOR[d.network_engine] || ["", d.network_engine];
   const inet = RED_INTERNET[d.internet] || RED_INTERNET.DESCONOCIDO;
-  const sanas = d.interfaces.filter((i) => i.salud === "SANA").length;
-  const degradadas = d.interfaces.filter((i) => i.salud === "DEGRADADA").length;
+  // E8 (M1): las cuentas vienen calculadas sobre TODAS las interfaces, aunque la tabla no las muestre todas
+  const r = d.resumen_interfaces || { total: d.interfaces.length, caidas: 0, sanas: 0, degradadas: 0, mostradas: d.interfaces.length, ocultas: 0 };
   const origen = RED_ORIGEN[d.origen_datos] || null;
   return h("div", { id: "red" },
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Red"),
@@ -96,10 +134,17 @@ async function viewRed() {
         + (d.antiguedad_s !== null && d.antiguedad_s !== undefined ? ` (${redSeg(d.antiguedad_s)})` : "")),
       kpi("Conectividad", h("span", { "data-red-internet": d.internet || "" }, redBadge(inet)),
         d.degradada ? "con latencia alta o fallos parciales" : (d.razon && d.internet !== "DISPONIBLE" ? redTexto(d.razon) : "")),
-      kpi("Interfaces", num(d.interfaces.length), d.interfaces.length ? `${sanas} sanas · ${degradadas} degradadas` : "ninguna informada"),
+      kpi("Interfaces", h("span", { "data-red-total": r.total }, num(r.total)), r.total
+        ? h("span", {}, r.caidas ? h("span", { class: "badge b-bad", "data-red-caidas": r.caidas }, `${r.caidas} caídas`) : null,
+          `${r.caidas ? " · " : ""}${r.sanas} sanas · ${r.degradadas} degradadas`)
+        : "ninguna informada"),
       kpi("Origen de los datos", h("span", { "data-red-origen": d.origen_datos || "" }, origen ? redBadge(origen) : "—"),
         origen ? origen[2] : "Sin datos de Network Engine.")),
-    h("div", { class: "section" }, card("Interfaces detectadas", d.interfaces.length ? table([
+    h("div", { class: "section" }, card("Interfaces detectadas", d.interfaces.length ? h("div", {},
+      r.ocultas ? h("p", { class: "muted", "data-red-ocultas": r.ocultas },
+        `Se muestran ${r.mostradas} de ${r.total} interfaces: primero las caídas y las que no se pudieron verificar. `
+        + (r.alertas > r.mostradas ? `Hay ${r.alertas} alertas y no caben todas: revisa Network Engine.` : "Ninguna alerta queda fuera de la tabla.")) : null,
+      table([
       { t: "Interfaz", f: (i) => h("b", {}, i.nombre) },
       { t: "Enlace", f: (i) => i.enlace },
       { t: "Estado", f: (i) => h("span", { class: "badge " + (RED_VEREDICTO[i.veredicto] || ""), "data-red-veredicto": i.veredicto || "" }, i.veredicto || "—") },
@@ -109,7 +154,8 @@ async function viewRed() {
       { t: "Disponibilidad", num: true, f: (i) => i.disponibilidad_pct === null ? "—" : `${num(i.disponibilidad_pct, 1)} %` },
       { t: "Medida", f: (i) => redSeg(i.medida_hace_s) },
       { t: "Próximo sondeo", f: (i) => i.proximo_sondeo_s === null || i.proximo_sondeo_s === undefined ? "—" : `en ${num(i.proximo_sondeo_s, 0)} s` }],
-      d.interfaces) : h("p", { class: "muted" }, d.network_engine === "disponible" ? "Network Engine aún no informa interfaces." : "Sin datos de Network Engine."))),
+      d.interfaces)) : h("p", { class: "muted" }, d.network_engine === "disponible" ? "Network Engine aún no informa interfaces." : "Sin datos de Network Engine."))),
+    h("div", { class: "section" }, card("Revisiones pendientes", redRevisiones(d.sesiones, d.revisiones_resolubles))),
     h("div", { class: "section" }, card("Sesiones de navegador", redSesiones(d.sesiones))),
     h("div", { class: "section" }, card("Últimas pruebas (validación integral)", redValidacion(d.ultima_validacion))),
     h("div", { class: "section" }, card("Pérdidas y recuperaciones de conectividad", d.eventos.length ? table([
