@@ -96,3 +96,21 @@ def test_pagina_que_tarda_en_descontar_sigue_contando_la_confirmada(lab):
     assert _ver(lab, fecha=fecha, libres=1)[0]["tipo"] == "UNIDADES_REDUCIDAS"
     assert coincidencias.ajustar(lab.db, clave, utcnow())["devueltos"] == []
     assert _elementos(lab, pid)[exps[1]["id"]]["estado"] == "ASIGNADO"
+
+
+def test_leer_sin_cambios_no_escribe_en_cada_lectura(lab):
+    """visto_en se anota como mucho cada VISTO_CADA_S: una lectura sin cambios no es una escritura por día y lectura
+    (con SQLite eso bloquea al resto de escritores)."""
+    fecha = _fecha_libre(lab, 100)
+    clave = f"NOR-1|alta|{fecha}"
+    t0 = utcnow()
+    _leer_pagina(lab, fecha, 3, t0)
+    with lab.db.session() as s:
+        v0 = s.get(ObservacionDia, clave).visto_en
+    _leer_pagina(lab, fecha, 3, t0 + timedelta(seconds=observaciones.VISTO_CADA_S - 1))
+    with lab.db.session() as s:
+        assert s.get(ObservacionDia, clave).visto_en == v0
+    t2 = t0 + timedelta(seconds=observaciones.VISTO_CADA_S + 1)
+    _leer_pagina(lab, fecha, 3, t2)
+    with lab.db.session() as s:
+        assert s.get(ObservacionDia, clave).visto_en == t2

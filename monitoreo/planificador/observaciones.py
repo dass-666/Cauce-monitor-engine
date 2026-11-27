@@ -69,6 +69,9 @@ def vista_evento(e: ObservacionEvento) -> dict:
             "explicacion": e.explicacion or {}, "unidades": e.unidades, "unidades_anteriores": e.unidades_anteriores}
 
 
+VISTO_CADA_S = 15.0     # RC3 (M3): cada cuánto se anota, como mucho, que un día sin cambios se volvió a ver
+
+
 def _anotar_deteccion(s, clave: str, estado: str, estrategia: str, ts: datetime) -> None:
     e = s.scalar(select(ObservacionEvento).where(ObservacionEvento.clave == clave, ObservacionEvento.estado == estado)
                  .order_by(ObservacionEvento.id.desc()).limit(1))
@@ -95,7 +98,7 @@ def _dia(s, ctx: dict, fecha: str, estado: str, libres, estrategia: str, ts: dat
         lib = 0
     clave = f"{ctx['sucursal']}|{ctx['tramite']}|{fecha}"
     t = ObservacionDia.__table__
-    fila = s.execute(select(t.c.estado, t.c.libres, t.c.version).where(t.c.clave == clave)).first()
+    fila = s.execute(select(t.c.estado, t.c.libres, t.c.version, t.c.visto_en).where(t.c.clave == clave)).first()
     anterior = ant_lib = None
     if fila is None:
         try:
@@ -105,19 +108,22 @@ def _dia(s, ctx: dict, fecha: str, estado: str, libres, estrategia: str, ts: dat
                                      visto_en=now))
             version = 1
         except IntegrityError:
-            fila = s.execute(select(t.c.estado, t.c.libres, t.c.version).where(t.c.clave == clave)).first()
+            fila = s.execute(select(t.c.estado, t.c.libres, t.c.version, t.c.visto_en).where(t.c.clave == clave)).first()
             if fila is None:
                 return None
         else:
             if estado != "DISPONIBLE":
                 return None
     if fila is not None:
-        anterior, ant_lib, v = fila
+        anterior, ant_lib, v, visto = fila
         if lib is None:                    # la estrategia no ve cantidades: conserva la última conocida
             lib = ant_lib if anterior == "DISPONIBLE" else None
         if anterior == estado and lib == ant_lib:
-            # RC3 (M3): la página se leyó y no cambió; se anota CUÁNDO, para saber qué confirmaciones ya refleja
-            s.execute(update(t).where(t.c.clave == clave).values(visto_en=now))
+            # RC3 (M3): la página se leyó y no cambió; se anota CUÁNDO, para saber qué confirmaciones ya refleja.
+            # Como mucho una escritura cada VISTO_CADA_S por día: una lectura sin cambios no debe convertirse en una
+            # escritura por día y por lectura (con SQLite eso bloquea a los demás escritores).
+            if visto is None or (now - visto).total_seconds() >= VISTO_CADA_S:
+                s.execute(update(t).where(t.c.clave == clave).values(visto_en=now))
             _anotar_deteccion(s, clave, estado, estrategia, ts)
             return None
         n = s.execute(update(t).where(t.c.clave == clave, t.c.version == v)
