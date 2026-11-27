@@ -215,6 +215,7 @@ const VIEWS = {
   alertas: { t: "Notificaciones", f: viewNotificaciones },
   supervision: { t: "Supervisión", f: viewSupervision, admin: true },
   tramites: { t: "Trámites a mano", f: () => viewTramitesManuales(), lab: true },   // v2.0 · P2: captura manual (ventanilla.js)
+  red: { t: "Red", f: () => viewRed() },   // estado de red según Network Engine, solo lectura (red.js); también en producción
   conexiones: { t: "Conexiones", f: () => viewConexiones(), admin: true, lab: true },   // v2.0: gestor de conexiones (ventanilla.js)
   "fuentes-web": { t: "Páginas observadas", f: () => viewFuentesWeb(), admin: true, flujo: true, noAuto: true },   // observador universal (fuentes.js)
   "laboratorio-calendario": { t: "Calendario lab", f: () => viewCalendarioLab(), admin: true, lab: true },   // v2.3 (ventanilla.js)
@@ -230,7 +231,7 @@ const vistaVisible = (v) => (!v.admin || isAdmin()) && (!v.lab || labOn()) && (!
 const NAV_PRINCIPAL = ["panel", "importar", "expedientes", "ventanilla", "recuperacion"];
 const NAV_GRUPOS = [
   ["operacion", "Operación", ["captura", "solicitudes", "alertas", "supervision", "tramites", "fuentes-web"]],
-  ["sistema", "Sistema", ["inicio", "monitor", "salud", "conexiones", "config"]],
+  ["sistema", "Sistema", ["inicio", "monitor", "salud", "red", "conexiones", "config"]],
   ["laboratorio", "Laboratorio", ["laboratorio-calendario", "laboratorio"]],
 ];
 function navEnlace(k) {
