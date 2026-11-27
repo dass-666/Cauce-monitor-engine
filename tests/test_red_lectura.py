@@ -310,10 +310,17 @@ class Motor:
         while time.time() < limite:
             try:
                 with socket.create_connection(("127.0.0.1", self.puerto), timeout=0.5):
-                    if (self.dir / "api.token").exists():
-                        return self
-            except OSError:
-                time.sleep(0.2)
+                    pass
+                # Network Engine 9111b7c escribe api.token antes que api.json: si el CLI corre en esa
+                # ventana usa el puerto por defecto y dice «no está en marcha» (CI 2026-11-27). Se espera a
+                # ambos y a que api.json tenga el puerto de esta prueba.
+                info = self.dir / "api.json"
+                if (self.dir / "api.token").exists() and info.exists() and \
+                        json.loads(info.read_text("utf-8") or "{}").get("port") == self.puerto:
+                    return self
+            except (OSError, ValueError):
+                pass
+            time.sleep(0.2)
         raise RuntimeError("el motor simulado no arrancó")
 
     def parar(self):
