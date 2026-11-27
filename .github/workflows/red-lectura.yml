@@ -1,0 +1,48 @@
+# Consumidor opcional de solo lectura de Network Engine. SOLO laboratorio: simulador en loopback, credencial read FICTICIA.
+# Network Engine se descarga en SOLO LECTURA en un commit fijo; este flujo no escribe en ese repositorio.
+name: Consumidor de Network Engine (solo lectura)
+
+on:
+  push:
+    branches: ["claude/project-thread-so1hjy"]
+  pull_request:
+    paths: ["monitoreo/red_lectura/**", "tests/test_red_lectura.py", "tests/test_red_servicio.py", "monitoreo/api/red.py", "monitoreo/web/red.js", ".github/workflows/red-lectura.yml", "docs/RED_LECTURA_CONSUMIDOR.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  red-lectura:
+    name: Red lectura · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dass-666/cauce-network-engine
+          ref: 9111b7ceb27839af1b0077a862a0520024f648f2
+          path: network-engine
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+        # el conftest de Monitor importa sqlalchemy y otras dependencias del motor
+      - name: Commit de Network Engine (debe ser 9111b7c, rama claude/consolidacion-integracion) y pruebas
+        shell: bash
+        run: |
+          test "$(git -C network-engine rev-parse HEAD)" = "9111b7ceb27839af1b0077a862a0520024f648f2"
+          python -m pytest tests/test_red_lectura.py tests/test_red_servicio.py -v -rs --junitxml=red-lectura.xml
+        env:
+          NETWORK_ENGINE_REPO: ${{ github.workspace }}/network-engine
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: red-lectura-${{ matrix.os }}
+          path: red-lectura.xml

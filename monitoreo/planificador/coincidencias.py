@@ -45,6 +45,11 @@ log = logging.getLogger("monitoreo.planificador")
 REGLA = "prioridad (1 primero) -> orden de alta en el plan -> id del expediente"
 ASIGNADO_EV, SIN_CANDIDATOS, DESAPARECIDO, EN_PROCESO = "ASIGNADO", "SIN_CANDIDATOS", "DESAPARECIDO", "EN_PROCESO"
 SIN_CUPO = "SIN_CUPO"
+# RC3 (M3): una confirmación se da por reflejada en la página si (a) la página CAMBIÓ después de confirmarla (regla de
+# siempre) o (b) el observador la siguió leyendo SIN cambio durante al menos este tiempo después de confirmarla: la
+# persona reservó en el portal antes de teclear el folio, así que la página ya la había descontado. El margen cubre una
+# página que tarda en actualizarse; si tardara más, el portal rechazaría la reserva de más (no hay doble cita).
+MARGEN_REFLEJO_S = 60.0
 INCIERTAS = (rs.CONFIRMANDO, rs.EN_VERIFICACION)
 
 
@@ -85,11 +90,22 @@ def comprometidas(s, clave: str, dia: ObservacionDia | None) -> list[PlanElement
                 out.append(el)          # ASIGNADO, preparada o confirmación incierta: cuenta (prudente)
             continue
         if res.estado == rs.CONFIRMADA:
-            # Ya consumió una unidad en el portal. La página la sigue contando como libre hasta que el
-            # observador registra el cambio: cuenta solo si se confirmó DESPUÉS del último cambio visto.
-            if dia is None or res.updated_at is None or res.updated_at > dia.actualizado_en:
+            # Ya consumió una unidad en el portal. Puede que la página aún la cuente como libre: cuenta hasta que
+            # la página la refleje (ver _reflejada).
+            # RC3 (M3): antes se comparaba con el último CAMBIO visto. Si la página ya había descontado la reserva
+            # (la persona reservó antes de teclear el folio) no volvía a cambiar y la unidad se contaba dos veces
+            # para siempre: otra persona del mismo día volvía a espera y su lugar se perdía.
+            if not _reflejada(res, dia):
                 out.append(el)
     return out
+
+
+def _reflejada(res: Reservacion, dia: ObservacionDia | None) -> bool:
+    if dia is None or res.updated_at is None:
+        return False
+    if dia.actualizado_en is not None and dia.actualizado_en >= res.updated_at:
+        return True                                    # (a) la página cambió después de confirmar
+    return dia.visto_en is not None and (dia.visto_en - res.updated_at).total_seconds() >= MARGEN_REFLEJO_S
 
 
 def _clave_orden(el: PlanElemento):

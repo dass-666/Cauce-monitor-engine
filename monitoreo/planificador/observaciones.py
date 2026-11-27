@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from ..models import ObservacionDia, ObservacionEvento, ObservacionVista
@@ -69,6 +69,9 @@ def vista_evento(e: ObservacionEvento) -> dict:
             "explicacion": e.explicacion or {}, "unidades": e.unidades, "unidades_anteriores": e.unidades_anteriores}
 
 
+VISTO_CADA_S = 15.0     # RC3 (M3): cada cuánto se anota, como mucho, que un día sin cambios se volvió a ver
+
+
 def _anotar_deteccion(s, clave: str, estado: str, estrategia: str, ts: datetime) -> None:
     e = s.scalar(select(ObservacionEvento).where(ObservacionEvento.clave == clave, ObservacionEvento.estado == estado)
                  .order_by(ObservacionEvento.id.desc()).limit(1))
@@ -95,30 +98,37 @@ def _dia(s, ctx: dict, fecha: str, estado: str, libres, estrategia: str, ts: dat
         lib = 0
     clave = f"{ctx['sucursal']}|{ctx['tramite']}|{fecha}"
     t = ObservacionDia.__table__
-    fila = s.execute(select(t.c.estado, t.c.libres, t.c.version).where(t.c.clave == clave)).first()
+    fila = s.execute(select(t.c.estado, t.c.libres, t.c.version, t.c.visto_en).where(t.c.clave == clave)).first()
     anterior = ant_lib = None
     if fila is None:
         try:
             with s.begin_nested():
                 s.add(ObservacionDia(clave=clave, sucursal=ctx["sucursal"], tramite=ctx["tramite"], fecha=fecha,
-                                     estado=estado, libres=lib, version=1, actualizado_en=now, fuente=estrategia))
+                                     estado=estado, libres=lib, version=1, actualizado_en=now, fuente=estrategia,
+                                     visto_en=now))
             version = 1
         except IntegrityError:
-            fila = s.execute(select(t.c.estado, t.c.libres, t.c.version).where(t.c.clave == clave)).first()
+            fila = s.execute(select(t.c.estado, t.c.libres, t.c.version, t.c.visto_en).where(t.c.clave == clave)).first()
             if fila is None:
                 return None
         else:
             if estado != "DISPONIBLE":
                 return None
     if fila is not None:
-        anterior, ant_lib, v = fila
+        anterior, ant_lib, v, visto = fila
         if lib is None:                    # la estrategia no ve cantidades: conserva la última conocida
             lib = ant_lib if anterior == "DISPONIBLE" else None
         if anterior == estado and lib == ant_lib:
+            # RC3 (M3): la página se leyó y no cambió; se anota CUÁNDO, para saber qué confirmaciones ya refleja.
+            # Como mucho una escritura cada VISTO_CADA_S por día: una lectura sin cambios no debe convertirse en una
+            # escritura por día y por lectura (con SQLite eso bloquea a los demás escritores).
+            if visto is None or (now - visto).total_seconds() >= VISTO_CADA_S:
+                s.execute(update(t).where(t.c.clave == clave).values(visto_en=now))
             _anotar_deteccion(s, clave, estado, estrategia, ts)
             return None
         n = s.execute(update(t).where(t.c.clave == clave, t.c.version == v)
-                      .values(estado=estado, libres=lib, version=v + 1, actualizado_en=now, fuente=estrategia)).rowcount
+                      .values(estado=estado, libres=lib, version=v + 1, actualizado_en=now, fuente=estrategia,
+                              visto_en=now)).rowcount
         if n != 1:                                     # otro proceso lo cambió a la vez: lo registra él
             _anotar_deteccion(s, clave, estado, estrategia, ts)
             return None
@@ -183,6 +193,21 @@ def _vista(s, ctx: dict, estado: str, estrategia: str, ts: datetime, detalle: st
     except IntegrityError:
         return None
     return e
+
+
+def anotar_vista_fresca(db, sucursal: str, tramite: str, mes: str, now: datetime) -> int:
+    """RC3 (M3): el observador del calendario solo emite CELDA cuando algo CAMBIA. Un LATIDO con la vista DOM ACTIVA
+    (el sello de actualización sigue cambiando y no hubo CELDA pendiente) significa que la página se vio fresca y sin
+    cambios: se anota en visto_en de los días de ese mes, como mucho cada VISTO_CADA_S. Sin esto, una reserva que la
+    página ya había descontado antes del folio se contaba dos veces y otra persona perdía su lugar (E7 M3)."""
+    if not (isinstance(mes, str) and len(mes) == 7):
+        return 0
+    t = ObservacionDia.__table__
+    limite = now - timedelta(seconds=VISTO_CADA_S)
+    with db.session() as s:
+        return s.execute(update(t).where(t.c.sucursal == sucursal, t.c.tramite == tramite, t.c.fecha.like(mes + "-%"),
+                                         or_(t.c.visto_en.is_(None), t.c.visto_en <= limite))
+                         .values(visto_en=now)).rowcount
 
 
 def _libres(d: dict, estrategia: str):

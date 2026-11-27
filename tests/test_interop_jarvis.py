@@ -555,7 +555,7 @@ def test_yaml_simple_basico():
 def test_inventario_del_repositorio_real():
     inv = inventario.construir(RAIZ)
     m = inv["migraciones"]
-    assert m["lineal"] and m["cabezas"] == ["0018_fuentes_web"] and m["total"] >= 15
+    assert m["lineal"] and m["cabezas"] == ["0019_rc3_visto_en"] and m["total"] >= 15
     assert inv["pruebas"]["archivos"] >= 50
     assert any(i["vigente"] for i in inv["informes"])
     assert all(s["codificacion_ok"] for s in inv["scripts_windows"]), inv["scripts_windows"]

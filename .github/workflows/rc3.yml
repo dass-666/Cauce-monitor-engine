@@ -1,0 +1,46 @@
+# E8 · RC3: Monitor con el Network Engine de RC3 (rama claude/e8-rc3, commit fijo). SOLO laboratorio: simulador en
+# loopback, credenciales FICTICIAS, portal de laboratorio propio. No es una prueba física.
+name: RC3 · Monitor + Network Engine
+
+on:
+  push:
+    branches: ["claude/project-thread-so1hjy"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rc3:
+    name: RC3 · ${{ matrix.os }} · Py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dass-666/cauce-network-engine
+          ref: 1446c4fed8a281d2bbf4fc2cac1795531c5db653
+          path: network-engine
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -r requirements.txt
+      - name: Hallazgos E7 corregidos (M1, M2, M3, centro de revisiones) y lectura de red
+        shell: bash
+        run: |
+          test "$(git -C network-engine rev-parse HEAD)" = "1446c4fed8a281d2bbf4fc2cac1795531c5db653"
+          python -m pytest tests/test_e8_red_interfaces.py tests/test_e8_revisiones.py tests/test_e8_planificador_m3.py tests/test_e8_vista_fresca.py tests/test_red_lectura.py tests/test_red_servicio.py tests/test_plan_unidades_propiedad.py tests/test_planificador.py -v -rs --junitxml=rc3.xml
+        env:
+          NETWORK_ENGINE_REPO: ${{ github.workspace }}/network-engine
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rc3-${{ matrix.os }}-${{ matrix.python }}
+          path: rc3.xml

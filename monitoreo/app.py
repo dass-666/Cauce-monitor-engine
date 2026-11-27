@@ -127,6 +127,17 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
                 _ad.recuperar_interrumpidas(db)
             except Exception:  # noqa: BLE001
                 log.exception("autorrelleno: no se pudo cerrar el historial de autorrellenados interrumpidos")
+        # Network Engine (solo lectura): única fuente del estado de red que muestra Monitor. Sin configuración no se
+        # importa nada ni se arranca ningún hilo; con configuración, un hilo propio consulta y /api/red lee su copia.
+        if os.environ.get("MONITOREO_NETWORK_TOKEN_FILE"):
+            try:
+                from .red_lectura import servicio as _red
+                app.state.red, app.state.red_razon = _red.desde_entorno()
+                if app.state.red is not None:
+                    app.state.red.iniciar()
+            except Exception:  # noqa: BLE001 - Monitor arranca igual sin la lectura de red
+                log.exception("red: no se pudo iniciar la lectura de Network Engine")
+                app.state.red, app.state.red_razon = None, "error_al_iniciar"
         if start:
             app.state.scheduler = Scheduler(db)
             app.state.scheduler.start()
@@ -135,6 +146,8 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
             app.state.supervisor = Supervisor(db)
             app.state.supervisor.start()
         yield
+        if app.state.red is not None:
+            app.state.red.detener()
         import sys as _sys
         if "monitoreo.autorrelleno.adaptador" in _sys.modules:   # solo laboratorio: no deja Forms abierto al parar
             _sys.modules["monitoreo.autorrelleno.adaptador"].apagar()
@@ -150,6 +163,8 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
     app.state.db = db
     app.state.scheduler = None
     app.state.supervisor = None
+    app.state.red = None
+    app.state.red_razon = "no_configurado"
     app.state.entorno = review
     from .api.ratelimit import ApiRateLimiter, middleware as rate_middleware
     app.state.api_limiter = ApiRateLimiter()
@@ -195,6 +210,8 @@ def create_app(db_url: str | None = None, start_engine: bool | None = None, seed
     app.include_router(centro_router)
     from .api.recuperacion import router as recuperacion_router     # v2.4: recuperación segura (administrador)
     app.include_router(recuperacion_router)
+    from .api.red import router as red_router            # estado de red según Network Engine (solo lectura, todos los roles)
+    app.include_router(red_router)
     # Flujo administrativo (captura, consentimiento, ventanilla, plan, mesa de control): siempre fuera de
     # producción; en producción solo con MONITOREO_PRODUCCION_FLUJO_ADMIN=1 (desactivado por omisión).
     # Laboratorio, portal de prueba, emuladores y rutas de prueba: NUNCA en producción. Ver monitoreo/modulos.py.

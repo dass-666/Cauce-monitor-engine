@@ -711,6 +711,8 @@ class ObservacionDia(Base):
     actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # v2.1 (unidades): cuántas unidades libres mostraba la página (None = solo se vio el color)
     libres: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # RC3 (0019, M3): última vez que el observador leyó este día, aunque no cambiara (NULL = actualizado_en)
+    visto_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class ObservacionVista(Base):
