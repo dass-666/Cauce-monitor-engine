@@ -373,3 +373,32 @@ def test_monitor_con_network_engine_real_en_simulacion(tmp_path, monkeypatch):
             assert any(x["evento"] == "Network Engine se reinició" for x in e["eventos"])
     finally:
         m.parar()
+
+
+def test_eventos_de_persistencia_de_sesiones_e5():
+    f = Falso()
+    evs = [{"seq": 6 + i, "ts": "2026-11-27T05:00:00Z", "kind": k, "session_id": "bs_SECRETO", **extra}
+           for i, (k, extra) in enumerate([
+               ("session.restored", {"requires_human": True}),
+               ("session.restored", {"requires_human": False}),
+               ("session.expired", {"requires_human": True}),
+               ("session.replaced", {"requires_human": True}),
+               ("session.state_corrupt", {}),
+               ("session.state_recovered_from_backup", {}),
+               ("session.state_write_failed", {}),
+               ("system.resume_detected", {}),
+               ("inventory.reidentified", {"connection_id": "eth-12"})])]
+    f.evs = [eventos([], nxt=5), eventos(evs, nxt=20)]
+    svc, reloj = servicio(f)
+    svc.paso()
+    reloj.t += 11
+    svc.paso()
+    ev = svc.estado()["eventos"]
+    textos = [x["evento"] for x in ev]
+    assert "Sesión de navegador restaurada tras reinicio: requiere intervención" in textos
+    assert "Sesión de navegador restaurada tras reinicio (incierta hasta su próximo latido)" in textos
+    assert "Sesión de navegador caducada sin latidos (quedó pendiente de revisión)" in textos
+    assert any(t.startswith("Estado de sesiones dañado") for t in textos)
+    assert "El equipo se reanudó (suspensión): se vuelve a medir" in textos
+    assert ("Interfaz reconectada con otro identificador", "Cable (Ethernet) 1") in [(x["evento"], x["interfaz"]) for x in ev]
+    assert "bs_SECRETO" not in json.dumps(ev)

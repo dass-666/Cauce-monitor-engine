@@ -158,6 +158,24 @@ class ServicioRed:
             self._evento("Sesión de navegador recuperada", None, e.get("ts"), "recuperada")
         elif kind == "session.human_resolved":
             self._evento("Sesión de navegador revisada por una persona", None, e.get("ts"))
+        # E5: persistencia del estado de sesiones en Network Engine
+        elif kind == "session.restored":
+            texto = "Sesión de navegador restaurada tras reinicio" + (": requiere intervención" if e.get("requires_human") is True
+                                                                       else " (incierta hasta su próximo latido)")
+            self._evento(texto, None, e.get("ts"), "perdida" if e.get("requires_human") is True else "info")
+        elif kind == "session.expired":
+            self._evento("Sesión de navegador caducada sin latidos" + (" (quedó pendiente de revisión)"
+                                                                       if e.get("requires_human") is True else ""),
+                         None, e.get("ts"), "perdida" if e.get("requires_human") is True else "info")
+        elif kind == "session.replaced":
+            self._evento("Sesión de navegador registrada de nuevo tras reinicio", None, e.get("ts"))
+        elif kind == "session.state_corrupt":
+            self._evento("Estado de sesiones dañado: se empezó vacío; revisa a mano las operaciones en curso", None,
+                         e.get("ts"), "perdida")
+        elif kind == "session.state_recovered_from_backup":
+            self._evento("Estado de sesiones recuperado de la copia anterior", None, e.get("ts"), "degradada")
+        elif kind == "session.state_write_failed":
+            self._evento("Network Engine no pudo guardar el estado de sesiones", None, e.get("ts"), "degradada")
 
     # ----------------------------------------------------------------- ciclo
     def paso(self) -> None:
