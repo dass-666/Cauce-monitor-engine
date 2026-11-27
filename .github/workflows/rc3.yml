@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: dass-666/cauce-network-engine
-          ref: 617a5ae524e1c0c3fde1eaf62013ffcac0947294
+          ref: 1446c4fed8a281d2bbf4fc2cac1795531c5db653
           path: network-engine
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -35,8 +35,8 @@ jobs:
       - name: Hallazgos E7 corregidos (M1, M2, M3, centro de revisiones) y lectura de red
         shell: bash
         run: |
-          test "$(git -C network-engine rev-parse HEAD)" = "617a5ae524e1c0c3fde1eaf62013ffcac0947294"
-          python -m pytest tests/test_e8_red_interfaces.py tests/test_e8_revisiones.py tests/test_e8_planificador_m3.py tests/test_red_lectura.py tests/test_red_servicio.py tests/test_plan_unidades_propiedad.py tests/test_planificador.py -v -rs --junitxml=rc3.xml
+          test "$(git -C network-engine rev-parse HEAD)" = "1446c4fed8a281d2bbf4fc2cac1795531c5db653"
+          python -m pytest tests/test_e8_red_interfaces.py tests/test_e8_revisiones.py tests/test_e8_planificador_m3.py tests/test_e8_vista_fresca.py tests/test_red_lectura.py tests/test_red_servicio.py tests/test_plan_unidades_propiedad.py tests/test_planificador.py -v -rs --junitxml=rc3.xml
         env:
           NETWORK_ENGINE_REPO: ${{ github.workspace }}/network-engine
       - uses: actions/upload-artifact@v4
