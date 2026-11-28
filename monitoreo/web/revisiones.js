@@ -11,7 +11,22 @@ function redRevisiones(s, resolubles) {
     : h("span", { class: "badge b-ok" }, "Ninguna revisión pendiente"),
     total ? ` (${s.requieren_persona || 0} en sesiones activas, ${rv.length} sin sesión activa). Nada se repite solo: `
       + "revisa en el portal si la operación llegó a hacerse antes de resolver." : "");
-  if (!rv.length) return h("div", {}, cab);
+  // E10 S5: dos tipos de revisión, en dos sitios. Resolver una revisión de RED nunca confirma una recepción.
+  const forms = h("div", { class: "revision-forms" },
+    h("p", { "data-red-revisiones-red": s.revisiones_red ?? total },
+      h("b", {}, "Network Engine (red y sesiones): "), `${s.revisiones_red ?? total} pendientes. `,
+      "Se resuelven en el motor o aquí."),
+    h("p", { "data-forms-revisiones": s.revisiones_forms ?? 0 },
+      h("b", {}, "Forms (operaciones en los puestos): "),
+      (s.forms_puestos || 0) === 0 ? "ningún puesto Forms conectado."
+        : [`${s.revisiones_forms || 0} puestos con operaciones de resultado desconocido`,
+          (s.forms_sin_informar || 0) ? `; ${s.forms_sin_informar} no informan su estado (versión anterior): compruébelo en el puesto` : "",
+          ". Se revisan SOLO en el puesto Forms (operaciones revisar), con el acuse del portal o comprobándolo en él."].join("")),
+    h("p", { class: "warn-text", role: "note", "data-aviso-recepcion": "1" },
+      "Importante: marcar aquí una revisión como revisada es una revisión de la red o de la sesión. ",
+      h("b", {}, "NO confirma que el portal recibiera ninguna operación"),
+      " ni desbloquea operaciones inciertas de Forms."));
+  if (!rv.length) return h("div", {}, cab, forms);
   const form = (r) => {
     if (!r.id || !r.confirmar_con) return "—";
     if (!isAdmin()) return h("span", { class: "muted" }, "solo administración");
@@ -31,9 +46,11 @@ function redRevisiones(s, resolubles) {
     } }, "Marcar como revisada");
     return h("div", { class: "revision-form" }, nota, conf, btn, err);
   };
-  return h("div", {}, cab, table([
+  return h("div", {}, cab, forms, table([
     { t: "Sesión", f: (r) => r.tipo === "general" ? h("b", {}, "General (todo el motor)") : h("b", {}, r.etiqueta || "sesión") },
     { t: "Motivo", f: (r) => redTexto(r.motivo) },
+    { t: "Puesto Forms", f: (r) => (r.etiqueta || "").startsWith("forms-")
+      ? h("span", { class: "muted" }, "puede tener además una revisión local en el puesto") : "—" },
     { t: "Desde", f: (r) => redSeg(r.hace_s) },
     { t: "Estado", f: () => h("span", { class: "badge b-bad" }, "pendiente") },
     { t: "Resolver", f: form }], rv));

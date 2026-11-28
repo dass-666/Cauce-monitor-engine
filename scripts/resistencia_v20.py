@@ -84,19 +84,25 @@ def hasta_fecha(c: httpx.Client, p: dict) -> tuple[int, int, int]:
     r = c.post(f"/api/reservaciones/{rid}/enviar-datos", json={"revisado": True, "manuales": dict(MANUALES)})
     r.raise_for_status()
     cal = r.json()["calendario"]
-    for _ in range(3):
-        libres = [d for d in cal["dias"] if d["estado"] == "DISPONIBLE"]
-        if libres:
+    # Un día distinto por persona: si dos eligen el mismo día con pocas plazas, la última confirmación recibe
+    # DIA_AGOTADO (es correcto, pero no es lo que mide este escenario). Pasó en la corrida 43530602041 de CI y,
+    # E10b, el 28-11-2026: un sábado de fin de mes el mes en curso solo ofrece el lunes siguiente, y todas las
+    # personas caían en ese día (antes se volvía a libres[0]). Ahora, si el mes ya no tiene un día libre sin usar, se
+    # mira el mes siguiente (hasta 3); solo si ninguno lo tiene se repite un día.
+    libres: list[dict] = []
+    for _ in range(4):
+        libres_mes = [d for d in cal["dias"] if d["estado"] == "DISPONIBLE"]
+        libres = libres or libres_mes
+        dia = next((d for d in libres_mes if d["fecha"] not in _ELEGIDOS), None)
+        if dia is not None:
             break
         y, m = (int(x) for x in cal["mes"].split("-"))
         r = c.get(f"/api/reservaciones/{rid}/calendario", params={"mes": f"{y + m // 12:04d}-{m % 12 + 1:02d}",
                                                                  "sucursal": cal["sucursal"]})
         r.raise_for_status()
         cal = r.json().get("calendario", r.json())
-    # Un día distinto por persona: si dos eligen el mismo día con una sola plaza libre, la segunda
-    # confirmación recibe DIA_AGOTADO (es correcto, pero no es lo que mide este escenario). Pasó en la
-    # corrida 43530602041 de CI según las plazas que quedaban ese día.
-    dia = next((d for d in libres if d["fecha"] not in _ELEGIDOS), libres[0])
+    else:
+        dia = libres[0]
     _ELEGIDOS.add(dia["fecha"])
     r = c.post(f"/api/reservaciones/{rid}/seleccionar-dia", json={"fecha": dia["fecha"], "sucursal": cal["sucursal"]})
     r.raise_for_status()

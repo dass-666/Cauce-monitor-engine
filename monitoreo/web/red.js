@@ -42,6 +42,10 @@ const RED_TEXTO = {
   page_unreachable: "página inaccesible", navigation_timeout: "la página tardó demasiado", browser_closed: "navegador cerrado",
   network_error: "error de red", other: "otro error", expired: "caducada sin latidos", expired_after_restart: "caducada tras reinicio",
   replaced_after_restart: "sustituida tras reinicio",
+  // E10
+  owner_local_review_pending: "el puesto tiene operaciones locales sin revisar", replaced_by_owner: "sustituida por su dueño (perdió el id)",
+  owner_replaced_during_operation: "la instancia anterior dejó una operación en curso", state_recovered_from_backup: "estado recuperado de la copia",
+  previous_state_unreadable: "estado anterior ilegible",
   ok: "bien", degraded: "degradada", down: "caída", unknown: "sin medir",
 };
 function redTexto(c) { return c ? (RED_TEXTO[c] || String(c).replace(/_/g, " ")) : "—"; }
@@ -58,6 +62,11 @@ function redSesiones(s) {
       { t: "Fase", f: (x) => h("span", { class: "badge " + (RED_FASE[x.fase_codigo] || ""), "data-red-fase": x.fase_codigo || "" }, x.fase) },
       { t: "Persona", f: (x) => x.requiere_persona ? "sí, revisar" : "no" },
       { t: "Operación", f: (x) => x.operacion_en_curso ? "en curso" : "—" },
+      // E10 S5: lo que declara el puesto Forms de sus operaciones locales (no lo que sabe la red)
+      { t: "Revisión en el puesto", f: (x) => !x.es_forms ? "—" : x.revision_local === "pending"
+        ? h("span", { class: "badge b-bad", "data-forms-revision": "pending" }, "pendiente en Forms")
+        : x.revision_local === "none" ? h("span", { class: "badge b-ok", "data-forms-revision": "none" }, "nada pendiente")
+        : h("span", { class: "muted", "data-forms-revision": "desconocida" }, "el puesto no lo informa") },
       { t: "Red", f: (x) => redTexto(x.red) },
       { t: "Motivo", f: (x) => redTexto(x.motivo) },
       { t: "Último latido", f: (x) => x.cerrada_hace_s !== null && x.cerrada_hace_s !== undefined ? `cerrada ${redSeg(x.cerrada_hace_s)}` : redSeg(x.latido_hace_s) }],

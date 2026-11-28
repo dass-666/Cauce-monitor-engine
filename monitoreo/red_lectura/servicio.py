@@ -258,9 +258,14 @@ class ServicioRed:
             red = (x.get("network") or {}).get("state") if isinstance(x.get("network"), dict) else None
             hb = x.get("heartbeat") if isinstance(x.get("heartbeat"), dict) else {}
             motivo = x.get("human_reason") or x.get("reason")
+            # E10 S5: lo que el PUESTO declara de sus operaciones locales (latido local_review de Network Engine E10).
+            # None = el puesto no lo informa (Forms anterior a la integración o Network Engine RC3): «desconocido».
+            local = x.get("local_review") if x.get("local_review") in ("pending", "none") else None
             return {"etiqueta": etiqueta, "fase": FASES.get(fase, "Desconocida"), "fase_codigo": fase,
                     "requiere_persona": x.get("requires_human") is True,
                     "operacion_en_curso": x.get("operation") == "in_progress",
+                    "es_forms": etiqueta.startswith("forms-"),
+                    "revision_local": None if cerrada else local,
                     "motivo": motivo if isinstance(motivo, str) and _CODIGO_S.match(motivo) else None,
                     "red": red if isinstance(red, str) and _CODIGO_S.match(red) else None,
                     "latido_hace_s": _num(hb.get("last_age_s"), 86_400),
@@ -280,8 +285,15 @@ class ServicioRed:
                                "hace_s": _num(p.get("age_s"), 86_400 * 365),
                                "confirmar_con": conf if isinstance(conf, str) and _ETIQUETA.match(conf) else None})
         activas_persona = sum(1 for f in activas if f["requiere_persona"])
+        forms_activas = [f for f in activas if f["es_forms"]]
         return {"activas": activas, "cerradas": cerradas, "revisiones": revisiones,
                 "requieren_persona": activas_persona,
+                # E10 S5: revisiones separadas por dónde se resuelven. Las de Network Engine (red/sesión) se resuelven en
+                # el motor o aquí; las LOCALES de Forms solo en el puesto (operaciones revisar) con acuse o comprobación.
+                "revisiones_red": activas_persona + len(crudas),
+                "revisiones_forms": sum(1 for f in forms_activas if f["revision_local"] == "pending"),
+                "forms_sin_informar": sum(1 for f in forms_activas if f["revision_local"] is None),
+                "forms_puestos": len(forms_activas),
                 # el contador cuenta TODAS: sesiones activas que piden persona + marcas sin sesión (aunque no quepan)
                 "revisiones_pendientes": activas_persona + len(crudas)}
 
